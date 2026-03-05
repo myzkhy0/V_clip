@@ -109,7 +109,7 @@ def _fmt_datetime(value: datetime | None) -> str:
     jst = timezone(timedelta(hours=9))
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(jst).strftime("%Y-%m-%d %H:%M JST")
+    return value.astimezone(jst).strftime("%Y-%m-%d %H:%M")
 
 
 def _infer_group(row: dict) -> str:
@@ -432,9 +432,8 @@ def render_homepage(is_admin: bool = False) -> str:
     }}
     .hero, .panel {{
       border: 1px solid var(--line);
-      background: var(--panel);
+      background: #101821;
       box-shadow: var(--shadow);
-      backdrop-filter: blur(14px);
     }}
     .hero {{
       padding: 28px;
