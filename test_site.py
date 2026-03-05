@@ -451,6 +451,14 @@ def render_homepage(is_admin: bool = False) -> str:
       width: min(1320px, calc(100% - 24px));
       margin: 24px auto 48px;
     }}
+    .site-footer {{
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.02em;
+      margin-top: 18px;
+      opacity: 0.9;
+    }}
     .hero, .panel {{
       border: 1px solid var(--line);
       background: #101821;
@@ -873,6 +881,7 @@ def render_homepage(is_admin: bool = False) -> str:
       <div class="period-tabs" id="period-tabs"></div>
     </section>
     <div id="period-root"></div>
+    <footer class="site-footer">Copyright (C) 2026- 3vskhv0 All Rights Reserved.</footer>
   </main>
   <div id="player-modal" class="player-modal" aria-hidden="true">
     <div class="player-sheet" role="dialog" aria-modal="true" aria-label="動画プレイヤー">
@@ -1127,6 +1136,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
 
