@@ -73,6 +73,7 @@ def _calculate_ranking(period_name: str, period_hours: int, table: str) -> None:
                     JOIN videos v ON v.video_id = l.video_id
                     WHERE COALESCE(NULLIF(v.group_name, ''), 'other') <> 'other'
                       AND (v.title LIKE %s OR v.tags_text LIKE %s)
+                      AND v.content_type = 'shorts'
                 ),
                 ranked AS (
                     SELECT
@@ -118,3 +119,4 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_rankings()
+

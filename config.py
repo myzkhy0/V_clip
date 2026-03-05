@@ -42,6 +42,12 @@ SEARCH_KEYWORDS: list[str] = [
     "どっとライブ 切り抜き",
 ]
 
+KEYWORD_SEARCH_BATCH_SIZE: int = int(os.getenv("KEYWORD_SEARCH_BATCH_SIZE", "4"))
+KEYWORD_ROTATION_STATE_FILE: str = os.getenv(
+    "KEYWORD_ROTATION_STATE_FILE",
+    ".keyword_rotation_state.json",
+)
+
 # ── Group detection keywords ──────────────────────────────────────────
 GROUP_KEYWORDS: dict[str, list[str]] = {
     "hololive": [
@@ -134,5 +140,4 @@ YOUTUBE_QUOTA_STATE_FILE: str = os.getenv(
 
 # ── Scheduler ────────────────────────────────────────────────────────
 COLLECTION_INTERVAL_MINUTES: int = 360  # run every 6 hours
-
 

@@ -241,20 +241,10 @@ def _render_group_content(rows: list[dict]) -> str:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     shorts_rows = [r for r in rows if _infer_content_type(r) == "shorts"]
-    video_rows = [r for r in rows if _infer_content_type(r) != "shorts"]
+    if not shorts_rows:
+        return '<div class="empty">Shortsに該当する動画はありません。</div>'
 
-    default_type = "shorts" if shorts_rows else "video"
-    shorts_html = _render_rank_sections(shorts_rows)
-    video_html = _render_rank_sections(video_rows)
-
-    return f"""
-    <div class="content-tabs">
-      <button class="tab-button content-tab-button{' active' if default_type == 'shorts' else ''}" type="button" data-content-type="shorts">Shorts ({len(shorts_rows)})</button>
-      <button class="tab-button content-tab-button{' active' if default_type == 'video' else ''}" type="button" data-content-type="video">動画 ({len(video_rows)})</button>
-    </div>
-    <div class="content-panel{' active' if default_type == 'shorts' else ''}" data-content-type="shorts">{shorts_html}</div>
-    <div class="content-panel{' active' if default_type == 'video' else ''}" data-content-type="video">{video_html}</div>
-    """
+    return _render_rank_sections(shorts_rows)
 
 
 def _build_period_payload() -> list[dict]:
@@ -957,26 +947,6 @@ def render_homepage(is_admin: bool = False) -> str:
     }}
 
     periodRoot.addEventListener("click", (event) => {{
-      const contentTab = event.target.closest(".content-tab-button");
-      if (contentTab) {{
-        const groupPanel = contentTab.closest(".group-panel");
-        if (!groupPanel) {{
-          return;
-        }}
-        for (const btn of groupPanel.querySelectorAll(".content-tab-button")) {{
-          btn.classList.remove("active");
-        }}
-        for (const panelEl of groupPanel.querySelectorAll(".content-panel")) {{
-          panelEl.classList.remove("active");
-        }}
-        contentTab.classList.add("active");
-        const target = groupPanel.querySelector(`.content-panel[data-content-type="${{contentTab.dataset.contentType}}"]`);
-        if (target) {{
-          target.classList.add("active");
-        }}
-        return;
-      }}
-
       const trigger = event.target.closest(".thumb-play, .video-play");
       if (!trigger) {{
         return;
@@ -1115,22 +1085,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

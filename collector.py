@@ -10,13 +10,17 @@ Workflow:
   6. Insert new videos into the `videos` table.
 """
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from config import (
     GROUP_KEYWORDS,
     MAX_DURATION_SECONDS,
     MIN_DURATION_SECONDS,
+    KEYWORD_ROTATION_STATE_FILE,
+    KEYWORD_SEARCH_BATCH_SIZE,
     SEARCH_KEYWORDS,
     SEED_CHANNELS,
     SHORTS_MAX_SECONDS,
@@ -67,6 +71,51 @@ def load_channels() -> list[dict]:
     """Return all rows from the `channels` table."""
     return fetchall("SELECT channel_id, channel_name, group_name FROM channels")
 
+def _load_keyword_rotation_state() -> int:
+    """Load keyword rotation offset from local state file."""
+    path = Path(KEYWORD_ROTATION_STATE_FILE)
+    if not path.exists():
+        return 0
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return max(0, int(payload.get("offset", 0)))
+    except (OSError, ValueError, TypeError):
+        return 0
+
+
+def _save_keyword_rotation_state(offset: int) -> None:
+    """Persist keyword rotation offset."""
+    path = Path(KEYWORD_ROTATION_STATE_FILE)
+    payload = {"offset": max(0, int(offset))}
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _select_keywords_for_cycle(keywords: list[str]) -> list[str]:
+    """Select a rotating keyword batch for this collector cycle."""
+    if not keywords:
+        return []
+
+    batch_size = max(1, KEYWORD_SEARCH_BATCH_SIZE)
+    if batch_size >= len(keywords):
+        return keywords
+
+    offset = _load_keyword_rotation_state() % len(keywords)
+    selected = [keywords[(offset + i) % len(keywords)] for i in range(batch_size)]
+    next_offset = (offset + batch_size) % len(keywords)
+
+    try:
+        _save_keyword_rotation_state(next_offset)
+    except OSError:
+        logger.exception("Failed to save keyword rotation state.")
+
+    logger.info(
+        "Keyword rotation: using %d/%d keyword(s), offset=%d -> %d",
+        len(selected),
+        len(keywords),
+        offset,
+        next_offset,
+    )
+    return selected
 
 # ── Discover videos ─────────────────────────────────────────────────
 def discover_videos() -> list[str]:
@@ -106,8 +155,9 @@ def discover_videos() -> list[str]:
         except Exception:
             logger.exception("Error searching channel %s", ch["channel_id"])
 
-    # 2) Keyword-based
-    for kw in SEARCH_KEYWORDS:
+    # 2) Keyword-based (rotating subset to reduce search.list usage)
+    cycle_keywords = _select_keywords_for_cycle(SEARCH_KEYWORDS)
+    for kw in cycle_keywords:
         if quota_guard_hit:
             break
         try:
@@ -132,18 +182,26 @@ def discover_videos() -> list[str]:
 
 # ── Filter & store ──────────────────────────────────────────────────
 def _is_valid_clip(detail: dict) -> bool:
-    """Return True if duration is valid and the video is explicitly a clip."""
+    """Return True if this is a clip-short (shorts-only policy)."""
     duration = detail["duration_seconds"]
-    text = " ".join([detail.get("title", ""), detail.get("tags_text", "")])
+    text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
     has_clip_keyword = "切り抜き" in text
-    return MIN_DURATION_SECONDS <= duration <= MAX_DURATION_SECONDS and has_clip_keyword
+    has_shorts_keyword = SHORTS_TAG_KEYWORD in text or " shorts" in text
+    return (
+        MIN_DURATION_SECONDS <= duration <= MAX_DURATION_SECONDS
+        and duration <= SHORTS_MAX_SECONDS
+        and has_clip_keyword
+        and has_shorts_keyword
+    )
 
 
 def _classify_content_type(detail: dict) -> str:
     """Classify detail into 'shorts' or 'video'."""
     duration = int(detail.get("duration_seconds", 0))
     text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
-    if duration <= SHORTS_MAX_SECONDS and SHORTS_TAG_KEYWORD in text:
+    if duration <= SHORTS_MAX_SECONDS and (
+        SHORTS_TAG_KEYWORD in text or " shorts" in text
+    ):
         return "shorts"
     return "video"
 
@@ -258,3 +316,4 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
+
