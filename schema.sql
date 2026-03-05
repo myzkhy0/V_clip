@@ -68,4 +68,52 @@ CREATE TABLE IF NOT EXISTS monthly_ranking (
     calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
     PRIMARY KEY (video_id, calculated_at)
 );
+-- Split ranking tables by content type
+CREATE TABLE IF NOT EXISTS daily_ranking_shorts (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+
+CREATE TABLE IF NOT EXISTS weekly_ranking_shorts (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+
+CREATE TABLE IF NOT EXISTS monthly_ranking_shorts (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+
+CREATE TABLE IF NOT EXISTS daily_ranking_video (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+
+CREATE TABLE IF NOT EXISTS weekly_ranking_video (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+
+CREATE TABLE IF NOT EXISTS monthly_ranking_video (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
 

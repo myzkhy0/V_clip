@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
-from config import GROUP_KEYWORDS, MIN_DURATION_SECONDS, SHORTS_MAX_SECONDS, SHORTS_TAG_KEYWORD
+from config import GROUP_KEYWORDS
 from db import fetchall
 
 logger = logging.getLogger(__name__)
@@ -27,12 +27,11 @@ ADMIN_TOKEN = os.getenv("TEST_SITE_ADMIN_TOKEN", "")
 YOUTUBE_DAILY_SEARCH_UNIT_LIMIT = int(os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT", "8000"))
 YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json")
 
-PERIODS: list[tuple[str, str]] = [
-    ("daily_ranking", "24時間"),
-    ("weekly_ranking", "7日"),
-    ("monthly_ranking", "30日"),
+PERIODS: list[tuple[str, str, str, str]] = [
+    ("daily", "24時間", "daily_ranking_shorts", "daily_ranking_video"),
+    ("weekly", "7日", "weekly_ranking_shorts", "weekly_ranking_video"),
+    ("monthly", "30日", "monthly_ranking_shorts", "monthly_ranking_video"),
 ]
-
 GROUP_ORDER = [
     "all",
     "Aogiri",
@@ -64,14 +63,19 @@ GROUP_LABELS = {
 
 
 def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
-    latest_row = fetchall(
-        f"""
-        SELECT calculated_at
-        FROM {table}
-        ORDER BY calculated_at DESC
-        LIMIT 1
-        """
-    )
+    try:
+        latest_row = fetchall(
+            f"""
+            SELECT calculated_at
+            FROM {table}
+            ORDER BY calculated_at DESC
+            LIMIT 1
+            """
+        )
+    except Exception:
+        logger.exception("Failed to fetch latest ranking from table %s", table)
+        return None, []
+
     if not latest_row:
         return None, []
 
@@ -101,7 +105,6 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
         (calculated_at,),
     )
     return calculated_at, rows
-
 
 def _fmt_datetime(value: datetime | None) -> str:
     if value is None:
@@ -133,22 +136,6 @@ def _infer_group(row: dict) -> str:
     return "other"
 
 
-
-def _infer_content_type(row: dict) -> str:
-    """Infer shorts/video; fallback for old rows with default content_type."""
-    stored = (row.get("content_type") or "").strip().lower()
-    duration = int(row.get("duration_seconds") or 0)
-    text = " ".join([row.get("title", ""), row.get("tags_text", "")]).lower()
-    has_shorts_keyword = SHORTS_TAG_KEYWORD in text or " shorts" in text
-
-    if duration >= MIN_DURATION_SECONDS and (
-        duration <= SHORTS_MAX_SECONDS or has_shorts_keyword
-    ):
-        return "shorts"
-
-    if stored == "shorts":
-        return "shorts"
-    return "video"
 
 def _thumbnail_url(video_id: str) -> str:
     return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
@@ -240,12 +227,9 @@ def _render_rank_sections(rows: list[dict]) -> str:
     """
 
 
-def _render_group_content(rows: list[dict]) -> str:
-    if not rows:
+def _render_group_content(shorts_rows: list[dict], video_rows: list[dict]) -> str:
+    if not shorts_rows and not video_rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
-
-    shorts_rows = [r for r in rows if _infer_content_type(r) == "shorts"]
-    video_rows = [r for r in rows if _infer_content_type(r) != "shorts"]
 
     default_tab = "shorts" if shorts_rows else "video"
     shorts_html = (
@@ -271,38 +255,50 @@ def _render_group_content(rows: list[dict]) -> str:
     <div class="content-panel{video_active}" data-content-panel="video">{video_html}</div>
     """
 
+
 def _build_period_payload() -> list[dict]:
     payload = []
-    for table, label in PERIODS:
-        calculated_at, rows = _fetch_latest_rankings(table)
-        grouped: dict[str, list[dict]] = defaultdict(list)
-        grouped["all"] = rows
-        for row in rows:
-            grouped[_infer_group(row)].append(row)
+    for period_key, label, shorts_table, video_table in PERIODS:
+        shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table)
+        video_calculated_at, video_rows = _fetch_latest_rankings(video_table)
+
+        grouped_shorts: dict[str, list[dict]] = defaultdict(list)
+        grouped_video: dict[str, list[dict]] = defaultdict(list)
+        grouped_shorts["all"] = shorts_rows
+        grouped_video["all"] = video_rows
+
+        for row in shorts_rows:
+            grouped_shorts[_infer_group(row)].append(row)
+        for row in video_rows:
+            grouped_video[_infer_group(row)].append(row)
 
         available_groups = [
             group_name
             for group_name in GROUP_ORDER
-            if grouped.get(group_name)
+            if grouped_shorts.get(group_name) or grouped_video.get(group_name)
         ]
         if not available_groups:
             available_groups = ["all"]
 
+        candidates = [dt for dt in (shorts_calculated_at, video_calculated_at) if dt is not None]
+        calculated_at = max(candidates) if candidates else None
+
         payload.append(
             {
-                "table": table,
+                "table": period_key,
                 "label": label,
                 "calculated_at": _fmt_datetime(calculated_at),
                 "groups": {
-                    group_name: _render_group_content(grouped.get(group_name, []))
+                    group_name: _render_group_content(
+                        grouped_shorts.get(group_name, []),
+                        grouped_video.get(group_name, []),
+                    )
                     for group_name in available_groups
                 },
                 "available_groups": available_groups,
             }
         )
     return payload
-
-
 
 def _load_quota_usage() -> tuple[int, int]:
     """Return (used_units, limit_units) from local quota state file."""
