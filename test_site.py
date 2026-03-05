@@ -87,6 +87,7 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
             v.channel_name,
             v.channel_icon_url,
             v.group_name,
+            v.content_type,
             v.tags_text,
             v.published_at
         FROM {table} r
@@ -178,7 +179,7 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
     return "".join(cards)
 
 
-def _render_group_content(rows: list[dict]) -> str:
+def _render_rank_sections(rows: list[dict]) -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
@@ -196,6 +197,27 @@ def _render_group_content(rows: list[dict]) -> str:
       <h3>4位以下</h3>
       <div class="rest-grid">{rest_html}</div>
     </section>
+    """
+
+
+def _render_group_content(rows: list[dict]) -> str:
+    if not rows:
+        return '<div class="empty">このタブに該当する動画はありません。</div>'
+
+    shorts_rows = [r for r in rows if (r.get("content_type") or "video") == "shorts"]
+    video_rows = [r for r in rows if (r.get("content_type") or "video") != "shorts"]
+
+    default_type = "shorts" if shorts_rows else "video"
+    shorts_html = _render_rank_sections(shorts_rows)
+    video_html = _render_rank_sections(video_rows)
+
+    return f"""
+    <div class="content-tabs">
+      <button class="tab-button content-tab-button{' active' if default_type == 'shorts' else ''}" type="button" data-content-type="shorts">Shorts ({len(shorts_rows)})</button>
+      <button class="tab-button content-tab-button{' active' if default_type == 'video' else ''}" type="button" data-content-type="video">動画 ({len(video_rows)})</button>
+    </div>
+    <div class="content-panel{' active' if default_type == 'shorts' else ''}" data-content-type="shorts">{shorts_html}</div>
+    <div class="content-panel{' active' if default_type == 'video' else ''}" data-content-type="video">{video_html}</div>
     """
 
 
@@ -443,6 +465,22 @@ def render_homepage(is_admin: bool = False) -> str:
       border-color: transparent;
       color: #081017;
       font-weight: 700;
+    }}
+    .content-tabs {{
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }}
+    .content-tab-button {{
+      padding: 7px 12px;
+      font-size: 0.86rem;
+    }}
+    .content-panel {{
+      display: none;
+    }}
+    .content-panel.active {{
+      display: block;
     }}
     .period-panel {{
       display: none;
@@ -841,6 +879,26 @@ def render_homepage(is_admin: bool = False) -> str:
     }}
 
     periodRoot.addEventListener("click", (event) => {{
+      const contentTab = event.target.closest(".content-tab-button");
+      if (contentTab) {{
+        const groupPanel = contentTab.closest(".group-panel");
+        if (!groupPanel) {{
+          return;
+        }}
+        for (const btn of groupPanel.querySelectorAll(".content-tab-button")) {{
+          btn.classList.remove("active");
+        }}
+        for (const panelEl of groupPanel.querySelectorAll(".content-panel")) {{
+          panelEl.classList.remove("active");
+        }}
+        contentTab.classList.add("active");
+        const target = groupPanel.querySelector(`.content-panel[data-content-type="${{contentTab.dataset.contentType}}"]`);
+        if (target) {{
+          target.classList.add("active");
+        }}
+        return;
+      }}
+
       const trigger = event.target.closest(".thumb-play, .video-play");
       if (!trigger) {{
         return;
@@ -952,6 +1010,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
 
 
 
