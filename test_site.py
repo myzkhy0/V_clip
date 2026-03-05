@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from config import GROUP_KEYWORDS
+from config import GROUP_KEYWORDS, SHORTS_MAX_SECONDS, SHORTS_TAG_KEYWORD
 from db import fetchall
 
 logger = logging.getLogger(__name__)
@@ -88,6 +88,7 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
             v.channel_icon_url,
             v.group_name,
             v.content_type,
+            v.duration_seconds,
             v.tags_text,
             v.published_at
         FROM {table} r
@@ -127,6 +128,22 @@ def _infer_group(row: dict) -> str:
             return group_name
     return "other"
 
+
+
+def _infer_content_type(row: dict) -> str:
+    """Infer shorts/video; fallback for old rows with default content_type."""
+    stored = (row.get("content_type") or "").strip().lower()
+    duration = int(row.get("duration_seconds") or 0)
+    text = " ".join([row.get("title", ""), row.get("tags_text", "")]).lower()
+
+    if duration > 0 and duration <= SHORTS_MAX_SECONDS and (
+        SHORTS_TAG_KEYWORD in text or " shorts" in text
+    ):
+        return "shorts"
+
+    if stored == "shorts":
+        return "shorts"
+    return "video"
 
 def _thumbnail_url(video_id: str) -> str:
     return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
@@ -204,8 +221,8 @@ def _render_group_content(rows: list[dict]) -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
-    shorts_rows = [r for r in rows if (r.get("content_type") or "video") == "shorts"]
-    video_rows = [r for r in rows if (r.get("content_type") or "video") != "shorts"]
+    shorts_rows = [r for r in rows if _infer_content_type(r) == "shorts"]
+    video_rows = [r for r in rows if _infer_content_type(r) != "shorts"]
 
     default_type = "shorts" if shorts_rows else "video"
     shorts_html = _render_rank_sections(shorts_rows)
@@ -1010,6 +1027,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
