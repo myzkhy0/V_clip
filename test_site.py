@@ -9,7 +9,7 @@ import json
 import logging
 import os
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
@@ -35,24 +35,24 @@ PERIODS: list[tuple[str, str]] = [
 
 GROUP_ORDER = [
     "all",
-    "hololive",
-    "nijisanji",
-    "VSPO",
-    "Neo-Porte",
-    "UniReid",
-    "774inc",
-    "NoriPro",
-    "MilliPro",
     "Aogiri",
     "DotLive",
+    "774inc",
+    "nijisanji",
+    "Neo-Porte",
+    "NoriPro",
+    "VSPO",
+    "hololive",
+    "MilliPro",
+    "UniReid",
     "other",
 ]
 GROUP_LABELS = {
     "all": "全体",
     "hololive": "ホロライブ",
     "nijisanji": "にじさんじ",
-    "VSPO": "ぶいすぽ / VSPO",
-    "Neo-Porte": "Neo-Porte",
+    "VSPO": "ぶいすぽっ！",
+    "Neo-Porte": "ネオポルテ",
     "UniReid": "ゆにれいど",
     "774inc": "ななしいんく",
     "NoriPro": "のりプロ",
@@ -106,7 +106,10 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
 def _fmt_datetime(value: datetime | None) -> str:
     if value is None:
         return "-"
-    return value.strftime("%Y-%m-%d %H:%M")
+    jst = timezone(timedelta(hours=9))
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(jst).strftime("%Y-%m-%d %H:%M JST")
 
 
 def _infer_group(row: dict) -> str:
@@ -418,10 +421,7 @@ def render_homepage(is_admin: bool = False) -> str:
       margin: 0;
       font-family: "Noto Sans JP Local", sans-serif;
       color: var(--ink);
-      background:
-        radial-gradient(circle at top left, rgba(99, 208, 255, 0.16), transparent 24%),
-        radial-gradient(circle at top right, rgba(244, 185, 66, 0.16), transparent 22%),
-        linear-gradient(160deg, #081017 0%, #121b24 52%, #0b1218 100%);
+      background: #ffffff;
     }}
     .shell {{
       width: min(1320px, calc(100% - 24px));
@@ -586,8 +586,8 @@ def render_homepage(is_admin: bool = False) -> str:
       background: #0a0f13;
     }}
     .feature-card .thumb img {{
-      object-fit: contain;
-      object-position: center center;
+      object-fit: cover;
+      object-position: center top;
       background: #0a0f13;
     }}
     .feature-card .video-body {{
@@ -644,8 +644,8 @@ def render_homepage(is_admin: bool = False) -> str:
     .thumb img {{
       width: 100%;
       height: 100%;
-      object-fit: contain;
-      object-position: center center;
+      object-fit: cover;
+      object-position: center top;
       display: block;
     }}
     .rank-badge {{
