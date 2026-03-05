@@ -78,10 +78,13 @@ def discover_videos() -> list[str]:
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=TRACK_DAYS)
     all_ids: set[str] = set()
+    quota_guard_hit = False
 
     # 1) Channel-based
     channels = load_channels()
     for ch in channels:
+        if quota_guard_hit:
+            break
         try:
             ids = search_by_channel(ch["channel_id"], cutoff)
             all_ids.update(ids)
@@ -91,23 +94,34 @@ def discover_videos() -> list[str]:
                 ch["group_name"],
                 len(ids),
             )
+        except RuntimeError as exc:
+            if "quota guard" in str(exc).lower():
+                quota_guard_hit = True
+                logger.warning("Stopping further searches: %s", exc)
+            else:
+                logger.exception("Error searching channel %s", ch["channel_id"])
         except Exception:
             logger.exception("Error searching channel %s", ch["channel_id"])
 
     # 2) Keyword-based
     for kw in SEARCH_KEYWORDS:
+        if quota_guard_hit:
+            break
         try:
             ids = search_by_keyword(kw, cutoff)
             all_ids.update(ids)
             logger.info("Keyword '%s': %d videos", kw, len(ids))
+        except RuntimeError as exc:
+            if "quota guard" in str(exc).lower():
+                quota_guard_hit = True
+                logger.warning("Stopping further searches: %s", exc)
+            else:
+                logger.exception("Error searching keyword '%s'", kw)
         except Exception:
             logger.exception("Error searching keyword '%s'", kw)
 
     logger.info("Total unique video IDs discovered: %d", len(all_ids))
     return list(all_ids)
-
-
-# ── Filter & store ──────────────────────────────────────────────────
 
 def _is_valid_clip(detail: dict) -> bool:
     """Return True if duration is valid and the video is explicitly a clip."""
@@ -228,3 +242,4 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
+

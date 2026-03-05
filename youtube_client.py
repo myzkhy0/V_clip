@@ -5,14 +5,24 @@ Provides helpers to search for videos by channel / keyword and to
 retrieve video details (duration, view count, like count).
 """
 
+import json
 import re
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from config import YOUTUBE_API_KEY, SEARCH_MAX_RESULTS, VIDEO_BATCH_SIZE
+from config import (
+    YOUTUBE_API_KEY,
+    SEARCH_MAX_RESULTS,
+    VIDEO_BATCH_SIZE,
+    YOUTUBE_SEARCH_UNIT_COST,
+    YOUTUBE_DAILY_SEARCH_UNIT_LIMIT,
+    YOUTUBE_QUOTA_STATE_FILE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +38,72 @@ def _get_youtube():
             raise RuntimeError("YOUTUBE_API_KEY is not set. Check your .env file.")
         _youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
     return _youtube
+
+
+def _quota_state_path() -> Path:
+    """Return path for local quota usage state."""
+    return Path(YOUTUBE_QUOTA_STATE_FILE)
+
+
+def _quota_day_key(now_utc: datetime | None = None) -> str:
+    """Return day key in America/Los_Angeles timezone (YouTube quota reset basis)."""
+    if now_utc is None:
+        now_utc = datetime.now(timezone.utc)
+    return now_utc.astimezone(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
+
+
+def _load_quota_state() -> dict:
+    """Load local quota tracking state."""
+    path = _quota_state_path()
+    if not path.exists():
+        return {"day_key": _quota_day_key(), "search_units_used": 0}
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logger.warning("Quota state file is invalid. Resetting: %s", path)
+        return {"day_key": _quota_day_key(), "search_units_used": 0}
+
+    if payload.get("day_key") != _quota_day_key():
+        return {"day_key": _quota_day_key(), "search_units_used": 0}
+
+    used = int(payload.get("search_units_used", 0))
+    return {"day_key": payload["day_key"], "search_units_used": max(0, used)}
+
+
+def _save_quota_state(state: dict) -> None:
+    """Persist local quota tracking state."""
+    path = _quota_state_path()
+    path.write_text(
+        json.dumps(state, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+
+def reserve_search_quota(context: str = "search.list") -> None:
+    """Reserve YouTube search quota units and raise if daily guard is exceeded."""
+    if YOUTUBE_DAILY_SEARCH_UNIT_LIMIT <= 0:
+        return
+
+    state = _load_quota_state()
+    next_used = state["search_units_used"] + YOUTUBE_SEARCH_UNIT_COST
+
+    if next_used > YOUTUBE_DAILY_SEARCH_UNIT_LIMIT:
+        raise RuntimeError(
+            "Daily search quota guard hit "
+            f"({state['search_units_used']}/{YOUTUBE_DAILY_SEARCH_UNIT_LIMIT}). "
+            "Skip additional search.list calls until quota reset."
+        )
+
+    state["search_units_used"] = next_used
+    _save_quota_state(state)
+    logger.info(
+        "Quota guard: reserved %d unit(s) for %s (%d/%d today)",
+        YOUTUBE_SEARCH_UNIT_COST,
+        context,
+        state["search_units_used"],
+        YOUTUBE_DAILY_SEARCH_UNIT_LIMIT,
+    )
 
 
 # ── ISO 8601 duration → seconds ─────────────────────────────────────
@@ -71,6 +147,7 @@ def resolve_channel_identifier(identifier: str) -> str:
     except HttpError:
         logger.warning("channels.list(forHandle=%s) failed; falling back to search", handle)
 
+    reserve_search_quota(f"resolve_channel_identifier:{handle}")
     response = youtube.search().list(
         part="snippet",
         q=handle,
@@ -96,6 +173,7 @@ def search_by_channel(
     page_token: str | None = None
 
     while True:
+        reserve_search_quota(f"search_by_channel:{channel_id}")
         request = youtube.search().list(
             part="id",
             channelId=channel_id,
@@ -131,6 +209,7 @@ def search_by_keyword(
     page_token: str | None = None
 
     while True:
+        reserve_search_quota(f"search_by_keyword:{keyword}")
         request = youtube.search().list(
             part="id",
             q=keyword,

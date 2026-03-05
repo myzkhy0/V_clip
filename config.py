@@ -122,6 +122,14 @@ SEED_CHANNELS: list[tuple[str, str, str]] = [
 # ── YouTube API search parameters ────────────────────────────────────
 SEARCH_MAX_RESULTS: int = 50      # per request (API max is 50)
 VIDEO_BATCH_SIZE: int = 50        # videos.list max per call
+YOUTUBE_SEARCH_UNIT_COST: int = int(os.getenv("YOUTUBE_SEARCH_UNIT_COST", "100"))
+YOUTUBE_DAILY_SEARCH_UNIT_LIMIT: int = int(
+    os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT", "8000")
+)
+YOUTUBE_QUOTA_STATE_FILE: str = os.getenv(
+    "YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json"
+)
 
 # ── Scheduler ────────────────────────────────────────────────────────
 COLLECTION_INTERVAL_MINUTES: int = 240  # run every 4 hours
+
