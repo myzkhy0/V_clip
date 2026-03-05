@@ -6,8 +6,8 @@ retrieve video details (duration, view count, like count).
 """
 
 import json
-import re
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -16,15 +16,20 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from config import (
-    YOUTUBE_API_KEY,
     SEARCH_MAX_RESULTS,
     VIDEO_BATCH_SIZE,
-    YOUTUBE_SEARCH_UNIT_COST,
+    YOUTUBE_API_KEY,
     YOUTUBE_DAILY_SEARCH_UNIT_LIMIT,
     YOUTUBE_QUOTA_STATE_FILE,
+    YOUTUBE_SEARCH_UNIT_COST,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class QuotaExceededError(RuntimeError):
+    """Raised when YouTube Data API daily quota is exceeded."""
+
 
 # ── Lazy-init API resource ──────────────────────────────────────────
 _youtube = None
@@ -38,6 +43,27 @@ def _get_youtube():
             raise RuntimeError("YOUTUBE_API_KEY is not set. Check your .env file.")
         _youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
     return _youtube
+
+
+def _is_quota_exceeded_http_error(exc: HttpError) -> bool:
+    """Return True when HttpError indicates quota exhaustion."""
+    status = getattr(getattr(exc, "resp", None), "status", None)
+    if status != 403:
+        return False
+    text = str(exc).lower()
+    return "quota" in text and "exceeded" in text
+
+
+def _execute_request(request, context: str):
+    """Execute a googleapiclient request with normalized quota errors."""
+    try:
+        return request.execute()
+    except HttpError as exc:
+        if _is_quota_exceeded_http_error(exc):
+            raise QuotaExceededError(
+                f"YouTube API quota exceeded during {context}."
+            ) from exc
+        raise
 
 
 def _quota_state_path() -> Path:
@@ -107,9 +133,7 @@ def reserve_search_quota(context: str = "search.list") -> None:
 
 
 # ── ISO 8601 duration → seconds ─────────────────────────────────────
-_ISO_DUR_RE = re.compile(
-    r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?"
-)
+_ISO_DUR_RE = re.compile(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?")
 
 
 def _parse_duration(iso: str) -> int:
@@ -136,11 +160,12 @@ def resolve_channel_identifier(identifier: str) -> str:
     youtube = _get_youtube()
 
     try:
-        response = youtube.channels().list(
+        request = youtube.channels().list(
             part="id,snippet",
             forHandle=handle,
             maxResults=1,
-        ).execute()
+        )
+        response = _execute_request(request, f"resolve_channel_identifier:{handle}:channels")
         items = response.get("items", [])
         if items:
             return items[0]["id"]
@@ -148,12 +173,13 @@ def resolve_channel_identifier(identifier: str) -> str:
         logger.warning("channels.list(forHandle=%s) failed; falling back to search", handle)
 
     reserve_search_quota(f"resolve_channel_identifier:{handle}")
-    response = youtube.search().list(
+    request = youtube.search().list(
         part="snippet",
         q=handle,
         type="channel",
         maxResults=5,
-    ).execute()
+    )
+    response = _execute_request(request, f"resolve_channel_identifier:{handle}:search")
     items = response.get("items", [])
     if not items:
         raise RuntimeError(f"Channel identifier could not be resolved: {identifier}")
@@ -183,7 +209,7 @@ def search_by_channel(
             maxResults=min(max_results, 50),
             pageToken=page_token,
         )
-        response = request.execute()
+        response = _execute_request(request, f"search_by_channel:{channel_id}")
 
         for item in response.get("items", []):
             vid = item.get("id", {}).get("videoId")
@@ -219,7 +245,7 @@ def search_by_keyword(
             maxResults=min(max_results, 50),
             pageToken=page_token,
         )
-        response = request.execute()
+        response = _execute_request(request, f"search_by_keyword:{keyword}")
 
         for item in response.get("items", []):
             vid = item.get("id", {}).get("videoId")
@@ -232,6 +258,8 @@ def search_by_keyword(
 
     logger.info("search_by_keyword('%s'): found %d videos", keyword, len(video_ids))
     return video_ids
+
+
 def _fetch_channel_icon_map(channel_ids: list[str]) -> dict[str, str]:
     """Fetch channel icon URLs for given channel IDs."""
     youtube = _get_youtube()
@@ -240,11 +268,12 @@ def _fetch_channel_icon_map(channel_ids: list[str]) -> dict[str, str]:
 
     for i in range(0, len(unique_ids), 50):
         batch = unique_ids[i : i + 50]
-        response = youtube.channels().list(
+        request = youtube.channels().list(
             part="snippet",
             id=",".join(batch),
             maxResults=50,
-        ).execute()
+        )
+        response = _execute_request(request, "channels.list:icon_map")
 
         for item in response.get("items", []):
             channel_id = item.get("id", "")
@@ -292,7 +321,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
             part="snippet,contentDetails,statistics",
             id=",".join(batch),
         )
-        response = request.execute()
+        response = _execute_request(request, "videos.list:details")
         raw_items.extend(response.get("items", []))
 
     channel_ids = [item.get("snippet", {}).get("channelId", "") for item in raw_items]
@@ -349,5 +378,3 @@ if __name__ == "__main__":
                 f"  {d['video_id']}  {d['duration_seconds']:>4}s  "
                 f"{d['view_count']:>8} views  {d['title'][:60]}"
             )
-
-

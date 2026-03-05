@@ -23,6 +23,7 @@ from config import (
 )
 from db import fetchall, execute_many
 from youtube_client import (
+    QuotaExceededError,
     search_by_channel,
     search_by_keyword,
     get_video_details,
@@ -94,6 +95,9 @@ def discover_videos() -> list[str]:
                 ch["group_name"],
                 len(ids),
             )
+        except QuotaExceededError as exc:
+            quota_guard_hit = True
+            logger.warning("Stopping further searches: %s", exc)
         except RuntimeError as exc:
             if "quota guard" in str(exc).lower():
                 quota_guard_hit = True
@@ -111,6 +115,9 @@ def discover_videos() -> list[str]:
             ids = search_by_keyword(kw, cutoff)
             all_ids.update(ids)
             logger.info("Keyword '%s': %d videos", kw, len(ids))
+        except QuotaExceededError as exc:
+            quota_guard_hit = True
+            logger.warning("Stopping further searches: %s", exc)
         except RuntimeError as exc:
             if "quota guard" in str(exc).lower():
                 quota_guard_hit = True

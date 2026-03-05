@@ -11,6 +11,8 @@ import os
 from collections import defaultdict
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from config import GROUP_KEYWORDS
 from db import fetchall
@@ -20,6 +22,9 @@ logger = logging.getLogger(__name__)
 HOST = os.getenv("TEST_SITE_HOST", "127.0.0.1")
 PORT = int(os.getenv("TEST_SITE_PORT", "8000"))
 FONT_FILE = r"C:\Users\11bs0\OneDrive\デスクトップ\NotoSansJP-VariableFont_wght.ttf"
+ADMIN_TOKEN = os.getenv("TEST_SITE_ADMIN_TOKEN", "")
+YOUTUBE_DAILY_SEARCH_UNIT_LIMIT = int(os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT", "8000"))
+YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json")
 
 PERIODS: list[tuple[str, str]] = [
     ("daily_ranking", "24時間"),
@@ -226,6 +231,35 @@ def _build_period_payload() -> list[dict]:
     return payload
 
 
+
+def _load_quota_usage() -> tuple[int, int]:
+    """Return (used_units, limit_units) from local quota state file."""
+    limit = max(0, YOUTUBE_DAILY_SEARCH_UNIT_LIMIT)
+    if limit == 0:
+        return 0, 0
+
+    path = Path(YOUTUBE_QUOTA_STATE_FILE)
+    if not path.exists():
+        return 0, limit
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0, limit
+
+    used = int(payload.get("search_units_used", 0))
+    return max(0, used), limit
+
+
+def _quota_status(used: int, limit: int) -> tuple[str, str]:
+    if limit <= 0:
+        return "無効", "muted"
+    ratio = used / limit
+    if ratio >= 1.0:
+        return "上限到達", "danger"
+    if ratio >= 0.8:
+        return "注意", "warn"
+    return "通常", "ok"
 def render_error_page(error: Exception) -> str:
     message = html.escape(str(error) or error.__class__.__name__)
     database_url = os.getenv("DATABASE_URL", "(not set)")
@@ -283,11 +317,21 @@ def render_error_page(error: Exception) -> str:
 """
 
 
-def render_homepage() -> str:
+def render_homepage(is_admin: bool = False) -> str:
     payload = _build_period_payload()
     first_period = payload[0]["table"] if payload else ""
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+    admin_html = ""
+    if is_admin:
+        used, limit = _load_quota_usage()
+        status_label, status_class = _quota_status(used, limit)
+        admin_html = f"""
+          <div class="admin-quota">
+            <span class="admin-pill {status_class}">API状態: {status_label}</span>
+            <span class="admin-metrics">search.list {used:,} / {limit:,}</span>
+          </div>
+        """
 
     return f"""<!doctype html>
 <html lang="en">
@@ -351,6 +395,31 @@ def render_homepage() -> str:
       color: var(--muted);
       margin-top: 10px;
       max-width: 760px;
+    }}
+    .admin-quota {{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }}
+    .admin-pill {{
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-weight: 700;
+      color: #081017;
+    }}
+    .admin-pill.ok {{
+      background: #5ee0b0;
+    }}
+    .admin-pill.warn {{
+      background: #f4b942;
+    }}
+    .admin-pill.danger {{
+      background: #ff7c7c;
+    }}
+    .admin-pill.muted {{
+      background: #9fb2c1;
     }}
     .period-tabs, .group-tabs {{
       display: flex;
@@ -669,6 +738,7 @@ def render_homepage() -> str:
           <h1>VTuber切り抜きランキング</h1>
           <p>テスト運用中です。。。</p>
         </div>
+        {admin_html}
       </div>
       <div class="period-tabs" id="period-tabs"></div>
     </section>
@@ -800,13 +870,15 @@ def render_homepage() -> str:
 
 class TestSiteHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
-        if self.path == "/assets/noto-sans-jp.ttf":
+        parsed = urlparse(self.path)
+        path_only = parsed.path
+        if path_only == "/assets/noto-sans-jp.ttf":
             self.send_response(200)
             self.send_header("Content-Type", "font/ttf")
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
             return
-        if self.path in {"/", "/index.html"}:
+        if path_only in {"/", "/index.html"}:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -814,7 +886,11 @@ class TestSiteHandler(BaseHTTPRequestHandler):
         self.send_error(404, "Not found")
 
     def do_GET(self) -> None:
-        if self.path == "/assets/noto-sans-jp.ttf":
+        parsed = urlparse(self.path)
+        path_only = parsed.path
+        query = parse_qs(parsed.query)
+
+        if path_only == "/assets/noto-sans-jp.ttf":
             try:
                 with open(FONT_FILE, "rb") as font_file:
                     body = font_file.read()
@@ -829,12 +905,17 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if self.path not in {"/", "/index.html"}:
+        if path_only not in {"/", "/index.html"}:
             self.send_error(404, "Not found")
             return
 
+        is_admin = False
+        if ADMIN_TOKEN:
+            token = (query.get("admin_token") or [""])[0]
+            is_admin = token == ADMIN_TOKEN
+
         try:
-            body = render_homepage().encode("utf-8")
+            body = render_homepage(is_admin=is_admin).encode("utf-8")
         except Exception as exc:
             logger.exception("Failed to render test site")
             body = render_error_page(exc).encode("utf-8")
@@ -854,7 +935,6 @@ class TestSiteHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args) -> None:
         logger.info("%s - %s", self.client_address[0], format % args)
 
-
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -872,6 +952,16 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
+
 
 
 
