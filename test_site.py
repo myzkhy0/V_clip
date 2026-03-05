@@ -749,10 +749,34 @@ def render_homepage(is_admin: bool = False) -> str:
       height: 44px;
       display: flex;
       align-items: center;
-      justify-content: flex-end;
+      justify-content: space-between;
+      gap: 10px;
       padding: 6px 8px;
       border-bottom: 1px solid rgba(231, 242, 251, 0.12);
       background: rgba(10, 19, 26, 0.92);
+    }}
+    .player-controls {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }}
+    .player-toggle {{
+      min-width: 38px;
+      height: 30px;
+      border-radius: 999px;
+      border: 1px solid rgba(231, 242, 251, 0.24);
+      background: rgba(255, 255, 255, 0.04);
+      color: #c9d8e5;
+      font-size: 0.78rem;
+      cursor: pointer;
+      font: inherit;
+      padding: 0 10px;
+    }}
+    .player-toggle.active {{
+      background: rgba(99, 208, 255, 0.2);
+      border-color: rgba(99, 208, 255, 0.72);
+      color: #e9f7ff;
+      font-weight: 700;
     }}
     .player-close {{
       position: static;
@@ -783,7 +807,8 @@ def render_homepage(is_admin: bool = False) -> str:
       width: 100%;
       height: 100%;
       border: 0;
-    }}    .channel-link {{
+    }}
+    .channel-link {{
       color: var(--accent-cool);
       text-decoration: none;
       display: inline-flex;
@@ -888,6 +913,10 @@ def render_homepage(is_admin: bool = False) -> str:
   <div id="player-modal" class="player-modal" aria-hidden="true">
     <div class="player-sheet" role="dialog" aria-modal="true" aria-label="動画プレイヤー">
       <div class="player-topbar">
+        <div class="player-controls" role="group" aria-label="プレーヤー表示切替">
+          <button id="player-mode-portrait" class="player-toggle active" type="button" aria-label="縦表示">縦</button>
+          <button id="player-mode-landscape" class="player-toggle" type="button" aria-label="横表示">横</button>
+        </div>
         <button id="player-close" class="player-close" type="button" aria-label="閉じる">×</button>
       </div>
       <div class="player-frame">
@@ -905,12 +934,21 @@ def render_homepage(is_admin: bool = False) -> str:
     const playerFrame = playerModal.querySelector(".player-frame");
     const playerIframe = document.getElementById("player-iframe");
     const playerClose = document.getElementById("player-close");
+    const playerModePortrait = document.getElementById("player-mode-portrait");
+    const playerModeLandscape = document.getElementById("player-mode-landscape");
     let activePeriod = "{first_period}";
 
-    function openPlayer(videoId, layout) {{
-      const isLandscape = layout === "landscape";
+    function setPlayerLayout(layout) {{
+      const normalized = layout === "landscape" ? "landscape" : "portrait";
+      const isLandscape = normalized === "landscape";
       playerSheet.classList.toggle("landscape", isLandscape);
       playerFrame.classList.toggle("landscape", isLandscape);
+      playerModePortrait.classList.toggle("active", !isLandscape);
+      playerModeLandscape.classList.toggle("active", isLandscape);
+    }}
+
+    function openPlayer(videoId, layout) {{
+      setPlayerLayout(layout);
       playerIframe.src = `https://www.youtube.com/embed/${{videoId}}?autoplay=1&playsinline=1`;
       playerModal.classList.add("open");
       playerModal.setAttribute("aria-hidden", "false");
@@ -919,8 +957,7 @@ def render_homepage(is_admin: bool = False) -> str:
     function closePlayer() {{
       playerModal.classList.remove("open");
       playerModal.setAttribute("aria-hidden", "true");
-      playerSheet.classList.remove("landscape");
-      playerFrame.classList.remove("landscape");
+      setPlayerLayout("portrait");
       playerIframe.src = "";
     }}
     function render() {{
@@ -1035,6 +1072,8 @@ def render_homepage(is_admin: bool = False) -> str:
       event.preventDefault();
       openPlayer(trigger.dataset.videoId, resolvePlayerLayout(trigger));
     }});
+    playerModePortrait.addEventListener("click", () => setPlayerLayout("portrait"));
+    playerModeLandscape.addEventListener("click", () => setPlayerLayout("landscape"));
     playerClose.addEventListener("click", closePlayer);
     playerModal.addEventListener("click", (event) => {{
       if (event.target === playerModal) {{

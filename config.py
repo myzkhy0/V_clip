@@ -32,7 +32,6 @@ SEARCH_KEYWORDS: list[str] = [
     "ホロライブ 切り抜き",
     "にじさんじ 切り抜き",
     "ぶいすぽ 切り抜き",
-    "ぶいすぽっ 切り抜き",
     "ネオポルテ 切り抜き",
     "ゆにれいど 切り抜き",
     "ななしいんく 切り抜き",
@@ -143,5 +142,9 @@ COLLECTION_INTERVAL_MINUTES: int = 360  # backward compatibility
 SEARCH_CRON_HOURS_JST: str = os.getenv("SEARCH_CRON_HOURS_JST", "6,18")
 SEARCH_CRON_MINUTE_JST: int = int(os.getenv("SEARCH_CRON_MINUTE_JST", "0"))
 STATS_INTERVAL_HOURS: int = int(os.getenv("STATS_INTERVAL_HOURS", "4"))
+
+
+
+
 
 
