@@ -245,11 +245,31 @@ def _render_group_content(rows: list[dict]) -> str:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     shorts_rows = [r for r in rows if _infer_content_type(r) == "shorts"]
-    if not shorts_rows:
-        return '<div class="empty">Shortsに該当する動画はありません。</div>'
+    video_rows = [r for r in rows if _infer_content_type(r) != "shorts"]
 
-    return _render_rank_sections(shorts_rows)
+    default_tab = "shorts" if shorts_rows else "video"
+    shorts_html = (
+        _render_rank_sections(shorts_rows)
+        if shorts_rows
+        else '<div class="empty">Shortsに該当する動画はありません。</div>'
+    )
+    video_html = (
+        _render_rank_sections(video_rows)
+        if video_rows
+        else '<div class="empty">動画に該当する動画はありません。</div>'
+    )
 
+    shorts_active = " active" if default_tab == "shorts" else ""
+    video_active = " active" if default_tab == "video" else ""
+
+    return f"""
+    <div class="content-tabs">
+      <button class="tab-button content-tab-button{shorts_active}" type="button" data-content-target="shorts">Shorts</button>
+      <button class="tab-button content-tab-button{video_active}" type="button" data-content-target="video">動画</button>
+    </div>
+    <div class="content-panel{shorts_active}" data-content-panel="shorts">{shorts_html}</div>
+    <div class="content-panel{video_active}" data-content-panel="video">{video_html}</div>
+    """
 
 def _build_period_payload() -> list[dict]:
     payload = []
@@ -948,6 +968,28 @@ def render_homepage(is_admin: bool = False) -> str:
     }}
 
     periodRoot.addEventListener("click", (event) => {{
+      const contentTabButton = event.target.closest(".content-tab-button");
+      if (contentTabButton) {{
+        const contentTabs = contentTabButton.closest(".content-tabs");
+        const groupPanel = contentTabButton.closest(".group-panel");
+        if (!contentTabs || !groupPanel) {{
+          return;
+        }}
+        const target = contentTabButton.dataset.contentTarget;
+        for (const btn of contentTabs.querySelectorAll(".content-tab-button")) {{
+          btn.classList.remove("active");
+        }}
+        for (const panelEl of groupPanel.querySelectorAll(".content-panel")) {{
+          panelEl.classList.remove("active");
+        }}
+        contentTabButton.classList.add("active");
+        const targetPanel = groupPanel.querySelector(`.content-panel[data-content-panel="${{target}}"]`);
+        if (targetPanel) {{
+          targetPanel.classList.add("active");
+        }}
+        return;
+      }}
+
       const trigger = event.target.closest(".thumb-play, .video-play");
       if (!trigger) {{
         return;
@@ -955,7 +997,6 @@ def render_homepage(is_admin: bool = False) -> str:
       event.preventDefault();
       openPlayer(trigger.dataset.videoId);
     }});
-
     playerClose.addEventListener("click", closePlayer);
     playerModal.addEventListener("click", (event) => {{
       if (event.target === playerModal) {{
@@ -1086,4 +1127,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
