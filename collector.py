@@ -14,27 +14,28 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from config import (
+    GROUP_KEYWORDS,
+    MAX_DURATION_SECONDS,
+    MIN_DURATION_SECONDS,
     SEARCH_KEYWORDS,
     SEED_CHANNELS,
-    GROUP_KEYWORDS,
-    MIN_DURATION_SECONDS,
-    MAX_DURATION_SECONDS,
+    SHORTS_MAX_SECONDS,
+    SHORTS_TAG_KEYWORD,
     TRACK_DAYS,
 )
-from db import fetchall, execute_many
+from db import execute_many, fetchall
 from youtube_client import (
     QuotaExceededError,
-    search_by_channel,
-    search_by_keyword,
     get_video_details,
     resolve_channel_identifier,
+    search_by_channel,
+    search_by_keyword,
 )
 
 logger = logging.getLogger(__name__)
 
 
 # ── Seed channels (first-run helper) ────────────────────────────────
-
 def seed_channels() -> None:
     """Insert SEED_CHANNELS into the `channels` table if they don't exist."""
     if not SEED_CHANNELS:
@@ -62,14 +63,12 @@ def seed_channels() -> None:
 
 
 # ── Load channels from DB ───────────────────────────────────────────
-
 def load_channels() -> list[dict]:
     """Return all rows from the `channels` table."""
     return fetchall("SELECT channel_id, channel_name, group_name FROM channels")
 
 
 # ── Discover videos ─────────────────────────────────────────────────
-
 def discover_videos() -> list[str]:
     """
     Collect video IDs from:
@@ -130,17 +129,23 @@ def discover_videos() -> list[str]:
     logger.info("Total unique video IDs discovered: %d", len(all_ids))
     return list(all_ids)
 
+
+# ── Filter & store ──────────────────────────────────────────────────
 def _is_valid_clip(detail: dict) -> bool:
     """Return True if duration is valid and the video is explicitly a clip."""
-    d = detail["duration_seconds"]
-    text = " ".join(
-        [
-            detail.get("title", ""),
-            detail.get("tags_text", ""),
-        ]
-    )
+    duration = detail["duration_seconds"]
+    text = " ".join([detail.get("title", ""), detail.get("tags_text", "")])
     has_clip_keyword = "切り抜き" in text
-    return MIN_DURATION_SECONDS <= d <= MAX_DURATION_SECONDS and has_clip_keyword
+    return MIN_DURATION_SECONDS <= duration <= MAX_DURATION_SECONDS and has_clip_keyword
+
+
+def _classify_content_type(detail: dict) -> str:
+    """Classify detail into 'shorts' or 'video'."""
+    duration = int(detail.get("duration_seconds", 0))
+    text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
+    if duration <= SHORTS_MAX_SECONDS and SHORTS_TAG_KEYWORD in text:
+        return "shorts"
+    return "video"
 
 
 def _channel_group_map(channels: list[dict]) -> dict[str, str]:
@@ -177,8 +182,8 @@ def store_new_videos(details: list[dict]) -> int:
     query = """
         INSERT INTO videos
             (video_id, title, channel_id, channel_name, group_name,
-             published_at, duration_seconds, tags_text, channel_icon_url)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+             published_at, duration_seconds, tags_text, channel_icon_url, content_type)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (video_id) DO UPDATE SET
             title = EXCLUDED.title,
             channel_id = EXCLUDED.channel_id,
@@ -187,11 +192,13 @@ def store_new_videos(details: list[dict]) -> int:
             published_at = EXCLUDED.published_at,
             duration_seconds = EXCLUDED.duration_seconds,
             tags_text = EXCLUDED.tags_text,
-            channel_icon_url = EXCLUDED.channel_icon_url
+            channel_icon_url = EXCLUDED.channel_icon_url,
+            content_type = EXCLUDED.content_type
     """
     rows: list[tuple] = []
     for d in details:
         group_name = _infer_group_name(d, group_map)
+        content_type = _classify_content_type(d)
         rows.append(
             (
                 d["video_id"],
@@ -203,6 +210,7 @@ def store_new_videos(details: list[dict]) -> int:
                 d["duration_seconds"],
                 d.get("tags_text", ""),
                 d.get("channel_icon_url", ""),
+                content_type,
             )
         )
 
@@ -250,6 +258,3 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
-
-
-

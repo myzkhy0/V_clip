@@ -21,6 +21,8 @@ DATABASE_URL: str = os.getenv(
 # ── Video filtering ─────────────────────────────────────────────────
 MIN_DURATION_SECONDS: int = 10
 MAX_DURATION_SECONDS: int = 180   # 3 minutes
+SHORTS_MAX_SECONDS: int = 180
+SHORTS_TAG_KEYWORD: str = "#shorts"
 
 # ── Tracking window ─────────────────────────────────────────────────
 TRACK_DAYS: int = 7               # Only collect stats for videos < 7 days old
