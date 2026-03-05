@@ -131,5 +131,6 @@ YOUTUBE_QUOTA_STATE_FILE: str = os.getenv(
 )
 
 # ── Scheduler ────────────────────────────────────────────────────────
-COLLECTION_INTERVAL_MINUTES: int = 240  # run every 4 hours
+COLLECTION_INTERVAL_MINUTES: int = 360  # run every 6 hours
+
 
