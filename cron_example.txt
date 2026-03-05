@@ -1,0 +1,29 @@
+# ============================================================
+# Example cron configuration for VTuber Clip Ranking System
+# ============================================================
+#
+# If you prefer cron over APScheduler, add the following line
+# to your crontab (crontab -e):
+#
+# Run the full pipeline every hour at minute 0
+0 * * * * cd /path/to/V_clip && /path/to/python scheduler.py --once >> /var/log/vclip.log 2>&1
+#
+# ── Explanation ──────────────────────────────────────────────
+# 0        = at minute 0
+# *        = every hour
+# *        = every day of month
+# *        = every month
+# *        = every day of week
+#
+# scheduler.py --once  runs the pipeline once and exits.
+#
+# ── Windows Task Scheduler alternative ──────────────────────
+# If running on Windows, create a Scheduled Task:
+#   Program:   python
+#   Arguments: scheduler.py --once
+#   Start in:  F:\antigravity\V_clip
+#   Trigger:   Every 1 hour
+#
+# ── Logging ──────────────────────────────────────────────────
+# Append output to a log file for debugging:
+#   >> /var/log/vclip.log 2>&1

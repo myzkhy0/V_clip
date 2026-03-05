@@ -1,0 +1,8 @@
+.env
+.venv/
+.postgresql/
+__pycache__/
+.vscode/
+*.pyc
+*.pyo
+*.log
