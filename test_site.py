@@ -716,12 +716,18 @@ def render_homepage(is_admin: bool = False) -> str:
       background: #0a131a;
       border: 1px solid var(--line);
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
-      padding: 10px;
+    }}
+    .player-topbar {{
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(231, 242, 251, 0.12);
+      background: rgba(10, 19, 26, 0.92);
     }}
     .player-close {{
-      position: absolute;
-      top: 10px;
-      right: 10px;
+      position: static;
       width: 34px;
       height: 34px;
       border-radius: 999px;
@@ -735,7 +741,6 @@ def render_homepage(is_admin: bool = False) -> str:
       justify-content: center;
       cursor: pointer;
       font: inherit;
-      z-index: 2;
     }}
     .player-frame {{
       position: relative;
@@ -851,7 +856,9 @@ def render_homepage(is_admin: bool = False) -> str:
   </main>
   <div id="player-modal" class="player-modal" aria-hidden="true">
     <div class="player-sheet" role="dialog" aria-modal="true" aria-label="動画プレイヤー">
-      <button id="player-close" class="player-close" type="button" aria-label="閉じる">×</button>
+      <div class="player-topbar">
+        <button id="player-close" class="player-close" type="button" aria-label="閉じる">×</button>
+      </div>
       <div class="player-frame">
         <iframe id="player-iframe" src="" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
       </div>
