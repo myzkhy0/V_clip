@@ -12,7 +12,7 @@ from collections import defaultdict
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from config import GROUP_KEYWORDS, SHORTS_MAX_SECONDS, SHORTS_TAG_KEYWORD
 from db import fetchall
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 HOST = os.getenv("TEST_SITE_HOST", "127.0.0.1")
 PORT = int(os.getenv("TEST_SITE_PORT", "8000"))
 FONT_FILE = r"C:\Users\11bs0\OneDrive\デスクトップ\NotoSansJP-VariableFont_wght.ttf"
+LOGO_FILE = os.getenv("TEST_SITE_LOGO_FILE", "").strip()
 ADMIN_TOKEN = os.getenv("TEST_SITE_ADMIN_TOKEN", "")
 YOUTUBE_DAILY_SEARCH_UNIT_LIMIT = int(os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT", "8000"))
 YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json")
@@ -149,11 +150,20 @@ def _thumbnail_url(video_id: str) -> str:
     return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
 
 
+def _truncate_text(value: str, max_len: int = 42) -> str:
+    text = (value or "").strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"
+
+
 def _render_cards(rows: list[dict], card_class: str = "") -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     cards = []
+    today = datetime.now()
+    month_day = f"{today.month}/{today.day}"
     for row in rows:
         video_id = html.escape(row["video_id"])
         title = html.escape(row["title"])
@@ -164,6 +174,16 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
         published_at = _fmt_datetime(row["published_at"])
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         channel_url = f"https://www.youtube.com/channel/{channel_id}"
+        title_plain = " ".join(str(row.get("title") or "").split())
+        share_title = _truncate_text(title_plain, 36)
+        share_text = (
+            f"本日（{month_day}）のVTuber切り抜きランキング{row['rank']}位です！#ぶいくりっぷ"
+            f"  {share_title}"
+        )
+        share_url = (
+            "https://twitter.com/intent/tweet?text="
+            f"{quote(share_text, safe='')}&url={quote(video_url, safe='')}"
+        )
         class_name = "video-card" if not card_class else f"video-card {card_class}"
         cards.append(
             f"""
@@ -178,7 +198,7 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
                   <a class="channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
                     <img class="channel-icon" src="{channel_icon_url}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';">
                     <span class="channel-icon-fallback" style="display:none;">ch</span>
-                    {channel_name}
+                    <span class="channel-name">{channel_name}</span>
                   </a>
                   <span class="pill">{group_name}</span>
                 </div>
@@ -186,16 +206,15 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
                   <span>再生増加 +{row['view_growth']:,}</span>
                   <span>{published_at}</span>
                 </div>
-                <div class="meta-row compact">
+                <div class="meta-row compact action-row">
                   <a class="watch-link" href="{video_url}" target="_blank" rel="noreferrer">YouTubeで開く</a>
+                  <a class="share-link" href="{share_url}" target="_blank" rel="noreferrer">SNSでシェア</a>
                 </div>
               </div>
             </article>
             """
         )
     return "".join(cards)
-
-
 def _render_rank_sections(rows: list[dict]) -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
@@ -308,7 +327,7 @@ def render_error_page(error: Exception) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VTuber切り抜きランキング</title>
+  <title>ぶいくりっぷ Vtuber切り抜きランキング</title>
   <style>
     @font-face {{
       font-family: "Noto Sans JP Local";
@@ -362,6 +381,13 @@ def render_homepage(is_admin: bool = False) -> str:
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     admin_html = ""
+    logo_html = ""
+    if LOGO_FILE and Path(LOGO_FILE).exists():
+        logo_html = """
+          <div class="hero-logo-wrap">
+            <img class="hero-logo" src="/assets/site-logo.png" alt="ぶいくりっぷ ロゴ" loading="eager">
+          </div>
+        """
     if is_admin:
         used, limit = _load_quota_usage()
         status_label, status_class = _quota_status(used, limit)
@@ -377,7 +403,7 @@ def render_homepage(is_admin: bool = False) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VTuber切り抜きランキング</title>
+  <title>ぶいくりっぷ Vtuber切り抜きランキング</title>
   <style>
     @font-face {{
       font-family: "Noto Sans JP Local";
@@ -419,6 +445,19 @@ def render_homepage(is_admin: bool = False) -> str:
     }}
     .hero {{
       padding: 28px;
+    }}
+    .hero-logo-wrap {{
+      display: flex;
+      justify-content: center;
+      margin-bottom: 10px;
+      pointer-events: none;
+    }}
+    .hero-logo {{
+      width: min(100%, 420px);
+      max-height: 150px;
+      object-fit: contain;
+      opacity: 0.68;
+      filter: drop-shadow(0 4px 16px rgba(90, 145, 255, 0.28));
     }}
     h1, h2, h3, p {{
       margin: 0;
@@ -565,8 +604,9 @@ def render_homepage(is_admin: bool = False) -> str:
     }}
     .feature-card .video-title {{
       font-size: 1.08rem;
-      min-height: auto;
+      min-height: 4.2em;
       line-height: 1.38;
+      -webkit-line-clamp: 3;
     }}
     .feature-card .meta-row.compact {{
       font-size: 0.84rem;
@@ -632,7 +672,10 @@ def render_homepage(is_admin: bool = False) -> str:
       flex-direction: column;
     }}
     .video-title {{
-      display: block;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      overflow: hidden;
       color: var(--ink);
       text-decoration: none;
       line-height: 1.45;
@@ -652,6 +695,15 @@ def render_homepage(is_admin: bool = False) -> str:
       color: var(--muted);
       text-decoration: underline;
       text-underline-offset: 2px;
+    }}
+    .share-link {{
+      color: var(--accent-cool);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }}
+    .action-row {{
+      justify-content: flex-start;
+      gap: 14px;
     }}
     .player-modal {{
       position: fixed;
@@ -714,6 +766,14 @@ def render_homepage(is_admin: bool = False) -> str:
       align-items: center;
       gap: 8px;
       min-width: 0;
+      flex: 1;
+      max-width: calc(100% - 84px);
+    }}
+    .channel-name {{
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }}
     .channel-icon {{
       width: 22px;
@@ -788,9 +848,10 @@ def render_homepage(is_admin: bool = False) -> str:
 <body>
   <main class="shell">
     <section class="hero">
+      {logo_html}
       <div class="hero-copy">
         <div>
-          <h1>VTuber切り抜きランキング</h1>
+          <h1>ぶいくりっぷ Vtuber切り抜きランキング</h1>
           <p>テスト運用中です。。。</p>
         </div>
         {admin_html}
@@ -953,6 +1014,15 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
             return
+        if path_only == "/assets/site-logo.png":
+            if not LOGO_FILE or not Path(LOGO_FILE).exists():
+                self.send_error(404, "Logo not found")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            return
         if path_only in {"/", "/index.html"}:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -976,6 +1046,24 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "font/ttf")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if path_only == "/assets/site-logo.png":
+            if not LOGO_FILE:
+                self.send_error(404, "Logo not configured")
+                return
+            try:
+                with open(LOGO_FILE, "rb") as logo_file:
+                    body = logo_file.read()
+            except OSError:
+                self.send_error(404, "Logo not found")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=3600")
             self.end_headers()
             self.wfile.write(body)
             return
@@ -1027,12 +1115,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
 
 
 
