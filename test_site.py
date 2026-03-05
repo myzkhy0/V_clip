@@ -176,15 +176,16 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
             f"{quote(share_text, safe='')}&url={quote(video_url, safe='')}"
         )
         class_name = "video-card" if not card_class else f"video-card {card_class}"
+        content_type = html.escape((row.get("content_type") or "").lower())
         cards.append(
             f"""
             <article class="{class_name}">
-              <button class="thumb thumb-play" type="button" data-video-id="{video_id}" data-video-title="{title}" aria-label="{title} を再生">
+              <button class="thumb thumb-play" type="button" data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}" aria-label="{title} を再生">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <span class="rank-badge">#{row['rank']}</span>
               </button>
               <div class="video-body">
-                <button class="video-title video-play" type="button" data-video-id="{video_id}" data-video-title="{title}">{title}</button>
+                <button class="video-title video-play" type="button" data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">{title}</button>
                 <div class="meta-row">
                   <a class="channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
                     <img class="channel-icon" src="{channel_icon_url}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';">
@@ -741,6 +742,9 @@ def render_homepage(is_admin: bool = False) -> str:
       border: 1px solid var(--line);
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
     }}
+    .player-sheet.landscape {{
+      width: min(96vw, 980px);
+    }}
     .player-topbar {{
       height: 44px;
       display: flex;
@@ -772,12 +776,14 @@ def render_homepage(is_admin: bool = False) -> str:
       aspect-ratio: 9 / 16;
       background: #000;
     }}
+    .player-frame.landscape {{
+      aspect-ratio: 16 / 9;
+    }}
     .player-frame iframe {{
       width: 100%;
       height: 100%;
       border: 0;
-    }}
-    .channel-link {{
+    }}    .channel-link {{
       color: var(--accent-cool);
       text-decoration: none;
       display: inline-flex;
@@ -895,11 +901,16 @@ def render_homepage(is_admin: bool = False) -> str:
     const periodTabs = document.getElementById("period-tabs");
     const periodRoot = document.getElementById("period-root");
     const playerModal = document.getElementById("player-modal");
+    const playerSheet = playerModal.querySelector(".player-sheet");
+    const playerFrame = playerModal.querySelector(".player-frame");
     const playerIframe = document.getElementById("player-iframe");
     const playerClose = document.getElementById("player-close");
     let activePeriod = "{first_period}";
 
-    function openPlayer(videoId) {{
+    function openPlayer(videoId, layout) {{
+      const isLandscape = layout === "landscape";
+      playerSheet.classList.toggle("landscape", isLandscape);
+      playerFrame.classList.toggle("landscape", isLandscape);
       playerIframe.src = `https://www.youtube.com/embed/${{videoId}}?autoplay=1&playsinline=1`;
       playerModal.classList.add("open");
       playerModal.setAttribute("aria-hidden", "false");
@@ -908,9 +919,10 @@ def render_homepage(is_admin: bool = False) -> str:
     function closePlayer() {{
       playerModal.classList.remove("open");
       playerModal.setAttribute("aria-hidden", "true");
+      playerSheet.classList.remove("landscape");
+      playerFrame.classList.remove("landscape");
       playerIframe.src = "";
     }}
-
     function render() {{
       periodTabs.innerHTML = "";
       periodRoot.innerHTML = "";
@@ -972,6 +984,27 @@ def render_homepage(is_admin: bool = False) -> str:
       }});
     }}
 
+    function resolvePlayerLayout(trigger) {{
+      const contentType = (trigger.dataset.contentType || "").toLowerCase();
+      if (contentType !== "video") {{
+        return "portrait";
+      }}
+
+      const card = trigger.closest(".video-card");
+      const thumbImg = card ? card.querySelector(".thumb img") : null;
+      if (!thumbImg) {{
+        return "portrait";
+      }}
+
+      const width = thumbImg.naturalWidth || thumbImg.clientWidth || 0;
+      const height = thumbImg.naturalHeight || thumbImg.clientHeight || 0;
+      if (height <= 0) {{
+        return "portrait";
+      }}
+
+      return width / height >= 1.2 ? "landscape" : "portrait";
+    }}
+
     periodRoot.addEventListener("click", (event) => {{
       const contentTabButton = event.target.closest(".content-tab-button");
       if (contentTabButton) {{
@@ -1000,7 +1033,7 @@ def render_homepage(is_admin: bool = False) -> str:
         return;
       }}
       event.preventDefault();
-      openPlayer(trigger.dataset.videoId);
+      openPlayer(trigger.dataset.videoId, resolvePlayerLayout(trigger));
     }});
     playerClose.addEventListener("click", closePlayer);
     playerModal.addEventListener("click", (event) => {{
