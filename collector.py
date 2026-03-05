@@ -182,25 +182,25 @@ def discover_videos() -> list[str]:
 
 # ── Filter & store ──────────────────────────────────────────────────
 def _is_valid_clip(detail: dict) -> bool:
-    """Return True if this is a clip-short (shorts-only policy)."""
-    duration = detail["duration_seconds"]
+    """Return True for clip videos that should be treated as Shorts."""
+    duration = int(detail.get("duration_seconds", 0))
     text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
     has_clip_keyword = "切り抜き" in text
     has_shorts_keyword = SHORTS_TAG_KEYWORD in text or " shorts" in text
-    return (
-        MIN_DURATION_SECONDS <= duration <= MAX_DURATION_SECONDS
-        and duration <= SHORTS_MAX_SECONDS
-        and has_clip_keyword
-        and has_shorts_keyword
+    is_shorts = (
+        duration >= MIN_DURATION_SECONDS
+        and (duration <= SHORTS_MAX_SECONDS or has_shorts_keyword)
     )
+    return has_clip_keyword and is_shorts
 
 
 def _classify_content_type(detail: dict) -> str:
     """Classify detail into 'shorts' or 'video'."""
     duration = int(detail.get("duration_seconds", 0))
     text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
-    if duration <= SHORTS_MAX_SECONDS and (
-        SHORTS_TAG_KEYWORD in text or " shorts" in text
+    has_shorts_keyword = SHORTS_TAG_KEYWORD in text or " shorts" in text
+    if duration >= MIN_DURATION_SECONDS and (
+        duration <= SHORTS_MAX_SECONDS or has_shorts_keyword
     ):
         return "shorts"
     return "video"
@@ -298,7 +298,7 @@ def run_collector() -> None:
     # Filter by duration
     valid = [d for d in details if _is_valid_clip(d)]
     logger.info(
-        "Duration filter: %d / %d passed (%ds–%ds)",
+        "Shorts filter: %d / %d passed (>=%ds and <=%ds or shorts keyword)",
         len(valid),
         len(details),
         MIN_DURATION_SECONDS,

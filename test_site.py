@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
-from config import GROUP_KEYWORDS, SHORTS_MAX_SECONDS, SHORTS_TAG_KEYWORD
+from config import GROUP_KEYWORDS, MIN_DURATION_SECONDS, SHORTS_MAX_SECONDS, SHORTS_TAG_KEYWORD
 from db import fetchall
 
 logger = logging.getLogger(__name__)
@@ -139,9 +139,10 @@ def _infer_content_type(row: dict) -> str:
     stored = (row.get("content_type") or "").strip().lower()
     duration = int(row.get("duration_seconds") or 0)
     text = " ".join([row.get("title", ""), row.get("tags_text", "")]).lower()
+    has_shorts_keyword = SHORTS_TAG_KEYWORD in text or " shorts" in text
 
-    if duration > 0 and duration <= SHORTS_MAX_SECONDS and (
-        SHORTS_TAG_KEYWORD in text or " shorts" in text
+    if duration >= MIN_DURATION_SECONDS and (
+        duration <= SHORTS_MAX_SECONDS or has_shorts_keyword
     ):
         return "shorts"
 
@@ -206,7 +207,7 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
                   <span class="pill">{group_name}</span>
                 </div>
                 <div class="meta-row compact stats-row">
-                  <span>再生増加 +{row['view_growth']:,}</span>
+                  <span>再生数 +{row['view_growth']:,}</span>
                   <span>{published_at}</span>
                 </div>
                 <div class="meta-row compact action-row">
@@ -717,28 +718,24 @@ def render_homepage(is_admin: bool = False) -> str:
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
       padding: 10px;
     }}
-    .player-head {{
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 8px;
-    }}
-    .player-title {{
-      font-size: 0.9rem;
-      color: var(--muted);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }}
     .player-close {{
-      background: transparent;
-      color: var(--ink);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 4px 10px;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: rgba(10, 19, 26, 0.82);
+      color: #e7f2fb;
+      border: 1px solid rgba(231, 242, 251, 0.28);
+      font-size: 1.15rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       font: inherit;
+      z-index: 2;
     }}
     .player-frame {{
       position: relative;
@@ -854,10 +851,7 @@ def render_homepage(is_admin: bool = False) -> str:
   </main>
   <div id="player-modal" class="player-modal" aria-hidden="true">
     <div class="player-sheet" role="dialog" aria-modal="true" aria-label="動画プレイヤー">
-      <div class="player-head">
-        <div id="player-title" class="player-title"></div>
-        <button id="player-close" class="player-close" type="button">閉じる</button>
-      </div>
+      <button id="player-close" class="player-close" type="button" aria-label="閉じる">×</button>
       <div class="player-frame">
         <iframe id="player-iframe" src="" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
       </div>
@@ -870,12 +864,10 @@ def render_homepage(is_admin: bool = False) -> str:
     const periodRoot = document.getElementById("period-root");
     const playerModal = document.getElementById("player-modal");
     const playerIframe = document.getElementById("player-iframe");
-    const playerTitle = document.getElementById("player-title");
     const playerClose = document.getElementById("player-close");
     let activePeriod = "{first_period}";
 
-    function openPlayer(videoId, title) {{
-      playerTitle.textContent = title || "動画再生";
+    function openPlayer(videoId) {{
       playerIframe.src = `https://www.youtube.com/embed/${{videoId}}?autoplay=1&playsinline=1`;
       playerModal.classList.add("open");
       playerModal.setAttribute("aria-hidden", "false");
@@ -954,7 +946,7 @@ def render_homepage(is_admin: bool = False) -> str:
         return;
       }}
       event.preventDefault();
-      openPlayer(trigger.dataset.videoId, trigger.dataset.videoTitle);
+      openPlayer(trigger.dataset.videoId);
     }});
 
     playerClose.addEventListener("click", closePlayer);
