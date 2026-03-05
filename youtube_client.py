@@ -232,6 +232,33 @@ def search_by_keyword(
 
     logger.info("search_by_keyword('%s'): found %d videos", keyword, len(video_ids))
     return video_ids
+def _fetch_channel_icon_map(channel_ids: list[str]) -> dict[str, str]:
+    """Fetch channel icon URLs for given channel IDs."""
+    youtube = _get_youtube()
+    icon_map: dict[str, str] = {}
+    unique_ids = [cid for cid in dict.fromkeys(channel_ids) if cid]
+
+    for i in range(0, len(unique_ids), 50):
+        batch = unique_ids[i : i + 50]
+        response = youtube.channels().list(
+            part="snippet",
+            id=",".join(batch),
+            maxResults=50,
+        ).execute()
+
+        for item in response.get("items", []):
+            channel_id = item.get("id", "")
+            thumbnails = item.get("snippet", {}).get("thumbnails", {})
+            icon_url = (
+                thumbnails.get("default", {}).get("url")
+                or thumbnails.get("medium", {}).get("url")
+                or thumbnails.get("high", {}).get("url")
+                or ""
+            )
+            if channel_id and icon_url:
+                icon_map[channel_id] = icon_url
+
+    return icon_map
 
 
 # ── Video details ────────────────────────────────────────────────────
@@ -251,12 +278,13 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
             "view_count": int,
             "like_count": int,
             "tags_text": str,
+            "channel_icon_url": str,
         }
 
     Handles batching in chunks of VIDEO_BATCH_SIZE (max 50).
     """
     youtube = _get_youtube()
-    results: list[dict] = []
+    raw_items: list[dict] = []
 
     for i in range(0, len(video_ids), VIDEO_BATCH_SIZE):
         batch = video_ids[i : i + VIDEO_BATCH_SIZE]
@@ -265,36 +293,39 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
             id=",".join(batch),
         )
         response = request.execute()
+        raw_items.extend(response.get("items", []))
 
-        for item in response.get("items", []):
-            snippet = item.get("snippet", {})
-            content = item.get("contentDetails", {})
-            stats = item.get("statistics", {})
-            tags = snippet.get("tags", [])
+    channel_ids = [item.get("snippet", {}).get("channelId", "") for item in raw_items]
+    icon_map = _fetch_channel_icon_map(channel_ids)
 
-            published_str = snippet.get("publishedAt", "")
-            try:
-                published_at = datetime.fromisoformat(
-                    published_str.replace("Z", "+00:00")
-                )
-            except ValueError:
-                published_at = datetime.now(timezone.utc)
+    results: list[dict] = []
+    for item in raw_items:
+        snippet = item.get("snippet", {})
+        content = item.get("contentDetails", {})
+        stats = item.get("statistics", {})
+        tags = snippet.get("tags", [])
+        channel_id = snippet.get("channelId", "")
 
-            results.append(
-                {
-                    "video_id": item["id"],
-                    "title": snippet.get("title", ""),
-                    "channel_id": snippet.get("channelId", ""),
-                    "channel_name": snippet.get("channelTitle", ""),
-                    "published_at": published_at,
-                    "duration_seconds": _parse_duration(
-                        content.get("duration", "PT0S")
-                    ),
-                    "view_count": int(stats.get("viewCount", 0)),
-                    "like_count": int(stats.get("likeCount", 0)),
-                    "tags_text": " ".join(tags),
-                }
-            )
+        published_str = snippet.get("publishedAt", "")
+        try:
+            published_at = datetime.fromisoformat(published_str.replace("Z", "+00:00"))
+        except ValueError:
+            published_at = datetime.now(timezone.utc)
+
+        results.append(
+            {
+                "video_id": item["id"],
+                "title": snippet.get("title", ""),
+                "channel_id": channel_id,
+                "channel_name": snippet.get("channelTitle", ""),
+                "published_at": published_at,
+                "duration_seconds": _parse_duration(content.get("duration", "PT0S")),
+                "view_count": int(stats.get("viewCount", 0)),
+                "like_count": int(stats.get("likeCount", 0)),
+                "tags_text": " ".join(tags),
+                "channel_icon_url": icon_map.get(channel_id, ""),
+            }
+        )
 
     logger.info("get_video_details: fetched %d / %d", len(results), len(video_ids))
     return results
@@ -318,3 +349,5 @@ if __name__ == "__main__":
                 f"  {d['video_id']}  {d['duration_seconds']:>4}s  "
                 f"{d['view_count']:>8} views  {d['title'][:60]}"
             )
+
+

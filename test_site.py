@@ -80,6 +80,7 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
             v.title,
             v.channel_id,
             v.channel_name,
+            v.channel_icon_url,
             v.group_name,
             v.tags_text,
             v.published_at
@@ -135,6 +136,7 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
         title = html.escape(row["title"])
         channel_id = html.escape(row["channel_id"])
         channel_name = html.escape(row["channel_name"])
+        channel_icon_url = html.escape(row.get("channel_icon_url") or "")
         group_name = html.escape(_infer_group(row))
         published_at = _fmt_datetime(row["published_at"])
         video_url = f"https://www.youtube.com/watch?v={video_id}"
@@ -143,19 +145,26 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
         cards.append(
             f"""
             <article class="{class_name}">
-              <a class="thumb" href="{video_url}" target="_blank" rel="noreferrer">
+              <button class="thumb thumb-play" type="button" data-video-id="{video_id}" data-video-title="{title}" aria-label="{title} を再生">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <span class="rank-badge">#{row['rank']}</span>
-              </a>
+              </button>
               <div class="video-body">
-                <a class="video-title" href="{video_url}" target="_blank" rel="noreferrer">{title}</a>
+                <button class="video-title video-play" type="button" data-video-id="{video_id}" data-video-title="{title}">{title}</button>
                 <div class="meta-row">
-                  <a class="channel-link" href="{channel_url}" target="_blank" rel="noreferrer">{channel_name}</a>
+                  <a class="channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
+                    <img class="channel-icon" src="{channel_icon_url}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';">
+                    <span class="channel-icon-fallback" style="display:none;">ch</span>
+                    {channel_name}
+                  </a>
                   <span class="pill">{group_name}</span>
                 </div>
-                <div class="meta-row compact">
+                <div class="meta-row compact stats-row">
                   <span>再生増加 +{row['view_growth']:,}</span>
                   <span>{published_at}</span>
+                </div>
+                <div class="meta-row compact">
+                  <a class="watch-link" href="{video_url}" target="_blank" rel="noreferrer">YouTubeで開く</a>
                 </div>
               </div>
             </article>
@@ -472,6 +481,10 @@ def render_homepage() -> str:
       display: block;
       aspect-ratio: 16 / 9;
       background: #ded4c3;
+      border: 0;
+      padding: 0;
+      width: 100%;
+      cursor: pointer;
     }}
     .thumb img {{
       width: 100%;
@@ -491,6 +504,8 @@ def render_homepage() -> str:
     }}
     .video-body {{
       padding: 14px;
+      display: flex;
+      flex-direction: column;
     }}
     .video-title {{
       display: block;
@@ -500,9 +515,103 @@ def render_homepage() -> str:
       min-height: 4.2em;
       font-weight: 600;
     }}
+    .video-play {{
+      background: transparent;
+      border: 0;
+      padding: 0;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+    }}
+    .watch-link {{
+      color: var(--muted);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }}
+    .player-modal {{
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 10, 0.84);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 14px;
+    }}
+    .player-modal.open {{
+      display: flex;
+    }}
+    .player-sheet {{
+      width: min(94vw, 460px);
+      background: #0a131a;
+      border: 1px solid var(--line);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+      padding: 10px;
+    }}
+    .player-head {{
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+    }}
+    .player-title {{
+      font-size: 0.9rem;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .player-close {{
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font: inherit;
+    }}
+    .player-frame {{
+      position: relative;
+      width: 100%;
+      aspect-ratio: 9 / 16;
+      background: #000;
+    }}
+    .player-frame iframe {{
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }}
     .channel-link {{
       color: var(--accent-cool);
       text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }}
+    .channel-icon {{
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex: 0 0 22px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.08);
+    }}
+    .channel-icon-fallback {{
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.64rem;
+      line-height: 1;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 22px;
+      text-transform: uppercase;
     }}
     .meta-row {{
       display: flex;
@@ -514,6 +623,9 @@ def render_homepage() -> str:
     }}
     .meta-row.compact {{
       font-size: 0.86rem;
+    }}
+    .stats-row {{
+      margin-top: auto;
     }}
     .pill {{
       border: 1px solid var(--line);
@@ -562,12 +674,40 @@ def render_homepage() -> str:
     </section>
     <div id="period-root"></div>
   </main>
+  <div id="player-modal" class="player-modal" aria-hidden="true">
+    <div class="player-sheet" role="dialog" aria-modal="true" aria-label="動画プレイヤー">
+      <div class="player-head">
+        <div id="player-title" class="player-title"></div>
+        <button id="player-close" class="player-close" type="button">閉じる</button>
+      </div>
+      <div class="player-frame">
+        <iframe id="player-iframe" src="" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+      </div>
+    </div>
+  </div>
   <script>
     const payload = {payload_json};
     const groupLabels = {group_labels_json};
     const periodTabs = document.getElementById("period-tabs");
     const periodRoot = document.getElementById("period-root");
+    const playerModal = document.getElementById("player-modal");
+    const playerIframe = document.getElementById("player-iframe");
+    const playerTitle = document.getElementById("player-title");
+    const playerClose = document.getElementById("player-close");
     let activePeriod = "{first_period}";
+
+    function openPlayer(videoId, title) {{
+      playerTitle.textContent = title || "動画再生";
+      playerIframe.src = `https://www.youtube.com/embed/${{videoId}}?autoplay=1&playsinline=1`;
+      playerModal.classList.add("open");
+      playerModal.setAttribute("aria-hidden", "false");
+    }}
+
+    function closePlayer() {{
+      playerModal.classList.remove("open");
+      playerModal.setAttribute("aria-hidden", "true");
+      playerIframe.src = "";
+    }}
 
     function render() {{
       periodTabs.innerHTML = "";
@@ -629,6 +769,27 @@ def render_homepage() -> str:
         periodRoot.appendChild(panel);
       }});
     }}
+
+    periodRoot.addEventListener("click", (event) => {{
+      const trigger = event.target.closest(".thumb-play, .video-play");
+      if (!trigger) {{
+        return;
+      }}
+      event.preventDefault();
+      openPlayer(trigger.dataset.videoId, trigger.dataset.videoTitle);
+    }});
+
+    playerClose.addEventListener("click", closePlayer);
+    playerModal.addEventListener("click", (event) => {{
+      if (event.target === playerModal) {{
+        closePlayer();
+      }}
+    }});
+    document.addEventListener("keydown", (event) => {{
+      if (event.key === "Escape" && playerModal.classList.contains("open")) {{
+        closePlayer();
+      }}
+    }});
 
     render();
   </script>
@@ -711,3 +872,13 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
+

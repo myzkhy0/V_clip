@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS videos (
     published_at     TIMESTAMP    NOT NULL,
     duration_seconds INTEGER      NOT NULL,
     tags_text        TEXT         NOT NULL DEFAULT '',
+    channel_icon_url TEXT         NOT NULL DEFAULT '',
     added_at         TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
@@ -66,3 +67,4 @@ CREATE TABLE IF NOT EXISTS monthly_ranking (
     calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
     PRIMARY KEY (video_id, calculated_at)
 );
+

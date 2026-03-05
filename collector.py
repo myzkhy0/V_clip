@@ -170,8 +170,8 @@ def store_new_videos(details: list[dict]) -> int:
     query = """
         INSERT INTO videos
             (video_id, title, channel_id, channel_name, group_name,
-             published_at, duration_seconds, tags_text)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+             published_at, duration_seconds, tags_text, channel_icon_url)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (video_id) DO UPDATE SET
             title = EXCLUDED.title,
             channel_id = EXCLUDED.channel_id,
@@ -179,7 +179,8 @@ def store_new_videos(details: list[dict]) -> int:
             group_name = EXCLUDED.group_name,
             published_at = EXCLUDED.published_at,
             duration_seconds = EXCLUDED.duration_seconds,
-            tags_text = EXCLUDED.tags_text
+            tags_text = EXCLUDED.tags_text,
+            channel_icon_url = EXCLUDED.channel_icon_url
     """
     rows: list[tuple] = []
     for d in details:
@@ -194,6 +195,7 @@ def store_new_videos(details: list[dict]) -> int:
                 d["published_at"],
                 d["duration_seconds"],
                 d.get("tags_text", ""),
+                d.get("channel_icon_url", ""),
             )
         )
 
@@ -204,7 +206,6 @@ def store_new_videos(details: list[dict]) -> int:
 
 
 # ── Main entry point ────────────────────────────────────────────────
-
 def run_collector() -> None:
     """Full collection pipeline."""
     logger.info("=== Collector started ===")
@@ -242,4 +243,6 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
+
+
 
