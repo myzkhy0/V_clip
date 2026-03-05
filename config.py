@@ -139,5 +139,8 @@ YOUTUBE_QUOTA_STATE_FILE: str = os.getenv(
 )
 
 # ── Scheduler ────────────────────────────────────────────────────────
-COLLECTION_INTERVAL_MINUTES: int = 360  # run every 6 hours
+COLLECTION_INTERVAL_MINUTES: int = 360  # backward compatibility
+SEARCH_CRON_HOURS_JST: str = os.getenv("SEARCH_CRON_HOURS_JST", "6,18")
+SEARCH_CRON_MINUTE_JST: int = int(os.getenv("SEARCH_CRON_MINUTE_JST", "0"))
+STATS_INTERVAL_HOURS: int = int(os.getenv("STATS_INTERVAL_HOURS", "4"))
 

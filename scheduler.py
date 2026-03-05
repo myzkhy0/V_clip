@@ -1,38 +1,48 @@
 """
 scheduler.py — APScheduler-based entry point for the VTuber Clip Ranking System.
 
-Runs the full pipeline every COLLECTION_INTERVAL_MINUTES (default: 60 min):
-  1. Discover new videos   (collector)
-  2. Collect stats          (stats_collector)
-  3. Calculate rankings     (ranking)
+Jobs:
+  • Search discovery (collector): JST cron (default 06:00, 18:00)
+  • Stats + ranking: interval (default every 4 hours)
 
 Usage:
   python scheduler.py              # run continuously with APScheduler
   python scheduler.py --init-db    # create tables and exit
 """
 
-import sys
 import logging
+import sys
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-from config import COLLECTION_INTERVAL_MINUTES
-from db import init_db
 from collector import run_collector
-from stats_collector import run_stats_collector
+from config import (
+    SEARCH_CRON_HOURS_JST,
+    SEARCH_CRON_MINUTE_JST,
+    STATS_INTERVAL_HOURS,
+)
+from db import init_db
 from ranking import run_rankings
+from stats_collector import run_stats_collector
 
 logger = logging.getLogger(__name__)
+JST = ZoneInfo("Asia/Tokyo")
 
 
-def pipeline() -> None:
-    """Execute the full data-collection-and-ranking pipeline."""
-    logger.info("======== Pipeline start ========")
+def search_pipeline() -> None:
+    """Execute search/discovery pipeline only."""
+    logger.info("======== Search pipeline start ========")
     try:
         run_collector()
     except Exception:
         logger.exception("Collector failed")
+    logger.info("======== Search pipeline end ========")
 
+
+def stats_ranking_pipeline() -> None:
+    """Execute stats/ranking pipeline only."""
+    logger.info("======== Stats/Ranking pipeline start ========")
     try:
         run_stats_collector()
     except Exception:
@@ -42,8 +52,7 @@ def pipeline() -> None:
         run_rankings()
     except Exception:
         logger.exception("Ranking calculation failed")
-
-    logger.info("======== Pipeline end ========")
+    logger.info("======== Stats/Ranking pipeline end ========")
 
 
 def main() -> None:
@@ -52,7 +61,6 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    # ── CLI flags ────────────────────────────────────────────────────
     if "--init-db" in sys.argv:
         init_db()
         print("Database initialized. Exiting.")
@@ -65,21 +73,31 @@ def main() -> None:
         )
         raise SystemExit(2)
 
-    # ── Continuous scheduling ────────────────────────────────────────
     logger.info(
-        "Starting scheduler (interval: %d min).", COLLECTION_INTERVAL_MINUTES
-    )
-    scheduler = BlockingScheduler()
-    scheduler.add_job(
-        pipeline,
-        "interval",
-        minutes=COLLECTION_INTERVAL_MINUTES,
-        id="vclip_pipeline",
-        next_run_time=None,  # first run immediately handled below
+        "Starting scheduler (search JST %s:%02d, stats/ranking every %d hour(s)).",
+        SEARCH_CRON_HOURS_JST,
+        SEARCH_CRON_MINUTE_JST,
+        STATS_INTERVAL_HOURS,
     )
 
-    # Run once immediately at startup
-    pipeline()
+    scheduler = BlockingScheduler(timezone=JST)
+    scheduler.add_job(
+        search_pipeline,
+        "cron",
+        hour=SEARCH_CRON_HOURS_JST,
+        minute=SEARCH_CRON_MINUTE_JST,
+        id="vclip_search_pipeline",
+    )
+    scheduler.add_job(
+        stats_ranking_pipeline,
+        "interval",
+        hours=max(1, STATS_INTERVAL_HOURS),
+        id="vclip_stats_ranking_pipeline",
+        next_run_time=None,
+    )
+
+    # Run stats/ranking immediately at startup; search waits for JST cron slots.
+    stats_ranking_pipeline()
 
     try:
         scheduler.start()
