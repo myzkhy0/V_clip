@@ -421,7 +421,10 @@ def render_homepage(is_admin: bool = False) -> str:
       margin: 0;
       font-family: "Noto Sans JP Local", sans-serif;
       color: var(--ink);
-      background: #ffffff;
+      background:
+        radial-gradient(circle at top left, rgba(99, 208, 255, 0.16), transparent 24%),
+        radial-gradient(circle at top right, rgba(244, 185, 66, 0.16), transparent 22%),
+        linear-gradient(160deg, #081017 0%, #121b24 52%, #0b1218 100%);
     }}
     .shell {{
       width: min(1320px, calc(100% - 24px));
@@ -587,7 +590,6 @@ def render_homepage(is_admin: bool = False) -> str:
     }}
     .feature-card .thumb img {{
       object-fit: cover;
-      object-position: center top;
       background: #0a0f13;
     }}
     .feature-card .video-body {{
@@ -605,8 +607,8 @@ def render_homepage(is_admin: bool = False) -> str:
     .feature-card .rank-badge {{
       top: 12px;
       left: 12px;
-      padding: 7px 10px;
-      font-size: 0.84rem;
+      padding: 8px 11px;
+      font-size: 0.9rem;
       background: rgba(8, 16, 23, 0.88);
       color: var(--accent);
       font-weight: 800;
@@ -645,18 +647,17 @@ def render_homepage(is_admin: bool = False) -> str:
       width: 100%;
       height: 100%;
       object-fit: cover;
-      object-position: center top;
       display: block;
     }}
     .rank-badge {{
       position: absolute;
       top: 10px;
       left: 10px;
-      padding: 6px 10px;
+      padding: 7px 11px;
       border-radius: 999px;
       background: rgba(29, 42, 51, 0.8);
       color: #fff;
-      font-size: 0.9rem;
+      font-size: 0.95rem;
     }}
     .video-body {{
       padding: 14px;
