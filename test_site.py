@@ -586,7 +586,8 @@ def render_homepage(is_admin: bool = False) -> str:
       background: #0a0f13;
     }}
     .feature-card .thumb img {{
-      object-fit: cover;
+      object-fit: contain;
+      object-position: center center;
       background: #0a0f13;
     }}
     .feature-card .video-body {{
@@ -643,7 +644,8 @@ def render_homepage(is_admin: bool = False) -> str:
     .thumb img {{
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
+      object-position: center center;
       display: block;
     }}
     .rank-badge {{
