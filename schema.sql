@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS channels (
     group_name          VARCHAR(128) NOT NULL,
     uploads_playlist_id VARCHAR(64)  NOT NULL DEFAULT '',
     is_tracked          BOOLEAN      NOT NULL DEFAULT TRUE,
+    empty_streak        INTEGER      NOT NULL DEFAULT 0,
+    last_checked_at     TIMESTAMP    NULL,
+    paused_until        TIMESTAMP    NULL,
     added_at            TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 

@@ -37,6 +37,24 @@ def init_db():
             )
             cur.execute(
                 """
+                ALTER TABLE channels
+                ADD COLUMN IF NOT EXISTS empty_streak INTEGER NOT NULL DEFAULT 0
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE channels
+                ADD COLUMN IF NOT EXISTS last_checked_at TIMESTAMP NULL
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE channels
+                ADD COLUMN IF NOT EXISTS paused_until TIMESTAMP NULL
+                """
+            )
+            cur.execute(
+                """
                 ALTER TABLE videos
                 ADD COLUMN IF NOT EXISTS tags_text TEXT NOT NULL DEFAULT ''
                 """

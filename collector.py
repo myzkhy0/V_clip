@@ -16,6 +16,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config import (
+    CHANNEL_EMPTY_STREAK_PAUSE_THRESHOLD,
+    CHANNEL_PAUSE_HOURS,
     GROUP_KEYWORDS,
     MIN_DURATION_SECONDS,
     KEYWORD_ROTATION_STATE_FILE,
@@ -86,7 +88,10 @@ def load_channels(tracked_only: bool = False) -> list[dict]:
                 channel_name,
                 group_name,
                 COALESCE(uploads_playlist_id, '') AS uploads_playlist_id,
-                is_tracked
+                is_tracked,
+                COALESCE(empty_streak, 0) AS empty_streak,
+                last_checked_at,
+                paused_until
             FROM channels
             {where_clause}
             """
@@ -97,6 +102,9 @@ def load_channels(tracked_only: bool = False) -> list[dict]:
         for row in rows:
             row["uploads_playlist_id"] = ""
             row["is_tracked"] = True
+            row["empty_streak"] = 0
+            row["last_checked_at"] = None
+            row["paused_until"] = None
         return rows
 
 
@@ -112,6 +120,51 @@ def _update_channel_uploads_playlist(channel_id: str, uploads_playlist_id: str) 
         (uploads_playlist_id, channel_id),
     )
 
+
+
+def _should_skip_channel(ch: dict, now_utc: datetime) -> bool:
+    paused_until = ch.get("paused_until")
+    if not paused_until:
+        return False
+    if paused_until.tzinfo is None:
+        paused_until = paused_until.replace(tzinfo=timezone.utc)
+    return paused_until > now_utc
+
+
+def _mark_channel_checked(channel_id: str, found_count: int, now_utc: datetime) -> None:
+    if found_count > 0:
+        execute(
+            """
+            UPDATE channels
+            SET empty_streak = 0,
+                last_checked_at = %s,
+                paused_until = NULL
+            WHERE channel_id = %s
+            """,
+            (now_utc, channel_id),
+        )
+        return
+
+    row = fetchall(
+        "SELECT COALESCE(empty_streak, 0) AS empty_streak FROM channels WHERE channel_id = %s",
+        (channel_id,),
+    )
+    current = int(row[0]["empty_streak"]) if row else 0
+    next_streak = current + 1
+    pause_until = None
+    if next_streak >= CHANNEL_EMPTY_STREAK_PAUSE_THRESHOLD:
+        pause_until = now_utc + timedelta(hours=max(1, CHANNEL_PAUSE_HOURS))
+
+    execute(
+        """
+        UPDATE channels
+        SET empty_streak = %s,
+            last_checked_at = %s,
+            paused_until = %s
+        WHERE channel_id = %s
+        """,
+        (next_streak, now_utc, pause_until, channel_id),
+    )
 
 def _load_keyword_rotation_state() -> int:
     """Load keyword rotation offset from local state file."""
@@ -177,9 +230,18 @@ def discover_videos(
     # 1) Channel-based search (uploads playlist + playlistItems.list)
     if include_channel_search:
         channels = load_channels(tracked_only=True)
+        now_utc = datetime.now(timezone.utc)
         for ch in channels:
             if quota_guard_hit:
                 break
+            if _should_skip_channel(ch, now_utc):
+                logger.info(
+                    "Channel %s (%s): skipped until %s",
+                    ch["channel_name"],
+                    ch["group_name"],
+                    ch.get("paused_until"),
+                )
+                continue
 
             try:
                 uploads_playlist_id = (ch.get("uploads_playlist_id") or "").strip()
@@ -200,6 +262,7 @@ def discover_videos(
                     ch["group_name"],
                     len(ids),
                 )
+                _mark_channel_checked(ch["channel_id"], len(ids), now_utc)
             except QuotaExceededError as exc:
                 quota_guard_hit = True
                 logger.warning("Stopping further searches: %s", exc)
@@ -211,7 +274,6 @@ def discover_videos(
                     logger.exception("Error searching channel %s", ch["channel_id"])
             except Exception:
                 logger.exception("Error searching channel %s", ch["channel_id"])
-
     # 2) Keyword-based search (rotating subset to reduce search.list usage)
     if include_keyword_search:
         cycle_keywords = _select_keywords_for_cycle(SEARCH_KEYWORDS)

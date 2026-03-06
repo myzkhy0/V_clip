@@ -48,6 +48,10 @@ KEYWORD_ROTATION_STATE_FILE: str = os.getenv(
     "KEYWORD_ROTATION_STATE_FILE",
     ".keyword_rotation_state.json",
 )
+CHANNEL_EMPTY_STREAK_PAUSE_THRESHOLD: int = int(
+    os.getenv("CHANNEL_EMPTY_STREAK_PAUSE_THRESHOLD", "24")
+)
+CHANNEL_PAUSE_HOURS: int = int(os.getenv("CHANNEL_PAUSE_HOURS", "24"))
 
 # ── Group detection keywords ──────────────────────────────────────────
 GROUP_KEYWORDS: dict[str, list[str]] = {
