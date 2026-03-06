@@ -5,10 +5,11 @@
 
 -- Tracked VTuber channels
 CREATE TABLE IF NOT EXISTS channels (
-    channel_id   VARCHAR(64)  PRIMARY KEY,
-    channel_name VARCHAR(256) NOT NULL,
-    group_name   VARCHAR(128) NOT NULL,
-    added_at     TIMESTAMP    NOT NULL DEFAULT NOW()
+    channel_id          VARCHAR(64)  PRIMARY KEY,
+    channel_name        VARCHAR(256) NOT NULL,
+    group_name          VARCHAR(128) NOT NULL,
+    uploads_playlist_id VARCHAR(64)  NOT NULL DEFAULT '',
+    added_at            TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
 -- Discovered clip videos

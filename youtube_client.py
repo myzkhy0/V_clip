@@ -147,6 +147,15 @@ def _parse_duration(iso: str) -> int:
     return hours * 3600 + minutes * 60 + seconds
 
 
+def _parse_datetime(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def resolve_channel_identifier(identifier: str) -> str:
     """
     Resolve a seed identifier into a canonical channel ID.
@@ -186,42 +195,80 @@ def resolve_channel_identifier(identifier: str) -> str:
     return items[0]["snippet"]["channelId"]
 
 
+def get_uploads_playlist_id(channel_id: str) -> str | None:
+    """Fetch uploads playlist ID for a channel via channels.list(contentDetails)."""
+    youtube = _get_youtube()
+    request = youtube.channels().list(
+        part="contentDetails",
+        id=channel_id,
+        maxResults=1,
+    )
+    response = _execute_request(request, f"channels.list:uploads:{channel_id}")
+    items = response.get("items", [])
+    if not items:
+        return None
+    return (
+        items[0]
+        .get("contentDetails", {})
+        .get("relatedPlaylists", {})
+        .get("uploads")
+    )
+
+
 # ── Search helpers ───────────────────────────────────────────────────
 
 def search_by_channel(
     channel_id: str,
     published_after: datetime,
     max_results: int = SEARCH_MAX_RESULTS,
+    uploads_playlist_id: str | None = None,
 ) -> list[str]:
-    """Return video IDs uploaded to *channel_id* after *published_after*."""
+    """Return recent video IDs from channel uploads playlist after *published_after*."""
     youtube = _get_youtube()
     video_ids: list[str] = []
     page_token: str | None = None
 
+    playlist_id = uploads_playlist_id or get_uploads_playlist_id(channel_id)
+    if not playlist_id:
+        logger.warning("uploads playlist not found for channel %s", channel_id)
+        return []
+
     while True:
-        reserve_search_quota(f"search_by_channel:{channel_id}")
-        request = youtube.search().list(
-            part="id",
-            channelId=channel_id,
-            type="video",
-            order="date",
-            publishedAfter=published_after.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        request = youtube.playlistItems().list(
+            part="contentDetails,snippet",
+            playlistId=playlist_id,
             maxResults=min(max_results, 50),
             pageToken=page_token,
         )
-        response = _execute_request(request, f"search_by_channel:{channel_id}")
+        response = _execute_request(request, f"playlistItems.list:{channel_id}")
 
+        reached_older = False
         for item in response.get("items", []):
-            vid = item.get("id", {}).get("videoId")
+            published = (
+                item.get("contentDetails", {}).get("videoPublishedAt")
+                or item.get("snippet", {}).get("publishedAt", "")
+            )
+            published_at = _parse_datetime(published)
+            if published_at and published_at < published_after:
+                reached_older = True
+                continue
+
+            vid = item.get("contentDetails", {}).get("videoId")
             if vid:
                 video_ids.append(vid)
 
         page_token = response.get("nextPageToken")
-        if not page_token or len(video_ids) >= max_results:
+        if reached_older or not page_token or len(video_ids) >= max_results:
             break
 
-    logger.info("search_by_channel(%s): found %d videos", channel_id, len(video_ids))
-    return video_ids
+    deduped = list(dict.fromkeys(video_ids))
+    logger.info(
+        "search_by_channel(%s via uploads %s): found %d videos",
+        channel_id,
+        playlist_id,
+        len(deduped),
+    )
+    return deduped[:max_results]
 
 
 def search_by_keyword(
@@ -336,10 +383,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
         channel_id = snippet.get("channelId", "")
 
         published_str = snippet.get("publishedAt", "")
-        try:
-            published_at = datetime.fromisoformat(published_str.replace("Z", "+00:00"))
-        except ValueError:
-            published_at = datetime.now(timezone.utc)
+        published_at = _parse_datetime(published_str) or datetime.now(timezone.utc)
 
         results.append(
             {
@@ -378,3 +422,4 @@ if __name__ == "__main__":
                 f"  {d['video_id']}  {d['duration_seconds']:>4}s  "
                 f"{d['view_count']:>8} views  {d['title'][:60]}"
             )
+

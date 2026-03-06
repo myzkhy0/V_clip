@@ -25,6 +25,12 @@ def init_db():
             cur.execute(sql)
             cur.execute(
                 """
+                ALTER TABLE channels
+                ADD COLUMN IF NOT EXISTS uploads_playlist_id VARCHAR(64) NOT NULL DEFAULT ''
+                """
+            )
+            cur.execute(
+                """
                 ALTER TABLE videos
                 ADD COLUMN IF NOT EXISTS tags_text TEXT NOT NULL DEFAULT ''
                 """

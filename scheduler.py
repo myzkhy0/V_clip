@@ -2,7 +2,8 @@
 scheduler.py — APScheduler-based entry point for the VTuber Clip Ranking System.
 
 Jobs:
-  • Search discovery (collector): JST cron (default 06:00, 18:00)
+  • Search discovery (collector): JST cron (default 06:00, once daily)
+  • Channel update (collector): interval (default every 1 hour, channels only)
   • Stats + ranking: interval (default every 4 hours)
 
 Usage:
@@ -18,6 +19,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 from collector import run_collector
 from config import (
+    CHANNEL_UPDATE_INTERVAL_HOURS,
     SEARCH_CRON_HOURS_JST,
     SEARCH_CRON_MINUTE_JST,
     STATS_INTERVAL_HOURS,
@@ -31,13 +33,23 @@ JST = ZoneInfo("Asia/Tokyo")
 
 
 def search_pipeline() -> None:
-    """Execute search/discovery pipeline only."""
+    """Execute daily discovery pipeline (channel + keyword)."""
     logger.info("======== Search pipeline start ========")
     try:
-        run_collector()
+        run_collector(include_channel_search=True, include_keyword_search=True, run_seed=True)
     except Exception:
         logger.exception("Collector failed")
     logger.info("======== Search pipeline end ========")
+
+
+def channel_update_pipeline() -> None:
+    """Execute hourly channel update pipeline (channels only)."""
+    logger.info("======== Channel update pipeline start ========")
+    try:
+        run_collector(include_channel_search=True, include_keyword_search=False, run_seed=False)
+    except Exception:
+        logger.exception("Channel update collector failed")
+    logger.info("======== Channel update pipeline end ========")
 
 
 def stats_ranking_pipeline() -> None:
@@ -74,9 +86,10 @@ def main() -> None:
         raise SystemExit(2)
 
     logger.info(
-        "Starting scheduler (search JST %s:%02d, stats/ranking every %d hour(s)).",
+        "Starting scheduler (search JST %s:%02d, channel update every %d hour(s), stats/ranking every %d hour(s)).",
         SEARCH_CRON_HOURS_JST,
         SEARCH_CRON_MINUTE_JST,
+        CHANNEL_UPDATE_INTERVAL_HOURS,
         STATS_INTERVAL_HOURS,
     )
 
@@ -89,6 +102,13 @@ def main() -> None:
         id="vclip_search_pipeline",
     )
     scheduler.add_job(
+        channel_update_pipeline,
+        "interval",
+        hours=max(1, CHANNEL_UPDATE_INTERVAL_HOURS),
+        id="vclip_channel_update_pipeline",
+        next_run_time=None,
+    )
+    scheduler.add_job(
         stats_ranking_pipeline,
         "interval",
         hours=max(1, STATS_INTERVAL_HOURS),
@@ -96,7 +116,7 @@ def main() -> None:
         next_run_time=None,
     )
 
-    # Run stats/ranking immediately at startup; search waits for JST cron slots.
+    # Run stats/ranking immediately at startup; search and channel update wait for schedule.
     stats_ranking_pipeline()
 
     try:
@@ -107,3 +127,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+

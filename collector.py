@@ -3,8 +3,8 @@ collector.py — Discover new VTuber clip videos and store them.
 
 Workflow:
   1. Load channels from the DB (seed them on first run).
-  2. Search each channel for recent videos.
-  3. Search YouTube by keyword.
+  2. Discover by channel uploads playlist (low-quota).
+  3. Discover by keyword search (high-quota, only in discovery mode).
   4. De-duplicate video IDs.
   5. Fetch video details & filter by duration.
   6. Insert new videos into the `videos` table.
@@ -17,7 +17,6 @@ from pathlib import Path
 
 from config import (
     GROUP_KEYWORDS,
-    MAX_DURATION_SECONDS,
     MIN_DURATION_SECONDS,
     KEYWORD_ROTATION_STATE_FILE,
     KEYWORD_SEARCH_BATCH_SIZE,
@@ -27,9 +26,10 @@ from config import (
     SHORTS_TAG_KEYWORD,
     TRACK_DAYS,
 )
-from db import execute_many, fetchall
+from db import execute, execute_many, fetchall
 from youtube_client import (
     QuotaExceededError,
+    get_uploads_playlist_id,
     get_video_details,
     resolve_channel_identifier,
     search_by_channel,
@@ -45,11 +45,12 @@ def seed_channels() -> None:
     if not SEED_CHANNELS:
         return
 
-    resolved_rows: list[tuple[str, str, str]] = []
+    resolved_rows: list[tuple[str, str, str, str]] = []
     for channel_identifier, channel_name, group_name in SEED_CHANNELS:
         try:
             channel_id = resolve_channel_identifier(channel_identifier)
-            resolved_rows.append((channel_id, channel_name, group_name))
+            uploads_playlist_id = get_uploads_playlist_id(channel_id) or ""
+            resolved_rows.append((channel_id, channel_name, group_name, uploads_playlist_id))
         except Exception:
             logger.exception("Failed to resolve seed channel %s", channel_identifier)
 
@@ -58,9 +59,15 @@ def seed_channels() -> None:
         return
 
     query = """
-        INSERT INTO channels (channel_id, channel_name, group_name)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (channel_id) DO NOTHING
+        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (channel_id) DO UPDATE SET
+            channel_name = EXCLUDED.channel_name,
+            group_name = EXCLUDED.group_name,
+            uploads_playlist_id = CASE
+                WHEN COALESCE(channels.uploads_playlist_id, '') = '' THEN EXCLUDED.uploads_playlist_id
+                ELSE channels.uploads_playlist_id
+            END
     """
     execute_many(query, resolved_rows)
     logger.info("Seeded %d channel(s).", len(resolved_rows))
@@ -69,7 +76,33 @@ def seed_channels() -> None:
 # ── Load channels from DB ───────────────────────────────────────────
 def load_channels() -> list[dict]:
     """Return all rows from the `channels` table."""
-    return fetchall("SELECT channel_id, channel_name, group_name FROM channels")
+    try:
+        return fetchall(
+            """
+            SELECT channel_id, channel_name, group_name, COALESCE(uploads_playlist_id, '') AS uploads_playlist_id
+            FROM channels
+            """
+        )
+    except Exception:
+        logger.warning("channels.uploads_playlist_id not available yet; using legacy channel query")
+        rows = fetchall("SELECT channel_id, channel_name, group_name FROM channels")
+        for row in rows:
+            row["uploads_playlist_id"] = ""
+        return rows
+
+
+def _update_channel_uploads_playlist(channel_id: str, uploads_playlist_id: str) -> None:
+    if not uploads_playlist_id:
+        return
+    execute(
+        """
+        UPDATE channels
+        SET uploads_playlist_id = %s
+        WHERE channel_id = %s
+        """,
+        (uploads_playlist_id, channel_id),
+    )
+
 
 def _load_keyword_rotation_state() -> int:
     """Load keyword rotation offset from local state file."""
@@ -117,66 +150,87 @@ def _select_keywords_for_cycle(keywords: list[str]) -> list[str]:
     )
     return selected
 
+
 # ── Discover videos ─────────────────────────────────────────────────
-def discover_videos() -> list[str]:
+def discover_videos(
+    include_channel_search: bool = True,
+    include_keyword_search: bool = True,
+) -> list[str]:
     """
-    Collect video IDs from:
-      • channel-based search
-      • keyword-based search
+    Collect video IDs from channel-based and/or keyword-based search.
+
     Returns a de-duplicated list of video IDs.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=TRACK_DAYS)
     all_ids: set[str] = set()
     quota_guard_hit = False
 
-    # 1) Channel-based
-    channels = load_channels()
-    for ch in channels:
-        if quota_guard_hit:
-            break
-        try:
-            ids = search_by_channel(ch["channel_id"], cutoff)
-            all_ids.update(ids)
-            logger.info(
-                "Channel %s (%s): %d videos",
-                ch["channel_name"],
-                ch["group_name"],
-                len(ids),
-            )
-        except QuotaExceededError as exc:
-            quota_guard_hit = True
-            logger.warning("Stopping further searches: %s", exc)
-        except RuntimeError as exc:
-            if "quota guard" in str(exc).lower():
+    # 1) Channel-based search (uploads playlist + playlistItems.list)
+    if include_channel_search:
+        channels = load_channels()
+        for ch in channels:
+            if quota_guard_hit:
+                break
+
+            try:
+                uploads_playlist_id = (ch.get("uploads_playlist_id") or "").strip()
+                if not uploads_playlist_id:
+                    uploads_playlist_id = get_uploads_playlist_id(ch["channel_id"]) or ""
+                    if uploads_playlist_id:
+                        _update_channel_uploads_playlist(ch["channel_id"], uploads_playlist_id)
+
+                ids = search_by_channel(
+                    ch["channel_id"],
+                    cutoff,
+                    uploads_playlist_id=uploads_playlist_id,
+                )
+                all_ids.update(ids)
+                logger.info(
+                    "Channel %s (%s): %d videos",
+                    ch["channel_name"],
+                    ch["group_name"],
+                    len(ids),
+                )
+            except QuotaExceededError as exc:
                 quota_guard_hit = True
                 logger.warning("Stopping further searches: %s", exc)
-            else:
+            except RuntimeError as exc:
+                if "quota guard" in str(exc).lower():
+                    quota_guard_hit = True
+                    logger.warning("Stopping further searches: %s", exc)
+                else:
+                    logger.exception("Error searching channel %s", ch["channel_id"])
+            except Exception:
                 logger.exception("Error searching channel %s", ch["channel_id"])
-        except Exception:
-            logger.exception("Error searching channel %s", ch["channel_id"])
 
-    # 2) Keyword-based (rotating subset to reduce search.list usage)
-    cycle_keywords = _select_keywords_for_cycle(SEARCH_KEYWORDS)
-    for kw in cycle_keywords:
-        if quota_guard_hit:
-            break
-        try:
-            ids = search_by_keyword(kw, cutoff)
-            all_ids.update(ids)
-            logger.info("Keyword '%s': %d videos", kw, len(ids))
-        except QuotaExceededError as exc:
-            quota_guard_hit = True
-            logger.warning("Stopping further searches: %s", exc)
-        except RuntimeError as exc:
-            if "quota guard" in str(exc).lower():
+    # 2) Keyword-based search (rotating subset to reduce search.list usage)
+    if include_keyword_search:
+        cycle_keywords = _select_keywords_for_cycle(SEARCH_KEYWORDS)
+        for kw in cycle_keywords:
+            if quota_guard_hit:
+                break
+            try:
+                ids = search_by_keyword(kw, cutoff)
+                all_ids.update(ids)
+                logger.info("Keyword '%s': %d videos", kw, len(ids))
+            except QuotaExceededError as exc:
                 quota_guard_hit = True
                 logger.warning("Stopping further searches: %s", exc)
-            else:
+            except RuntimeError as exc:
+                if "quota guard" in str(exc).lower():
+                    quota_guard_hit = True
+                    logger.warning("Stopping further searches: %s", exc)
+                else:
+                    logger.exception("Error searching keyword '%s'", kw)
+            except Exception:
                 logger.exception("Error searching keyword '%s'", kw)
-        except Exception:
-            logger.exception("Error searching keyword '%s'", kw)
 
-    logger.info("Total unique video IDs discovered: %d", len(all_ids))
+    logger.info(
+        "Total unique video IDs discovered: %d (channels=%s, keywords=%s)",
+        len(all_ids),
+        include_channel_search,
+        include_keyword_search,
+    )
     return list(all_ids)
 
 
@@ -279,15 +333,23 @@ def store_new_videos(details: list[dict]) -> int:
 
 
 # ── Main entry point ────────────────────────────────────────────────
-def run_collector() -> None:
+def run_collector(
+    include_channel_search: bool = True,
+    include_keyword_search: bool = True,
+    run_seed: bool = True,
+) -> None:
     """Full collection pipeline."""
     logger.info("=== Collector started ===")
 
-    # Ensure seed channels exist
-    seed_channels()
+    # Ensure seed channels exist (discovery run only)
+    if run_seed:
+        seed_channels()
 
     # Discover video IDs
-    video_ids = discover_videos()
+    video_ids = discover_videos(
+        include_channel_search=include_channel_search,
+        include_keyword_search=include_keyword_search,
+    )
     if not video_ids:
         logger.info("No new videos discovered.")
         return
@@ -302,7 +364,7 @@ def run_collector() -> None:
         len(valid),
         len(details),
         MIN_DURATION_SECONDS,
-        MAX_DURATION_SECONDS,
+        SHORTS_MAX_SECONDS,
     )
 
     # Store
@@ -316,4 +378,10 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
+
+
+
+
+
+
 
