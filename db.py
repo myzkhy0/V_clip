@@ -31,6 +31,12 @@ def init_db():
             )
             cur.execute(
                 """
+                ALTER TABLE channels
+                ADD COLUMN IF NOT EXISTS is_tracked BOOLEAN NOT NULL DEFAULT TRUE
+                """
+            )
+            cur.execute(
+                """
                 ALTER TABLE videos
                 ADD COLUMN IF NOT EXISTS tags_text TEXT NOT NULL DEFAULT ''
                 """

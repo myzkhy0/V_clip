@@ -41,7 +41,9 @@ SEARCH_KEYWORDS: list[str] = [
     "どっとライブ 切り抜き",
 ]
 
-KEYWORD_SEARCH_BATCH_SIZE: int = int(os.getenv("KEYWORD_SEARCH_BATCH_SIZE", "4"))
+KEYWORD_SEARCH_BATCH_SIZE: int = int(
+    os.getenv("KEYWORD_SEARCH_BATCH_SIZE", str(len(SEARCH_KEYWORDS)))
+)
 KEYWORD_ROTATION_STATE_FILE: str = os.getenv(
     "KEYWORD_ROTATION_STATE_FILE",
     ".keyword_rotation_state.json",

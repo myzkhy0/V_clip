@@ -45,12 +45,12 @@ def seed_channels() -> None:
     if not SEED_CHANNELS:
         return
 
-    resolved_rows: list[tuple[str, str, str, str]] = []
+    resolved_rows: list[tuple[str, str, str, str, bool]] = []
     for channel_identifier, channel_name, group_name in SEED_CHANNELS:
         try:
             channel_id = resolve_channel_identifier(channel_identifier)
             uploads_playlist_id = get_uploads_playlist_id(channel_id) or ""
-            resolved_rows.append((channel_id, channel_name, group_name, uploads_playlist_id))
+            resolved_rows.append((channel_id, channel_name, group_name, uploads_playlist_id, True))
         except Exception:
             logger.exception("Failed to resolve seed channel %s", channel_identifier)
 
@@ -59,35 +59,44 @@ def seed_channels() -> None:
         return
 
     query = """
-        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id, is_tracked)
+        VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (channel_id) DO UPDATE SET
             channel_name = EXCLUDED.channel_name,
             group_name = EXCLUDED.group_name,
             uploads_playlist_id = CASE
                 WHEN COALESCE(channels.uploads_playlist_id, '') = '' THEN EXCLUDED.uploads_playlist_id
                 ELSE channels.uploads_playlist_id
-            END
+            END,
+            is_tracked = TRUE
     """
     execute_many(query, resolved_rows)
     logger.info("Seeded %d channel(s).", len(resolved_rows))
 
 
 # ── Load channels from DB ───────────────────────────────────────────
-def load_channels() -> list[dict]:
-    """Return all rows from the `channels` table."""
+def load_channels(tracked_only: bool = False) -> list[dict]:
+    """Return rows from the `channels` table."""
+    where_clause = "WHERE is_tracked = TRUE" if tracked_only else ""
     try:
         return fetchall(
-            """
-            SELECT channel_id, channel_name, group_name, COALESCE(uploads_playlist_id, '') AS uploads_playlist_id
+            f"""
+            SELECT
+                channel_id,
+                channel_name,
+                group_name,
+                COALESCE(uploads_playlist_id, '') AS uploads_playlist_id,
+                is_tracked
             FROM channels
+            {where_clause}
             """
         )
     except Exception:
-        logger.warning("channels.uploads_playlist_id not available yet; using legacy channel query")
+        logger.warning("channels metadata columns not available yet; using legacy channel query")
         rows = fetchall("SELECT channel_id, channel_name, group_name FROM channels")
         for row in rows:
             row["uploads_playlist_id"] = ""
+            row["is_tracked"] = True
         return rows
 
 
@@ -167,7 +176,7 @@ def discover_videos(
 
     # 1) Channel-based search (uploads playlist + playlistItems.list)
     if include_channel_search:
-        channels = load_channels()
+        channels = load_channels(tracked_only=True)
         for ch in channels:
             if quota_guard_hit:
                 break
@@ -286,10 +295,52 @@ def _infer_group_name(detail: dict, group_map: dict[str, str]) -> str:
     return "other"
 
 
+
+def _upsert_discovered_channels(details: list[dict], group_map: dict[str, str]) -> None:
+    """Persist discovered source channels without adding them to hourly crawl targets."""
+    seen: dict[str, tuple[str, str, str, str, bool]] = {}
+    for detail in details:
+        channel_id = detail.get("channel_id", "")
+        if not channel_id:
+            continue
+        inferred_group = _infer_group_name(detail, group_map)
+        group_map.setdefault(channel_id, inferred_group)
+        if channel_id in seen:
+            continue
+        seen[channel_id] = (
+            channel_id,
+            detail.get("channel_name", "") or "",
+            inferred_group,
+            "",
+            False,
+        )
+
+    rows = list(seen.values())
+    if not rows:
+        return
+
+    query = """
+        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id, is_tracked)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (channel_id) DO UPDATE SET
+            channel_name = EXCLUDED.channel_name,
+            group_name = CASE
+                WHEN COALESCE(channels.group_name, '') IN ('', 'other') THEN EXCLUDED.group_name
+                ELSE channels.group_name
+            END,
+            uploads_playlist_id = CASE
+                WHEN COALESCE(channels.uploads_playlist_id, '') = '' THEN EXCLUDED.uploads_playlist_id
+                ELSE channels.uploads_playlist_id
+            END
+    """
+    execute_many(query, rows)
+    logger.info("Upserted %d discovered channel(s).", len(rows))
+
 def store_new_videos(details: list[dict]) -> int:
     """Insert new videos, skipping duplicates. Returns count inserted."""
     channels = load_channels()
     group_map = _channel_group_map(channels)
+    _upsert_discovered_channels(details, group_map)
 
     query = """
         INSERT INTO videos
@@ -378,10 +429,4 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
-
-
-
-
-
-
 
