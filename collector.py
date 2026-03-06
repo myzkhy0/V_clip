@@ -245,16 +245,9 @@ def discover_videos(
 
 # ── Filter & store ──────────────────────────────────────────────────
 def _is_valid_clip(detail: dict) -> bool:
-    """Return True for clip videos that should be treated as Shorts."""
-    duration = int(detail.get("duration_seconds", 0))
+    """Return True for clip videos (shorts/video split is done separately)."""
     text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
-    has_clip_keyword = "切り抜き" in text
-    has_shorts_keyword = SHORTS_TAG_KEYWORD in text or " shorts" in text
-    is_shorts = (
-        duration >= MIN_DURATION_SECONDS
-        and (duration <= SHORTS_MAX_SECONDS or has_shorts_keyword)
-    )
-    return has_clip_keyword and is_shorts
+    return "切り抜き" in text
 
 
 def _classify_content_type(detail: dict) -> str:
@@ -408,15 +401,9 @@ def run_collector(
     # Fetch details in batches
     details = get_video_details(video_ids)
 
-    # Filter by duration
+    # Filter by clip keyword
     valid = [d for d in details if _is_valid_clip(d)]
-    logger.info(
-        "Shorts filter: %d / %d passed (>=%ds and <=%ds or shorts keyword)",
-        len(valid),
-        len(details),
-        MIN_DURATION_SECONDS,
-        SHORTS_MAX_SECONDS,
-    )
+    logger.info("Clip filter: %d / %d passed (contains '切り抜き')", len(valid), len(details))
 
     # Store
     store_new_videos(valid)
