@@ -41,6 +41,11 @@ SEARCH_KEYWORDS: list[str] = [
     "どっとライブ 切り抜き",
 ]
 
+KEYWORD_MAX_RESULTS_OVERRIDE: dict[str, int] = {
+    "ホロライブ 切り抜き": 100,
+    "にじさんじ 切り抜き": 100,
+    "ぶいすぽ 切り抜き": 100,
+}
 KEYWORD_SEARCH_BATCH_SIZE: int = int(
     os.getenv("KEYWORD_SEARCH_BATCH_SIZE", str(len(SEARCH_KEYWORDS)))
 )
@@ -145,9 +150,11 @@ YOUTUBE_QUOTA_STATE_FILE: str = os.getenv(
 
 # ── Scheduler ────────────────────────────────────────────────────────
 COLLECTION_INTERVAL_MINUTES: int = 360  # backward compatibility
-SEARCH_CRON_HOURS_JST: str = os.getenv("SEARCH_CRON_HOURS_JST", "6")
+SEARCH_CRON_HOURS_JST: str = os.getenv("SEARCH_CRON_HOURS_JST", "6,18")
 SEARCH_CRON_MINUTE_JST: int = int(os.getenv("SEARCH_CRON_MINUTE_JST", "0"))
 CHANNEL_UPDATE_INTERVAL_HOURS: int = int(os.getenv("CHANNEL_UPDATE_INTERVAL_HOURS", "8"))
 STATS_INTERVAL_HOURS: int = int(os.getenv("STATS_INTERVAL_HOURS", "4"))
+
+
 
 

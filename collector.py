@@ -21,8 +21,10 @@ from config import (
     GROUP_KEYWORDS,
     MIN_DURATION_SECONDS,
     KEYWORD_ROTATION_STATE_FILE,
+    KEYWORD_MAX_RESULTS_OVERRIDE,
     KEYWORD_SEARCH_BATCH_SIZE,
     SEARCH_KEYWORDS,
+    SEARCH_MAX_RESULTS,
     SEED_CHANNELS,
     SHORTS_MAX_SECONDS,
     SHORTS_TAG_KEYWORD,
@@ -281,7 +283,8 @@ def discover_videos(
             if quota_guard_hit:
                 break
             try:
-                ids = search_by_keyword(kw, cutoff)
+                keyword_max_results = max(1, int(KEYWORD_MAX_RESULTS_OVERRIDE.get(kw, SEARCH_MAX_RESULTS)))
+                ids = search_by_keyword(kw, cutoff, max_results=keyword_max_results)
                 all_ids.update(ids)
                 logger.info("Keyword '%s': %d videos", kw, len(ids))
             except QuotaExceededError as exc:
@@ -478,4 +481,6 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
+
+
 
