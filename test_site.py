@@ -524,19 +524,17 @@ def render_homepage(is_admin: bool = False) -> str:
     .hero-logo-wrap {{
       display: flex;
       justify-content: center;
-      margin: 2px 0 14px;
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01));
-      border: 1px solid rgba(255,255,255,0.08);
+      width: 100%;
+      margin: 10px 0 2px;
+      padding: 0;
       pointer-events: none;
     }}
     .hero-logo {{
-      width: min(100%, 780px);
-      max-height: 190px;
+      width: min(100%, 560px);
+      max-height: 132px;
       object-fit: contain;
-      opacity: 0.9;
-      filter: drop-shadow(0 8px 26px rgba(157, 98, 255, 0.24));
+      opacity: 0.76;
+      filter: drop-shadow(0 4px 14px rgba(157, 98, 255, 0.16));
     }}
     h1, h2, h3, p {{
       margin: 0;
@@ -547,6 +545,10 @@ def render_homepage(is_admin: bool = False) -> str:
       align-items: end;
       gap: 16px;
       flex-wrap: wrap;
+    }}
+    .hero-copy > div {{
+      flex: 1 1 640px;
+      min-width: 0;
     }}
     .hero-copy p {{
       color: var(--muted);
@@ -968,13 +970,12 @@ def render_homepage(is_admin: bool = False) -> str:
         gap: 10px;
       }}
       .hero-logo-wrap {{
-        margin: 2px 0 10px;
-        padding: 8px 8px;
-        border-radius: 12px;
+        margin: 8px 0 2px;
+        padding: 0;
       }}
       .hero-logo {{
-        width: min(100%, 560px);
-        max-height: 126px;
+        width: min(100%, 430px);
+        max-height: 96px;
       }}
       .hero-copy h1 {{
         font-size: 1.16rem;
@@ -1080,11 +1081,11 @@ def render_homepage(is_admin: bool = False) -> str:
 <body>
   <main class="shell">
     <section class="hero">
-      {logo_html}
       <div class="hero-copy">
         <div>
           <h1>ぶいくりっぷ Vtuber切り抜きランキング</h1>
           <p>テスト運用中です。。。</p>
+          {logo_html}
         </div>
         {admin_html}
       </div>
@@ -1391,7 +1392,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
 
