@@ -290,7 +290,22 @@ def _truncate_text(value: str, max_len: int = 42) -> str:
     return text[: max_len - 1].rstrip() + "…"
 
 
-def _render_cards(rows: list[dict], card_class: str = "", show_group: bool = True) -> str:
+def _share_prefix_for_period(period_key: str, month_day: str, rank: int) -> str:
+    if period_key == "daily":
+        return f"本日({month_day})の #VTuber切り抜きランキング {rank}位です！"
+    if period_key == "weekly":
+        return f"直近7日間の #VTuber切り抜きランキング {rank}位です！"
+    if period_key == "monthly":
+        return f"直近30日間の #VTuber切り抜きランキング {rank}位です！"
+    return f"#VTuber切り抜きランキング {rank}位です！"
+
+
+def _render_cards(
+    rows: list[dict],
+    card_class: str = "",
+    show_group: bool = True,
+    period_key: str = "daily",
+) -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
@@ -308,11 +323,9 @@ def _render_cards(rows: list[dict], card_class: str = "", show_group: bool = Tru
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         channel_url = f"https://www.youtube.com/channel/{channel_id}"
         title_plain = " ".join(str(row.get("title") or "").split())
-        share_title = _truncate_text(title_plain, 36)
-        share_text = (
-            f"本日（{month_day}）のVTuber切り抜きランキング{row['rank']}位です！#ぶいくりっぷ"
-            f"  {share_title}"
-        )
+        share_title = _truncate_text(title_plain, 56)
+        share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"])
+        share_text = f"{share_prefix}  {share_title}"
         share_url = (
             "https://twitter.com/intent/tweet?text="
             f"{quote(share_text, safe='')}&url={quote(video_url, safe='')}"
@@ -352,15 +365,15 @@ def _render_cards(rows: list[dict], card_class: str = "", show_group: bool = Tru
             """
         )
     return "".join(cards)
-def _render_rank_sections(rows: list[dict], show_group: bool = True) -> str:
+def _render_rank_sections(rows: list[dict], show_group: bool = True, period_key: str = "daily") -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     feature_rows = rows[:3]
     rest_rows = rows[3:]
 
-    feature_html = _render_cards(feature_rows, "feature-card", show_group=show_group)
-    rest_html = _render_cards(rest_rows, show_group=show_group)
+    feature_html = _render_cards(feature_rows, "feature-card", show_group=show_group, period_key=period_key)
+    rest_html = _render_cards(rest_rows, show_group=show_group, period_key=period_key)
     return f"""
     <section class="ranking-list">
       <h3>上位3件</h3>
@@ -373,18 +386,23 @@ def _render_rank_sections(rows: list[dict], show_group: bool = True) -> str:
     """
 
 
-def _render_group_content(shorts_rows: list[dict], video_rows: list[dict], show_group: bool = True) -> str:
+def _render_group_content(
+    shorts_rows: list[dict],
+    video_rows: list[dict],
+    show_group: bool = True,
+    period_key: str = "daily",
+) -> str:
     if not shorts_rows and not video_rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     default_tab = "shorts" if shorts_rows else "video"
     shorts_html = (
-        _render_rank_sections(shorts_rows, show_group=show_group)
+        _render_rank_sections(shorts_rows, show_group=show_group, period_key=period_key)
         if shorts_rows
         else '<div class="empty">Shortsに該当する動画はありません。</div>'
     )
     video_html = (
-        _render_rank_sections(video_rows, show_group=show_group)
+        _render_rank_sections(video_rows, show_group=show_group, period_key=period_key)
         if video_rows
         else '<div class="empty">動画に該当する動画はありません。</div>'
     )
@@ -441,6 +459,7 @@ def _build_period_payload(is_admin: bool = False) -> list[dict]:
                         grouped_shorts.get(group_name, []),
                         grouped_video.get(group_name, []),
                         show_group=True,
+                        period_key=period_key,
                     )
                     for group_name in available_groups
                 },
@@ -1831,6 +1850,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
