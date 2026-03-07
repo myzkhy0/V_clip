@@ -23,6 +23,10 @@ HOST = os.getenv("TEST_SITE_HOST", "127.0.0.1")
 PORT = int(os.getenv("TEST_SITE_PORT", "8000"))
 FONT_FILE = r"C:\Users\11bs0\OneDrive\デスクトップ\NotoSansJP-VariableFont_wght.ttf"
 LOGO_FILE = os.getenv("TEST_SITE_LOGO_FILE", "").strip()
+FAVICON_FILE = os.getenv(
+    "TEST_SITE_FAVICON_FILE",
+    str(Path(__file__).resolve().parent / "assets" / "ueno-icon.jpg"),
+).strip()
 ADMIN_TOKEN = os.getenv("TEST_SITE_ADMIN_TOKEN", "")
 GA_MEASUREMENT_ID = os.getenv("GA_MEASUREMENT_ID", "").strip()
 SITE_BASE_URL = os.getenv("TEST_SITE_BASE_URL", "").strip()
@@ -89,6 +93,8 @@ def _build_head_meta(base_url: str, is_admin: bool) -> str:
     tags = [
         f'<meta name="description" content="{html.escape(SITE_DESCRIPTION, quote=True)}">',
         f'<meta name="robots" content="{robots}">',
+        '<link rel="icon" type="image/jpeg" href="/assets/ueno-icon.jpg">',
+        '<link rel="shortcut icon" href="/assets/ueno-icon.jpg">',
     ]
     if canonical_url:
         tags.append(f'<link rel="canonical" href="{html.escape(canonical_url, quote=True)}">')
@@ -527,6 +533,81 @@ def render_error_page(error: Exception, base_url: str = "") -> str:
 """
 
 
+
+
+def render_policy_page(base_url: str = "") -> str:
+    normalized_base_url = _normalize_base_url(base_url)
+    head_meta = _build_head_meta(normalized_base_url, is_admin=False)
+    return f"""<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>プライバシーポリシー | {SITE_TITLE}</title>
+  {head_meta}
+  <style>
+    @font-face {{
+      font-family: "Noto Sans JP Local";
+      src: url("/assets/noto-sans-jp.ttf") format("truetype");
+      font-weight: 100 900;
+      font-display: swap;
+    }}
+    body {{
+      margin: 0;
+      font-family: "Noto Sans JP Local", sans-serif;
+      color: #eaf2f8;
+      background: linear-gradient(160deg, #081017 0%, #121b24 52%, #0b1218 100%);
+    }}
+    .shell {{
+      width: min(900px, calc(100% - 24px));
+      margin: 24px auto 40px;
+    }}
+    .panel {{
+      border: 1px solid rgba(126, 160, 190, 0.22);
+      background: rgba(16, 24, 33, 0.96);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      padding: 24px;
+      line-height: 1.75;
+    }}
+    h1 {{ margin-top: 0; }}
+    h2 {{ margin-top: 1.5em; font-size: 1.05rem; }}
+    a {{ color: #63d0ff; }}
+    .back {{
+      margin-top: 20px;
+      text-align: center;
+    }}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="panel">
+      <h1>プライバシーポリシー</h1>
+      <p>当サイト（ぶいくりっぷ VTuber切り抜きランキング）では、サイト改善および利用状況の把握のため、Google Analyticsを利用しています。</p>
+
+      <h2>1. 取得する情報</h2>
+      <p>Google AnalyticsはCookieを利用し、閲覧ページ、アクセス元、利用環境等の情報を匿名で収集します。個人を直接特定する情報は含みません。</p>
+
+      <h2>2. 利用目的</h2>
+      <p>収集した情報は、サイトの品質向上、表示・導線改善、障害分析のために利用します。</p>
+
+      <h2>3. 外部サービスについて</h2>
+      <p>Google Analyticsにより収集される情報は、Google社の定めるプライバシーポリシーに基づいて管理されます。</p>
+      <p><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google プライバシーポリシー</a></p>
+
+      <h2>4. 無効化（オプトアウト）</h2>
+      <p>Google Analyticsによる収集を望まない場合は、ブラウザ設定でCookieを無効化するか、Google提供のオプトアウトアドオンをご利用ください。</p>
+      <p><a href="https://tools.google.com/dlpage/gaoptout?hl=ja" target="_blank" rel="noopener noreferrer">Google Analytics オプトアウト アドオン</a></p>
+
+      <h2>5. 本ポリシーの変更</h2>
+      <p>本ポリシーの内容は、必要に応じて予告なく変更することがあります。</p>
+
+      <div class="back"><a href="/">ランキングページへ戻る</a></div>
+    </section>
+  </main>
+</body>
+</html>
+"""
+
 def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     payload = _build_period_payload(is_admin=is_admin)
     first_period = payload[0]["table"] if payload else ""
@@ -624,6 +705,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       letter-spacing: 0.02em;
       margin-top: 18px;
       opacity: 0.9;
+    }}
+    .footer-policy-link {{
+      color: var(--accent-cool);
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }}
     .hero, .panel {{
       border: 1px solid var(--line);
@@ -1224,7 +1310,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     </section>
     <div id="period-root"></div>
     <div class="back-top-wrap"><a id="back-to-top" class="back-top-link" href="#">TOPへ</a></div>
-    <footer class="site-footer">Copyright (C) 2026- 3vskhv0 All Rights Reserved.</footer>
+    <footer class="site-footer">Copyright (C) 2026- 3vskhv0 All Rights Reserved. <span>|</span> <a class="footer-policy-link" href="/policy">プライバシーポリシー</a></footer>
   </main>
   <div id="player-modal" class="player-modal" aria-hidden="true">
     <div class="player-sheet" role="dialog" aria-modal="true" aria-label="動画プレイヤー">
@@ -1537,11 +1623,34 @@ class TestSiteHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path_only = parsed.path
 
+        if path_only == "/favicon.ico":
+            self.send_response(302)
+            self.send_header("Location", "/assets/ueno-icon.jpg")
+            self.end_headers()
+            return
         if path_only == "/assets/noto-sans-jp.ttf":
             self.send_response(200)
             self.send_header("Content-Type", "font/ttf")
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
+            return
+
+        if path_only == "/assets/ueno-icon.jpg":
+            if not FAVICON_FILE:
+                self.send_error(404, "Favicon not configured")
+                return
+            try:
+                with open(FAVICON_FILE, "rb") as icon_file:
+                    body = icon_file.read()
+            except OSError:
+                self.send_error(404, "Favicon not found")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            self.wfile.write(body)
             return
 
         if path_only == "/assets/site-logo.png":
@@ -1569,6 +1678,11 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             return
+        if path_only == "/policy":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            return
 
         if path_only in {"/", "/index.html"}:
             self.send_response(200)
@@ -1583,6 +1697,11 @@ class TestSiteHandler(BaseHTTPRequestHandler):
         path_only = parsed.path
         query = parse_qs(parsed.query)
 
+        if path_only == "/favicon.ico":
+            self.send_response(302)
+            self.send_header("Location", "/assets/ueno-icon.jpg")
+            self.end_headers()
+            return
         if path_only == "/assets/noto-sans-jp.ttf":
             try:
                 with open(FONT_FILE, "rb") as font_file:
@@ -1596,6 +1715,23 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
             self.wfile.write(body)
+            return
+
+        if path_only == "/assets/ueno-icon.jpg":
+            if not FAVICON_FILE:
+                self.send_error(404, "Favicon not configured")
+                return
+            try:
+                with open(FAVICON_FILE, "rb") as icon_file:
+                    body = icon_file.read()
+            except OSError:
+                self.send_error(404, "Favicon not found")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
             return
 
         if path_only == "/assets/site-logo.png":
@@ -1629,6 +1765,15 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             body = _build_sitemap_xml(self._request_base_url()).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/xml; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if path_only == "/policy":
+            body = render_policy_page(base_url=self._request_base_url()).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -1682,4 +1827,18 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
