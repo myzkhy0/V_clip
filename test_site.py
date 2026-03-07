@@ -1206,9 +1206,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .mobile-pager {{
         display: flex;
       }}
-      .back-top-wrap {{
-        display: none;
-      }}
     }}
   </style>
 </head>
