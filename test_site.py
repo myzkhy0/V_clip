@@ -1186,7 +1186,7 @@ def render_homepage(is_admin: bool = False) -> str:
       return `${{periodKey}}::${{groupKey}}::${{contentKey}}`;
     }}
 
-    function makePager(totalPages, currentPage, onPageChange) {{
+    function makePager(totalPages, currentPage, startRank, endRank, onPageChange) {{
       const pager = document.createElement("div");
       pager.className = "mobile-pager";
 
@@ -1199,7 +1199,7 @@ def render_homepage(is_admin: bool = False) -> str:
 
       const info = document.createElement("span");
       info.className = "page-info";
-      info.textContent = `${{currentPage}}/${{totalPages}}`;
+      info.textContent = `${{startRank}}-${{endRank}}位`;
 
       const next = document.createElement("button");
       next.type = "button";
@@ -1255,6 +1255,8 @@ def render_homepage(is_admin: bool = False) -> str:
 
         const start = (currentPage - 1) * MOBILE_PAGE_SIZE;
         const end = start + MOBILE_PAGE_SIZE;
+        const startRank = start + 1;
+        const endRank = Math.min(end, cards.length);
 
         cards.forEach((card, index) => {{
           card.style.display = index >= start && index < end ? "" : "none";
@@ -1263,10 +1265,11 @@ def render_homepage(is_admin: bool = False) -> str:
         const onPageChange = (nextPage) => {{
           pageState[key] = nextPage;
           applyMobilePagination(contentPanel.closest(".group-panel") || contentPanel);
+          contentPanel.scrollIntoView({ behavior: "smooth", block: "start" });
         }};
 
-        const topPager = makePager(totalPages, currentPage, onPageChange);
-        const bottomPager = makePager(totalPages, currentPage, onPageChange);
+        const topPager = makePager(totalPages, currentPage, startRank, endRank, onPageChange);
+        const bottomPager = makePager(totalPages, currentPage, startRank, endRank, onPageChange);
         contentPanel.prepend(topPager);
         contentPanel.appendChild(bottomPager);
       }}
@@ -1528,14 +1531,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
 
