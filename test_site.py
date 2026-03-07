@@ -505,6 +505,17 @@ def render_homepage(is_admin: bool = False) -> str:
       width: min(1320px, calc(100% - 24px));
       margin: 24px auto 48px;
     }}
+    .back-top-wrap {{
+      text-align: center;
+      margin-top: 16px;
+    }}
+    .back-top-link {{
+      color: var(--accent-cool);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      font-size: 0.9rem;
+    }}
+
     .site-footer {{
       text-align: center;
       color: var(--muted);
@@ -971,6 +982,14 @@ def render_homepage(is_admin: bool = False) -> str:
       opacity: 0.45;
       cursor: not-allowed;
     }}
+    .mobile-pager .top-link {{
+      color: var(--accent-cool);
+      font-size: 0.8rem;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      margin-left: 4px;
+      white-space: nowrap;
+    }}
     @media (max-width: 1024px) {{
       .feature-grid {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1117,6 +1136,7 @@ def render_homepage(is_admin: bool = False) -> str:
       <div class="period-tabs" id="period-tabs"></div>
     </section>
     <div id="period-root"></div>
+    <div class="back-top-wrap"><a id="back-to-top" class="back-top-link" href="#">TOPへ</a></div>
     <footer class="site-footer">Copyright (C) 2026- 3vskhv0 All Rights Reserved.</footer>
   </main>
   <div id="player-modal" class="player-modal" aria-hidden="true">
@@ -1139,6 +1159,7 @@ def render_homepage(is_admin: bool = False) -> str:
     const showAdminMeta = {show_admin_meta};
     const periodTabs = document.getElementById("period-tabs");
     const periodRoot = document.getElementById("period-root");
+    const backToTop = document.getElementById("back-to-top");
     const playerModal = document.getElementById("player-modal");
     const playerSheet = playerModal.querySelector(".player-sheet");
     const playerFrame = playerModal.querySelector(".player-frame");
@@ -1208,9 +1229,19 @@ def render_homepage(is_admin: bool = False) -> str:
       next.disabled = currentPage >= totalPages;
       next.addEventListener("click", () => onPageChange(currentPage + 1));
 
+      const topLink = document.createElement("a");
+      topLink.href = "#";
+      topLink.className = "top-link";
+      topLink.textContent = "TOPへ";
+      topLink.addEventListener("click", (event) => {{
+        event.preventDefault();
+        window.scrollTo({{ top: 0, behavior: "smooth" }});
+      }});
+
       pager.appendChild(prev);
       pager.appendChild(info);
       pager.appendChild(next);
+      pager.appendChild(topLink);
       return pager;
     }}
 
@@ -1407,6 +1438,12 @@ def render_homepage(is_admin: bool = False) -> str:
       window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => applyMobilePagination(periodRoot), 120);
     }});
+    if (backToTop) {{
+      backToTop.addEventListener("click", (event) => {{
+        event.preventDefault();
+        window.scrollTo({{ top: 0, behavior: "smooth" }});
+      }});
+    }}
     document.addEventListener("keydown", (event) => {{
       if (event.key === "Escape" && playerModal.classList.contains("open")) {{
         closePlayer();
@@ -1531,5 +1568,13 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
 
 
