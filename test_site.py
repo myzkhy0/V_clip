@@ -560,7 +560,7 @@ def render_policy_page(base_url: str = "") -> str:
       margin: 0;
       font-family: "Noto Sans JP Local", sans-serif;
       color: #eaf2f8;
-      background: linear-gradient(165deg, #f9f4ff 0%, #f3ecff 48%, #f8eef8 100%);
+      background: linear-gradient(165deg, #09071a 0%, #1b1038 45%, #2d1345 100%);
     }}
     .shell {{
       width: min(900px, calc(100% - 24px));
@@ -666,16 +666,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font-display: swap;
     }}
     :root {{
-      --bg: #f9f4ff;
-      --panel: rgba(255, 255, 255, 0.82);
-      --panel-strong: rgba(255, 255, 255, 0.9);
-      --ink: #3a2a52;
-      --accent: #f7a8d8;
-      --accent-strong: #caa7ff;
-      --accent-cool: #9f6ed8;
-      --line: rgba(199, 169, 235, 0.7);
-      --muted: #7c6c99;
-      --shadow: 0 12px 30px rgba(126, 97, 170, 0.14);
+      --bg: #09071a;
+      --panel: rgba(14, 10, 32, 0.9);
+      --panel-strong: rgba(18, 12, 40, 0.94);
+      --ink: #f5ecff;
+      --accent: #ff66c4;
+      --accent-strong: #b47dff;
+      --accent-cool: #f69ad3;
+      --line: rgba(219, 141, 255, 0.28);
+      --muted: #c9b9e6;
+      --shadow: 0 14px 40px rgba(7, 2, 26, 0.45);
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -683,9 +683,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font-family: "Noto Sans JP Local", sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(circle at top left, rgba(247, 168, 216, 0.28), transparent 55%),
-        radial-gradient(circle at top right, rgba(202, 167, 255, 0.32), transparent 56%),
-        linear-gradient(165deg, #f9f4ff 0%, #f3ecff 48%, #f8eef8 100%);
+        radial-gradient(1200px 400px at -10% -10%, rgba(255, 102, 196, 0.2), transparent 50%),
+        radial-gradient(900px 350px at 110% 0%, rgba(180, 125, 255, 0.24), transparent 55%),
+        linear-gradient(165deg, #09071a 0%, #1b1038 45%, #2d1345 100%);
     }}
     .shell {{
       width: min(1320px, calc(100% - 24px));
@@ -768,7 +768,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       border-radius: 999px;
       padding: 4px 10px;
       font-weight: 700;
-      color: #402a63;
+      color: #1f0824;
     }}
     .admin-pill.ok {{
       background: #5ee0b0;
@@ -792,7 +792,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .tab-button {{
       border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.75);
+      background: rgba(116, 72, 177, 0.22);
       color: var(--ink);
       padding: 10px 15px;
       border-radius: 999px;
@@ -800,9 +800,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font: inherit;
     }}
     .tab-button.active {{
-      background: linear-gradient(135deg, #ffd2ea 0%, #e1d2ff 58%, #d6e0ff 100%);
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 60%, #7f5dff 100%);
       border-color: transparent;
-      color: #402a63;
+      color: #1f0824;
       font-weight: 700;
     }}
     .content-tabs {{
@@ -866,22 +866,22 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .video-card {{
       border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.68);
+      background: rgba(11, 7, 27, 0.84);
       overflow: hidden;
       position: relative;
     }}
     .feature-card {{
-      border-color: rgba(190, 158, 229, 0.6);
-      box-shadow: 0 12px 24px rgba(160, 130, 210, 0.18);
+      border-color: rgba(209, 128, 255, 0.35);
+      box-shadow: 0 14px 28px rgba(111, 73, 167, 0.22);
     }}
     .feature-card .thumb {{
       aspect-ratio: 16 / 9;
-      background: #efe8ff;
+      background: #1b1038;
     }}
     .feature-card .thumb img {{
       object-fit: cover;
-      filter: saturate(0.92) brightness(1.02);
-      background: #efe8ff;
+      filter: none;
+      background: #1b1038;
     }}
     .feature-card .video-body {{
       padding: 15px 18px 17px;
@@ -900,8 +900,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       left: 12px;
       padding: 8px 11px;
       font-size: 0.9rem;
-      background: rgba(241, 232, 255, 0.9);
-      color: #6f49a7;
+      background: rgba(31, 21, 52, 0.9);
+      color: #ffd2ff;
       font-weight: 800;
     }}
     .video-card .thumb {{
@@ -928,7 +928,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       position: relative;
       display: block;
       aspect-ratio: 16 / 9;
-      background: #efe8ff;
+      background: #1b1038;
       border: 0;
       padding: 0;
       width: 100%;
@@ -938,7 +938,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       width: 100%;
       height: 100%;
       object-fit: cover;
-      filter: saturate(0.92) brightness(1.02);
+      filter: none;
       display: block;
     }}
     .rank-badge {{
@@ -947,8 +947,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       left: 10px;
       padding: 7px 11px;
       border-radius: 999px;
-      background: rgba(241, 232, 255, 0.9);
-      color: #5a3d89;
+      background: rgba(31, 21, 52, 0.9);
+      color: #f5ecff;
       font-size: 0.95rem;
     }}
     .new-badge {{
@@ -957,12 +957,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       right: 10px;
       padding: 6px 9px;
       border-radius: 999px;
-      background: linear-gradient(135deg, #ffb6dd, #d7b8ff);
-      color: #5a3d89;
+      background: linear-gradient(135deg, #ff66c4, #b47dff);
+      color: #f5ecff;
       font-size: 0.75rem;
       letter-spacing: 0.04em;
       font-weight: 800;
-      box-shadow: 0 8px 18px rgba(199, 169, 235, 0.35);
+      box-shadow: 0 8px 18px rgba(180, 125, 255, 0.35);
     }}
     .video-body {{
       padding: 14px;
@@ -981,7 +981,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font-weight: 700;
     }}
     .video-play {{
-      background: rgba(255, 255, 255, 0.75);
+      background: rgba(116, 72, 177, 0.22);
       border: 0;
       padding: 0;
       width: 100%;
@@ -1109,7 +1109,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       height: 22px;
       border-radius: 50%;
       object-fit: cover;
-      filter: saturate(0.92) brightness(1.02);
+      filter: none;
       flex: 0 0 22px;
       border: 1px solid var(--line);
       background: rgba(255, 255, 255, 0.08);
@@ -1834,6 +1834,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
