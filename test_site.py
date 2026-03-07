@@ -50,6 +50,7 @@ GROUP_ORDER = [
     "hololive",
     "MilliPro",
     "UniReid",
+    "REJECT",
     "other",
 ]
 GROUP_LABELS = {
@@ -64,6 +65,7 @@ GROUP_LABELS = {
     "MilliPro": "ミリプロ",
     "Aogiri": "あおぎり高校",
     "DotLive": "どっとライブ",
+    "REJECT": "REJECT",
     "other": "その他",
 }
 
@@ -1827,6 +1829,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
