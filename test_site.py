@@ -24,6 +24,7 @@ PORT = int(os.getenv("TEST_SITE_PORT", "8000"))
 FONT_FILE = r"C:\Users\11bs0\OneDrive\デスクトップ\NotoSansJP-VariableFont_wght.ttf"
 LOGO_FILE = os.getenv("TEST_SITE_LOGO_FILE", "").strip()
 ADMIN_TOKEN = os.getenv("TEST_SITE_ADMIN_TOKEN", "")
+GA_MEASUREMENT_ID = os.getenv("GA_MEASUREMENT_ID", "").strip()
 YOUTUBE_DAILY_SEARCH_UNIT_LIMIT = int(os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT", "8000"))
 YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json")
 
@@ -436,12 +437,24 @@ def render_homepage(is_admin: bool = False) -> str:
     show_admin_meta = "true" if is_admin else "false"
     admin_html = ""
     logo_html = ""
+    analytics_html = ""
     if LOGO_FILE and Path(LOGO_FILE).exists():
         logo_html = """
           <div class="hero-logo-wrap">
             <img class="hero-logo" src="/assets/site-logo.png" alt="ぶいくりっぷ ロゴ" loading="eager">
           </div>
         """
+    if GA_MEASUREMENT_ID:
+        ga_id = html.escape(GA_MEASUREMENT_ID, quote=True)
+        analytics_html = f"""
+  <script async src="https://www.googletagmanager.com/gtag/js?id={ga_id}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){{dataLayer.push(arguments);}}
+    gtag('js', new Date());
+    gtag('config', '{ga_id}');
+  </script>
+"""
     if is_admin:
         used, limit = _load_quota_usage()
         status_label, status_class = _quota_status(used, limit)
@@ -458,6 +471,7 @@ def render_homepage(is_admin: bool = False) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ぶいくりっぷ Vtuber切り抜きランキング</title>
+  {analytics_html}
   <style>
     @font-face {{
       font-family: "Noto Sans JP Local";
@@ -1264,9 +1278,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
 
 
