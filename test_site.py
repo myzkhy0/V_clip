@@ -1265,7 +1265,7 @@ def render_homepage(is_admin: bool = False) -> str:
         const onPageChange = (nextPage) => {{
           pageState[key] = nextPage;
           applyMobilePagination(contentPanel.closest(".group-panel") || contentPanel);
-          contentPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+          contentPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
         }};
 
         const topPager = makePager(totalPages, currentPage, startRank, endRank, onPageChange);
@@ -1531,4 +1531,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
