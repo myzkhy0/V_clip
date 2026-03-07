@@ -525,16 +525,16 @@ def render_homepage(is_admin: bool = False) -> str:
       display: flex;
       justify-content: center;
       width: 100%;
-      margin: 10px 0 2px;
+      margin: 2px 0 10px;
       padding: 0;
       pointer-events: none;
     }}
     .hero-logo {{
-      width: min(100%, 560px);
-      max-height: 132px;
+      width: min(100%, 640px);
+      max-height: 150px;
       object-fit: contain;
-      opacity: 0.76;
-      filter: drop-shadow(0 4px 14px rgba(157, 98, 255, 0.16));
+      opacity: 0.92;
+      filter: none;
     }}
     h1, h2, h3, p {{
       margin: 0;
@@ -970,12 +970,12 @@ def render_homepage(is_admin: bool = False) -> str:
         gap: 10px;
       }}
       .hero-logo-wrap {{
-        margin: 8px 0 2px;
+        margin: 2px 0 8px;
         padding: 0;
       }}
       .hero-logo {{
-        width: min(100%, 430px);
-        max-height: 96px;
+        width: min(100%, 500px);
+        max-height: 112px;
       }}
       .hero-copy h1 {{
         font-size: 1.16rem;
@@ -1083,9 +1083,9 @@ def render_homepage(is_admin: bool = False) -> str:
     <section class="hero">
       <div class="hero-copy">
         <div>
+          {logo_html}
           <h1>ぶいくりっぷ Vtuber切り抜きランキング</h1>
           <p>テスト運用中です。。。</p>
-          {logo_html}
         </div>
         {admin_html}
       </div>
