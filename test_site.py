@@ -1083,14 +1083,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       opacity: 0.45;
       cursor: not-allowed;
     }}
-    .mobile-pager .top-link {{
-      color: var(--accent-cool);
-      font-size: 0.8rem;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-      margin-left: 4px;
-      white-space: nowrap;
-    }}
     @media (max-width: 1024px) {{
       .feature-grid {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1333,19 +1325,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       next.disabled = currentPage >= totalPages;
       next.addEventListener("click", () => onPageChange(currentPage + 1));
 
-      const topLink = document.createElement("a");
-      topLink.href = "#";
-      topLink.className = "top-link";
-      topLink.textContent = "TOPへ";
-      topLink.addEventListener("click", (event) => {{
-        event.preventDefault();
-        window.scrollTo({{ top: 0, behavior: "smooth" }});
-      }});
-
       pager.appendChild(prev);
       pager.appendChild(info);
       pager.appendChild(next);
-      pager.appendChild(topLink);
       return pager;
     }}
 
@@ -1721,26 +1703,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
