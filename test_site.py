@@ -184,7 +184,7 @@ def _truncate_text(value: str, max_len: int = 42) -> str:
     return text[: max_len - 1].rstrip() + "…"
 
 
-def _render_cards(rows: list[dict], card_class: str = "") -> str:
+def _render_cards(rows: list[dict], card_class: str = "", show_group: bool = True) -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
@@ -214,6 +214,7 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
         class_name = "video-card" if not card_class else f"video-card {card_class}"
         content_type = html.escape((row.get("content_type") or "").lower())
         new_badge_html = '<span class="new-badge">NEW</span>' if row.get("is_new") else ""
+        group_pill_html = f'<span class="pill">{group_name}</span>' if show_group else ""
         cards.append(
             f"""
             <article class="{class_name}">
@@ -230,7 +231,7 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
                     <span class="channel-icon-fallback" style="display:none;">ch</span>
                     <span class="channel-name">{channel_name}</span>
                   </a>
-                  <span class="pill">{group_name}</span>
+                  {group_pill_html}
                 </div>
                 <div class="meta-row compact stats-row">
                   <span>再生数 +{row['view_growth']:,}</span>
@@ -245,15 +246,15 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
             """
         )
     return "".join(cards)
-def _render_rank_sections(rows: list[dict]) -> str:
+def _render_rank_sections(rows: list[dict], show_group: bool = True) -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     feature_rows = rows[:3]
     rest_rows = rows[3:]
 
-    feature_html = _render_cards(feature_rows, "feature-card")
-    rest_html = _render_cards(rest_rows)
+    feature_html = _render_cards(feature_rows, "feature-card", show_group=show_group)
+    rest_html = _render_cards(rest_rows, show_group=show_group)
     return f"""
     <section class="ranking-list">
       <h3>上位3件</h3>
@@ -266,18 +267,18 @@ def _render_rank_sections(rows: list[dict]) -> str:
     """
 
 
-def _render_group_content(shorts_rows: list[dict], video_rows: list[dict]) -> str:
+def _render_group_content(shorts_rows: list[dict], video_rows: list[dict], show_group: bool = True) -> str:
     if not shorts_rows and not video_rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     default_tab = "shorts" if shorts_rows else "video"
     shorts_html = (
-        _render_rank_sections(shorts_rows)
+        _render_rank_sections(shorts_rows, show_group=show_group)
         if shorts_rows
         else '<div class="empty">Shortsに該当する動画はありません。</div>'
     )
     video_html = (
-        _render_rank_sections(video_rows)
+        _render_rank_sections(video_rows, show_group=show_group)
         if video_rows
         else '<div class="empty">動画に該当する動画はありません。</div>'
     )
@@ -295,7 +296,7 @@ def _render_group_content(shorts_rows: list[dict], video_rows: list[dict]) -> st
     """
 
 
-def _build_period_payload() -> list[dict]:
+def _build_period_payload(is_admin: bool = False) -> list[dict]:
     payload = []
     for period_key, label, shorts_table, video_table in PERIODS:
         shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table)
@@ -318,6 +319,8 @@ def _build_period_payload() -> list[dict]:
         ]
         if not available_groups:
             available_groups = ["all"]
+        if not is_admin:
+            available_groups = ["all"]
 
         candidates = [dt for dt in (shorts_calculated_at, video_calculated_at) if dt is not None]
         calculated_at = max(candidates) if candidates else None
@@ -331,6 +334,7 @@ def _build_period_payload() -> list[dict]:
                     group_name: _render_group_content(
                         grouped_shorts.get(group_name, []),
                         grouped_video.get(group_name, []),
+                        show_group=is_admin,
                     )
                     for group_name in available_groups
                 },
@@ -425,10 +429,11 @@ def render_error_page(error: Exception) -> str:
 
 
 def render_homepage(is_admin: bool = False) -> str:
-    payload = _build_period_payload()
+    payload = _build_period_payload(is_admin=is_admin)
     first_period = payload[0]["table"] if payload else ""
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+    show_admin_meta = "true" if is_admin else "false"
     admin_html = ""
     logo_html = ""
     if LOGO_FILE and Path(LOGO_FILE).exists():
@@ -978,6 +983,7 @@ def render_homepage(is_admin: bool = False) -> str:
   <script>
     const payload = {payload_json};
     const groupLabels = {group_labels_json};
+    const showAdminMeta = {show_admin_meta};
     const periodTabs = document.getElementById("period-tabs");
     const periodRoot = document.getElementById("period-root");
     const playerModal = document.getElementById("player-modal");
@@ -1029,14 +1035,15 @@ def render_homepage(is_admin: bool = False) -> str:
         const panel = document.createElement("section");
         panel.className = "panel period-panel" + (period.table === activePeriod ? " active" : "");
 
-        const defaultGroup = period.available_groups[0];
+        const groupsForRender = showAdminMeta ? period.available_groups : ["all"];
+        const defaultGroup = groupsForRender[0];
         panel.innerHTML = `
           <div class="panel-head">
             <div>
               <h2>${{period.label}}ランキング</h2>
-              <p>集計時刻: ${{period.calculated_at}}</p>
+              ${{showAdminMeta ? `<p>集計時刻: ${{period.calculated_at}}</p>` : ""}}
             </div>
-            <div class="group-tabs"></div>
+            ${{showAdminMeta ? '<div class="group-tabs"></div>' : ""}}
           </div>
           <div class="group-root"></div>
         `;
@@ -1044,22 +1051,24 @@ def render_homepage(is_admin: bool = False) -> str:
         const groupTabs = panel.querySelector(".group-tabs");
         const groupRoot = panel.querySelector(".group-root");
 
-        period.available_groups.forEach((groupName) => {{
-          const groupButton = document.createElement("button");
-          groupButton.className = "tab-button" + (groupName === defaultGroup ? " active" : "");
-          groupButton.textContent = groupLabels[groupName] || groupName;
-          groupButton.type = "button";
-          groupButton.onclick = () => {{
-            for (const btn of groupTabs.querySelectorAll(".tab-button")) {{
-              btn.classList.remove("active");
-            }}
-            for (const panelEl of groupRoot.querySelectorAll(".group-panel")) {{
-              panelEl.classList.remove("active");
-            }}
-            groupButton.classList.add("active");
-            groupRoot.querySelector(`[data-group="${{groupName}}"]`).classList.add("active");
-          }};
-          groupTabs.appendChild(groupButton);
+        groupsForRender.forEach((groupName) => {{
+          if (groupTabs) {{
+            const groupButton = document.createElement("button");
+            groupButton.className = "tab-button" + (groupName === defaultGroup ? " active" : "");
+            groupButton.textContent = groupLabels[groupName] || groupName;
+            groupButton.type = "button";
+            groupButton.onclick = () => {{
+              for (const btn of groupTabs.querySelectorAll(".tab-button")) {{
+                btn.classList.remove("active");
+              }}
+              for (const panelEl of groupRoot.querySelectorAll(".group-panel")) {{
+                panelEl.classList.remove("active");
+              }}
+              groupButton.classList.add("active");
+              groupRoot.querySelector(`[data-group="${{groupName}}"]`).classList.add("active");
+            }};
+            groupTabs.appendChild(groupButton);
+          }}
 
           const groupPanel = document.createElement("div");
           groupPanel.className = "group-panel" + (groupName === defaultGroup ? " active" : "");
@@ -1255,5 +1264,9 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
 
 
