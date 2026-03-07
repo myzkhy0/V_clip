@@ -80,6 +80,30 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
         return None, []
 
     calculated_at = latest_row[0]["calculated_at"]
+
+    previous_ids: set[str] = set()
+    previous_row = fetchall(
+        f"""
+        SELECT calculated_at
+        FROM {table}
+        WHERE calculated_at < %s
+        ORDER BY calculated_at DESC
+        LIMIT 1
+        """,
+        (calculated_at,),
+    )
+    if previous_row:
+        prev_calculated_at = previous_row[0]["calculated_at"]
+        prev_rows = fetchall(
+            f"""
+            SELECT video_id
+            FROM {table}
+            WHERE calculated_at = %s
+            """,
+            (prev_calculated_at,),
+        )
+        previous_ids = {row["video_id"] for row in prev_rows}
+
     rows = fetchall(
         f"""
         SELECT
@@ -104,6 +128,18 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
         """,
         (calculated_at,),
     )
+
+    now_utc = datetime.now(timezone.utc)
+    for row in rows:
+        published_at = row.get("published_at")
+        if published_at is None:
+            row["is_new"] = False
+            continue
+        if published_at.tzinfo is None:
+            published_at = published_at.replace(tzinfo=timezone.utc)
+        within_24h = (now_utc - published_at) <= timedelta(hours=24)
+        row["is_new"] = row["video_id"] not in previous_ids and within_24h
+
     return calculated_at, rows
 
 def _fmt_datetime(value: datetime | None) -> str:
@@ -177,12 +213,14 @@ def _render_cards(rows: list[dict], card_class: str = "") -> str:
         )
         class_name = "video-card" if not card_class else f"video-card {card_class}"
         content_type = html.escape((row.get("content_type") or "").lower())
+        new_badge_html = '<span class="new-badge">NEW</span>' if row.get("is_new") else ""
         cards.append(
             f"""
             <article class="{class_name}">
               <button class="thumb thumb-play" type="button" data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}" aria-label="{title} を再生">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <span class="rank-badge">#{row['rank']}</span>
+                {new_badge_html}
               </button>
               <div class="video-body">
                 <button class="video-title video-play" type="button" data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">{title}</button>
@@ -683,6 +721,19 @@ def render_homepage(is_admin: bool = False) -> str:
       background: rgba(29, 42, 51, 0.8);
       color: #fff;
       font-size: 0.95rem;
+    }}
+    .new-badge {{
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #ff7a18, #ff3d54);
+      color: #fff;
+      font-size: 0.75rem;
+      letter-spacing: 0.04em;
+      font-weight: 800;
+      box-shadow: 0 8px 18px rgba(255, 61, 84, 0.35);
     }}
     .video-body {{
       padding: 14px;
@@ -1204,4 +1255,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
