@@ -943,23 +943,123 @@ def render_homepage(is_admin: bool = False) -> str:
       color: var(--muted);
       background: rgba(255, 255, 255, 0.03);
     }}
+    @media (max-width: 1024px) {{
+      .feature-grid {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }}
+      .rest-grid {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }}
+    }}
     @media (max-width: 640px) {{
       .shell {{
-        width: calc(100% - 16px);
-        margin-top: 8px;
+        width: calc(100% - 12px);
+        margin: 8px auto 22px;
       }}
       .hero, .period-panel {{
-        padding: 14px;
+        padding: 12px;
       }}
-      .video-title {{
-        min-height: auto;
+      .hero-copy {{
+        align-items: flex-start;
+        gap: 10px;
       }}
-      .meta-row {{
-        flex-direction: column;
+      .hero-copy h1 {{
+        font-size: 1.16rem;
+        line-height: 1.3;
+      }}
+      .hero-copy p {{
+        margin-top: 6px;
+        font-size: 0.86rem;
+      }}
+      .period-tabs,
+      .group-tabs,
+      .content-tabs {{
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+      }}
+      .tab-button {{
+        flex: 0 0 auto;
+        padding: 8px 12px;
+        font-size: 0.84rem;
+      }}
+      .content-tab-button {{
+        font-size: 0.8rem;
+        padding: 6px 10px;
+      }}
+      .panel-head {{
+        margin-bottom: 12px;
+      }}
+      .panel-head h2 {{
+        font-size: 1.04rem;
+      }}
+      .panel-head p {{
+        margin-top: 4px;
+        font-size: 0.82rem;
       }}
       .feature-grid,
       .rest-grid {{
         grid-template-columns: 1fr;
+        gap: 12px;
+      }}
+      .feature-card .video-body,
+      .rest-grid .video-card .video-body {{
+        padding: 10px 11px 12px;
+      }}
+      .feature-card .video-title,
+      .rest-grid .video-card .video-title,
+      .video-title {{
+        min-height: auto;
+        font-size: 0.95rem;
+        line-height: 1.36;
+      }}
+      .meta-row {{
+        font-size: 0.83rem;
+        gap: 6px;
+      }}
+      .stats-row {{
+        margin-top: 8px;
+      }}
+      .channel-link {{
+        max-width: calc(100% - 70px);
+      }}
+      .rank-badge {{
+        font-size: 0.9rem;
+        padding: 6px 10px;
+      }}
+      .new-badge {{
+        font-size: 0.7rem;
+        padding: 5px 8px;
+      }}
+      .player-modal {{
+        align-items: flex-end;
+        padding: 4px;
+      }}
+      .player-sheet {{
+        width: 100%;
+        max-height: calc(100dvh - 8px);
+      }}
+      .player-sheet.landscape {{
+        width: 100%;
+      }}
+      .player-topbar {{
+        height: 40px;
+        padding: 4px 6px;
+      }}
+      .player-toggle {{
+        min-width: 34px;
+        height: 28px;
+        font-size: 0.75rem;
+        padding: 0 8px;
+      }}
+      .player-close {{
+        width: 30px;
+        height: 30px;
+      }}
+      .player-frame {{
+        max-height: calc(100dvh - 130px);
       }}
     }}
   </style>
@@ -1278,5 +1378,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 
