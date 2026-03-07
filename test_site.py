@@ -335,7 +335,7 @@ def _build_period_payload(is_admin: bool = False) -> list[dict]:
                     group_name: _render_group_content(
                         grouped_shorts.get(group_name, []),
                         grouped_video.get(group_name, []),
-                        show_group=is_admin,
+                        show_group=True,
                     )
                     for group_name in available_groups
                 },
@@ -1571,6 +1571,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
