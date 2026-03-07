@@ -51,6 +51,7 @@ GROUP_ORDER = [
     "MilliPro",
     "UniReid",
     "REJECT",
+    "RIOTMUSIC",
     "other",
 ]
 GROUP_LABELS = {
@@ -66,6 +67,7 @@ GROUP_LABELS = {
     "Aogiri": "あおぎり高校",
     "DotLive": "どっとライブ",
     "REJECT": "REJECT",
+    "RIOTMUSIC": "RIOT MUSIC",
     "other": "その他",
 }
 

@@ -43,6 +43,7 @@ SEARCH_KEYWORDS: list[str] = [
     "ホロスターズ 切り抜き",
     "すぺしゃりて 切り抜き",
     "REJECT 切り抜き",
+    "RIOT MUSIC 切り抜き",
 ]
 
 KEYWORD_MAX_RESULTS_OVERRIDE: dict[str, int] = {
@@ -137,6 +138,11 @@ GROUP_KEYWORDS: dict[str, list[str]] = {
     "REJECT": [
         "reject",
         "REJECT",
+    ],
+    "RIOTMUSIC": [
+        "riot music",
+        "RIOT MUSIC",
+        "riotmusic",
     ],
 }
 
