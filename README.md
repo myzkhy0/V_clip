@@ -50,13 +50,19 @@ python scheduler.py --init-db
 
 ### 4. (Optional) チャンネルを追加
 
-`config.py` の `SEED_CHANNELS` にチャンネル ID を追加するか、直接 SQL で挿入:
+個人勢は `register_channel.py` で手動登録するのがおすすめです。
 
-```sql
-INSERT INTO channels (channel_id, channel_name, group_name)
-VALUES ('UCxxxxxx', 'Channel Name', 'hololive');
+```bash
+# 追加（URL / @handle / channel_id 対応）
+python register_channel.py add "https://www.youtube.com/@example" --name "個人勢A" --group "other"
+
+# 一覧
+python register_channel.py list --tracked-only
+
+# 追跡ON/OFF
+python register_channel.py set-tracked UCxxxxxx --enabled
+python register_channel.py set-tracked UCxxxxxx --disabled
 ```
-
 ### 5. Run
 
 ```bash
@@ -88,6 +94,7 @@ V_clip/
 ├── ranking.py             # ランキング計算
 ├── scheduler.py           # スケジューラ (エントリポイント)
 ├── test_site.py           # 最新ランキングを表示するローカル確認ページ
+├── register_channel.py    # チャンネル手動登録/追跡ON-OFFツール
 ├── open_test_site.bat     # テストサイトをブラウザで開く Windows 用ランチャー
 ├── check_postgres.py      # DATABASE_URL に対する PostgreSQL 接続確認
 ├── start_local_postgres.bat # 同梱したローカル PostgreSQL を起動
@@ -171,3 +178,4 @@ bash deploy.sh
 ```
 
 環境変数で上書き可能です: `APP_DIR`, `SERVICE_NAME`, `BRANCH`。
+
