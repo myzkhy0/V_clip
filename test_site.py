@@ -886,7 +886,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       text-decoration: none;
       line-height: 1.45;
       min-height: 4.2em;
-      font-weight: 600;
+      font-weight: 700;
     }}
     .video-play {{
       background: transparent;
