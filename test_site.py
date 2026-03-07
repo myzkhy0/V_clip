@@ -949,6 +949,28 @@ def render_homepage(is_admin: bool = False) -> str:
       color: var(--muted);
       background: rgba(255, 255, 255, 0.03);
     }}
+    .mobile-pager {{
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin: 10px 0 12px;
+    }}
+    .mobile-pager .page-info {{
+      font-size: 0.82rem;
+      color: var(--muted);
+      min-width: 72px;
+      text-align: center;
+    }}
+    .mobile-pager button {{
+      min-width: 74px;
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }}
+    .mobile-pager button:disabled {{
+      opacity: 0.45;
+      cursor: not-allowed;
+    }}
     @media (max-width: 1024px) {{
       .feature-grid {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1075,6 +1097,9 @@ def render_homepage(is_admin: bool = False) -> str:
       .player-frame {{
         max-height: calc(100dvh - 130px);
       }}
+      .mobile-pager {{
+        display: flex;
+      }}
     }}
   </style>
 </head>
@@ -1122,6 +1147,8 @@ def render_homepage(is_admin: bool = False) -> str:
     const playerModePortrait = document.getElementById("player-mode-portrait");
     const playerModeLandscape = document.getElementById("player-mode-landscape");
     let activePeriod = "{first_period}";
+    const MOBILE_PAGE_SIZE = 20;
+    const pageState = {{}};
 
     function setPlayerLayout(layout) {{
       const normalized = layout === "landscape" ? "landscape" : "portrait";
@@ -1145,6 +1172,106 @@ def render_homepage(is_admin: bool = False) -> str:
       setPlayerLayout("portrait");
       playerIframe.src = "";
     }}
+
+    function isMobileViewport() {{
+      return window.matchMedia("(max-width: 640px)").matches;
+    }}
+
+    function contentPanelKey(contentPanel) {{
+      const periodPanel = contentPanel.closest(".period-panel");
+      const groupPanel = contentPanel.closest(".group-panel");
+      const periodKey = periodPanel ? (periodPanel.dataset.period || "") : "";
+      const groupKey = groupPanel ? (groupPanel.dataset.group || "") : "";
+      const contentKey = contentPanel.dataset.contentPanel || "";
+      return `${{periodKey}}::${{groupKey}}::${{contentKey}}`;
+    }}
+
+    function makePager(totalPages, currentPage, onPageChange) {{
+      const pager = document.createElement("div");
+      pager.className = "mobile-pager";
+
+      const prev = document.createElement("button");
+      prev.type = "button";
+      prev.className = "tab-button";
+      prev.textContent = "前へ";
+      prev.disabled = currentPage <= 1;
+      prev.addEventListener("click", () => onPageChange(currentPage - 1));
+
+      const info = document.createElement("span");
+      info.className = "page-info";
+      info.textContent = `${{currentPage}}/${{totalPages}}`;
+
+      const next = document.createElement("button");
+      next.type = "button";
+      next.className = "tab-button";
+      next.textContent = "次へ";
+      next.disabled = currentPage >= totalPages;
+      next.addEventListener("click", () => onPageChange(currentPage + 1));
+
+      pager.appendChild(prev);
+      pager.appendChild(info);
+      pager.appendChild(next);
+      return pager;
+    }}
+
+    function applyMobilePagination(scope) {{
+      const root = scope || periodRoot;
+      const panels = root.querySelectorAll(".content-panel");
+
+      for (const contentPanel of panels) {{
+        for (const existingPager of contentPanel.querySelectorAll(".mobile-pager")) {{
+          existingPager.remove();
+        }}
+
+        const cards = Array.from(contentPanel.querySelectorAll(".video-card"));
+        if (!cards.length) {{
+          continue;
+        }}
+
+        if (!isMobileViewport()) {{
+          cards.forEach((card) => {{
+            card.style.display = "";
+          }});
+          continue;
+        }}
+
+        const totalPages = Math.ceil(cards.length / MOBILE_PAGE_SIZE);
+        if (totalPages <= 1) {{
+          cards.forEach((card) => {{
+            card.style.display = "";
+          }});
+          continue;
+        }}
+
+        const key = contentPanelKey(contentPanel);
+        let currentPage = pageState[key] || 1;
+        if (currentPage < 1) {{
+          currentPage = 1;
+        }}
+        if (currentPage > totalPages) {{
+          currentPage = totalPages;
+        }}
+        pageState[key] = currentPage;
+
+        const start = (currentPage - 1) * MOBILE_PAGE_SIZE;
+        const end = start + MOBILE_PAGE_SIZE;
+
+        cards.forEach((card, index) => {{
+          card.style.display = index >= start && index < end ? "" : "none";
+        }});
+
+        const onPageChange = (nextPage) => {{
+          pageState[key] = nextPage;
+          applyMobilePagination(contentPanel.closest(".group-panel") || contentPanel);
+        }};
+
+        const topPager = makePager(totalPages, currentPage, onPageChange);
+        const bottomPager = makePager(totalPages, currentPage, onPageChange);
+        contentPanel.prepend(topPager);
+        contentPanel.appendChild(bottomPager);
+      }}
+    }}
+
     function render() {{
       periodTabs.innerHTML = "";
       periodRoot.innerHTML = "";
@@ -1162,6 +1289,7 @@ def render_homepage(is_admin: bool = False) -> str:
 
         const panel = document.createElement("section");
         panel.className = "panel period-panel" + (period.table === activePeriod ? " active" : "");
+        panel.dataset.period = period.table;
 
         const groupsForRender = showAdminMeta ? period.available_groups : ["all"];
         const defaultGroup = groupsForRender[0];
@@ -1203,10 +1331,12 @@ def render_homepage(is_admin: bool = False) -> str:
           groupPanel.dataset.group = groupName;
           groupPanel.innerHTML = period.groups[groupName];
           groupRoot.appendChild(groupPanel);
+          applyMobilePagination(groupPanel);
         }});
 
         periodRoot.appendChild(panel);
       }});
+      applyMobilePagination(periodRoot);
     }}
 
     function resolvePlayerLayout(trigger) {{
@@ -1250,6 +1380,7 @@ def render_homepage(is_admin: bool = False) -> str:
         if (targetPanel) {{
           targetPanel.classList.add("active");
         }}
+        applyMobilePagination(groupPanel);
         return;
       }}
 
@@ -1267,6 +1398,11 @@ def render_homepage(is_admin: bool = False) -> str:
       if (event.target === playerModal) {{
         closePlayer();
       }}
+    }});
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {{
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => applyMobilePagination(periodRoot), 120);
     }});
     document.addEventListener("keydown", (event) => {{
       if (event.key === "Escape" && playerModal.classList.contains("open")) {{
@@ -1392,4 +1528,14 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
+
 
