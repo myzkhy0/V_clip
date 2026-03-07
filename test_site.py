@@ -1064,24 +1064,18 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .mobile-pager {{
       display: none;
       align-items: center;
-      justify-content: center;
-      gap: 10px;
+      gap: 8px;
       margin: 10px 0 12px;
-    }}
-    .mobile-pager .page-info {{
-      font-size: 0.82rem;
-      color: var(--muted);
-      min-width: 72px;
-      text-align: center;
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
     }}
     .mobile-pager button {{
-      min-width: 74px;
+      flex: 0 0 auto;
+      min-width: 90px;
       padding: 6px 10px;
-      font-size: 0.8rem;
-    }}
-    .mobile-pager button:disabled {{
-      opacity: 0.45;
-      cursor: not-allowed;
+      font-size: 0.78rem;
     }}
     @media (max-width: 1024px) {{
       .feature-grid {{
@@ -1303,34 +1297,24 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       return `${{periodKey}}::${{groupKey}}::${{contentKey}}`;
     }}
 
-    function makePager(totalPages, currentPage, startRank, endRank, onPageChange) {{
+    function makePager(totalPages, currentPage, pageSize, totalItems, onPageChange) {{
       const pager = document.createElement("div");
       pager.className = "mobile-pager";
 
-      const prev = document.createElement("button");
-      prev.type = "button";
-      prev.className = "tab-button";
-      prev.textContent = "前へ";
-      prev.disabled = currentPage <= 1;
-      prev.addEventListener("click", () => onPageChange(currentPage - 1));
+      for (let page = 1; page <= totalPages; page += 1) {{
+        const startRank = (page - 1) * pageSize + 1;
+        const endRank = Math.min(page * pageSize, totalItems);
 
-      const info = document.createElement("span");
-      info.className = "page-info";
-      info.textContent = `${{startRank}}-${{endRank}}位`;
+        const tab = document.createElement("button");
+        tab.type = "button";
+        tab.className = "tab-button" + (page === currentPage ? " active" : "");
+        tab.textContent = `${{startRank}}-${{endRank}}位`;
+        tab.addEventListener("click", () => onPageChange(page));
+        pager.appendChild(tab);
+      }}
 
-      const next = document.createElement("button");
-      next.type = "button";
-      next.className = "tab-button";
-      next.textContent = "次へ";
-      next.disabled = currentPage >= totalPages;
-      next.addEventListener("click", () => onPageChange(currentPage + 1));
-
-      pager.appendChild(prev);
-      pager.appendChild(info);
-      pager.appendChild(next);
       return pager;
     }}
-
     function applyMobilePagination(scope) {{
       const root = scope || periodRoot;
       const panels = root.querySelectorAll(".content-panel");
@@ -1372,8 +1356,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 
         const start = (currentPage - 1) * MOBILE_PAGE_SIZE;
         const end = start + MOBILE_PAGE_SIZE;
-        const startRank = start + 1;
-        const endRank = Math.min(end, cards.length);
 
         cards.forEach((card, index) => {{
           card.style.display = index >= start && index < end ? "" : "none";
@@ -1385,8 +1367,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           contentPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
         }};
 
-        const topPager = makePager(totalPages, currentPage, startRank, endRank, onPageChange);
-        const bottomPager = makePager(totalPages, currentPage, startRank, endRank, onPageChange);
+        const topPager = makePager(totalPages, currentPage, MOBILE_PAGE_SIZE, cards.length, onPageChange);
+        const bottomPager = makePager(totalPages, currentPage, MOBILE_PAGE_SIZE, cards.length, onPageChange);
         contentPanel.prepend(topPager);
         contentPanel.appendChild(bottomPager);
       }}
