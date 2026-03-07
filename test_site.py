@@ -32,6 +32,7 @@ GA_MEASUREMENT_ID = os.getenv("GA_MEASUREMENT_ID", "").strip()
 SITE_BASE_URL = os.getenv("TEST_SITE_BASE_URL", "").strip()
 YOUTUBE_DAILY_SEARCH_UNIT_LIMIT = int(os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT", "8000"))
 YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json")
+JST = timezone(timedelta(hours=9))
 
 PERIODS: list[tuple[str, str, str, str]] = [
     ("daily", "24時間", "daily_ranking_shorts", "daily_ranking_video"),
@@ -310,7 +311,7 @@ def _render_cards(
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     cards = []
-    today = datetime.now()
+    today = datetime.now(JST)
     month_day = f"{today.month}/{today.day}"
     for row in rows:
         video_id = html.escape(row["video_id"])
@@ -1850,6 +1851,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
