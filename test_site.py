@@ -25,6 +25,7 @@ FONT_FILE = r"C:\Users\11bs0\OneDrive\デスクトップ\NotoSansJP-VariableFont
 LOGO_FILE = os.getenv("TEST_SITE_LOGO_FILE", "").strip()
 ADMIN_TOKEN = os.getenv("TEST_SITE_ADMIN_TOKEN", "")
 GA_MEASUREMENT_ID = os.getenv("GA_MEASUREMENT_ID", "").strip()
+SITE_BASE_URL = os.getenv("TEST_SITE_BASE_URL", "").strip()
 YOUTUBE_DAILY_SEARCH_UNIT_LIMIT = int(os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT", "8000"))
 YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json")
 
@@ -62,7 +63,101 @@ GROUP_LABELS = {
     "other": "その他",
 }
 
+SITE_TITLE = "ぶいくりっぷ VTuber切り抜きランキング"
+SITE_DESCRIPTION = (
+    "VTuber切り抜きの再生数ランキング。24時間・7日・30日ごとの注目クリップを確認できます。"
+)
+SITE_OG_LOCALE = "ja_JP"
 
+
+
+
+def _normalize_base_url(raw: str) -> str:
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    if not value.startswith(("http://", "https://")):
+        value = f"https://{value}"
+    return value.rstrip("/")
+
+
+def _build_head_meta(base_url: str, is_admin: bool) -> str:
+    canonical_url = f"{base_url}/" if base_url else ""
+    robots = "noindex, nofollow" if is_admin else "index, follow"
+    og_image_url = f"{base_url}/assets/site-logo.png" if base_url and LOGO_FILE else ""
+
+    tags = [
+        f'<meta name="description" content="{html.escape(SITE_DESCRIPTION, quote=True)}">',
+        f'<meta name="robots" content="{robots}">',
+    ]
+    if canonical_url:
+        tags.append(f'<link rel="canonical" href="{html.escape(canonical_url, quote=True)}">')
+
+    tags.extend(
+        [
+            f'<meta property="og:type" content="website">',
+            f'<meta property="og:site_name" content="{html.escape(SITE_TITLE, quote=True)}">',
+            f'<meta property="og:title" content="{html.escape(SITE_TITLE, quote=True)}">',
+            f'<meta property="og:description" content="{html.escape(SITE_DESCRIPTION, quote=True)}">',
+            f'<meta property="og:locale" content="{SITE_OG_LOCALE}">',
+            f'<meta name="twitter:card" content="summary_large_image">',
+            f'<meta name="twitter:title" content="{html.escape(SITE_TITLE, quote=True)}">',
+            f'<meta name="twitter:description" content="{html.escape(SITE_DESCRIPTION, quote=True)}">',
+        ]
+    )
+    if canonical_url:
+        escaped_canonical = html.escape(canonical_url, quote=True)
+        tags.append(f'<meta property="og:url" content="{escaped_canonical}">')
+        tags.append(f'<meta name="twitter:url" content="{escaped_canonical}">')
+
+    if og_image_url:
+        escaped_og_image = html.escape(og_image_url, quote=True)
+        tags.append(f'<meta property="og:image" content="{escaped_og_image}">')
+        tags.append(f'<meta name="twitter:image" content="{escaped_og_image}">')
+
+    website_structured_data = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": SITE_TITLE,
+        "description": SITE_DESCRIPTION,
+    }
+    if canonical_url:
+        website_structured_data["url"] = canonical_url
+
+    tags.append(
+        '<script type="application/ld+json">'
+        + json.dumps(website_structured_data, ensure_ascii=False)
+        + "</script>"
+    )
+    return "\n  ".join(tags)
+
+
+def _build_sitemap_xml(base_url: str) -> str:
+    normalized = _normalize_base_url(base_url)
+    if not normalized:
+        normalized = f"http://{HOST}:{PORT}"
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    urls = [
+        f"{normalized}/",
+        f"{normalized}/index.html",
+    ]
+    items = "".join(
+        f"<url><loc>{html.escape(url)}</loc><lastmod>{now_iso}</lastmod></url>" for url in urls
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"{items}"
+        "</urlset>"
+    )
+
+
+def _build_robots_txt(base_url: str) -> str:
+    normalized = _normalize_base_url(base_url)
+    lines = ["User-agent: *", "Allow: /"]
+    if normalized:
+        lines.append(f"Sitemap: {normalized}/sitemap.xml")
+    return "\n".join(lines) + "\n"
 def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
     try:
         latest_row = fetchall(
@@ -372,16 +467,19 @@ def _quota_status(used: int, limit: int) -> tuple[str, str]:
     if ratio >= 0.8:
         return "注意", "warn"
     return "通常", "ok"
-def render_error_page(error: Exception) -> str:
+def render_error_page(error: Exception, base_url: str = "") -> str:
     message = html.escape(str(error) or error.__class__.__name__)
     database_url = os.getenv("DATABASE_URL", "(not set)")
+    normalized_base_url = _normalize_base_url(base_url)
+    head_meta = _build_head_meta(normalized_base_url, is_admin=False)
 
     return f"""<!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ぶいくりっぷ Vtuber切り抜きランキング</title>
+  <title>{SITE_TITLE}</title>
+  {head_meta}
   <style>
     @font-face {{
       font-family: "Noto Sans JP Local";
@@ -429,11 +527,13 @@ def render_error_page(error: Exception) -> str:
 """
 
 
-def render_homepage(is_admin: bool = False) -> str:
+def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     payload = _build_period_payload(is_admin=is_admin)
     first_period = payload[0]["table"] if payload else ""
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+    normalized_base_url = _normalize_base_url(base_url)
+    head_meta = _build_head_meta(normalized_base_url, is_admin=is_admin)
     show_admin_meta = "true" if is_admin else "false"
     admin_html = ""
     logo_html = ""
@@ -466,11 +566,12 @@ def render_homepage(is_admin: bool = False) -> str:
         """
 
     return f"""<!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ぶいくりっぷ Vtuber切り抜きランキング</title>
+  <title>{SITE_TITLE}</title>
+  {head_meta}
   {analytics_html}
   <style>
     @font-face {{
@@ -1461,15 +1562,27 @@ def render_homepage(is_admin: bool = False) -> str:
 
 
 class TestSiteHandler(BaseHTTPRequestHandler):
+    def _request_base_url(self) -> str:
+        configured = _normalize_base_url(SITE_BASE_URL)
+        if configured:
+            return configured
+
+        forwarded_proto = (self.headers.get("X-Forwarded-Proto") or "http").split(",", 1)[0].strip()
+        scheme = forwarded_proto if forwarded_proto in {"http", "https"} else "http"
+        host = (self.headers.get("Host") or f"{HOST}:{PORT}").strip()
+        return _normalize_base_url(f"{scheme}://{host}")
+
     def do_HEAD(self) -> None:
         parsed = urlparse(self.path)
         path_only = parsed.path
+
         if path_only == "/assets/noto-sans-jp.ttf":
             self.send_response(200)
             self.send_header("Content-Type", "font/ttf")
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
             return
+
         if path_only == "/assets/site-logo.png":
             if not LOGO_FILE or not Path(LOGO_FILE).exists():
                 self.send_error(404, "Logo not found")
@@ -1479,11 +1592,29 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=3600")
             self.end_headers()
             return
+
+        if path_only == "/robots.txt":
+            body = _build_robots_txt(self._request_base_url()).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return
+
+        if path_only == "/sitemap.xml":
+            body = _build_sitemap_xml(self._request_base_url()).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/xml; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return
+
         if path_only in {"/", "/index.html"}:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             return
+
         self.send_error(404, "Not found")
 
     def do_GET(self) -> None:
@@ -1524,6 +1655,24 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        if path_only == "/robots.txt":
+            body = _build_robots_txt(self._request_base_url()).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if path_only == "/sitemap.xml":
+            body = _build_sitemap_xml(self._request_base_url()).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/xml; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         if path_only not in {"/", "/index.html"}:
             self.send_error(404, "Not found")
             return
@@ -1533,11 +1682,12 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             token = (query.get("admin_token") or [""])[0]
             is_admin = token == ADMIN_TOKEN
 
+        base_url = self._request_base_url()
         try:
-            body = render_homepage(is_admin=is_admin).encode("utf-8")
+            body = render_homepage(is_admin=is_admin, base_url=base_url).encode("utf-8")
         except Exception as exc:
             logger.exception("Failed to render test site")
-            body = render_error_page(exc).encode("utf-8")
+            body = render_error_page(exc, base_url=base_url).encode("utf-8")
             self.send_response(500)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -1571,6 +1721,14 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
 
 
 
