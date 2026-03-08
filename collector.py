@@ -78,6 +78,51 @@ def seed_channels() -> None:
     logger.info("Seeded %d channel(s).", len(resolved_rows))
 
 
+
+def backfill_channels_from_videos(limit: int = 5000) -> int:
+    """Backfill channels from existing videos and mark them tracked."""
+    rows = fetchall(
+        """
+        SELECT DISTINCT
+            channel_id,
+            channel_name,
+            COALESCE(group_name, 'other') AS group_name
+        FROM videos
+        WHERE COALESCE(channel_id, '') <> ''
+        ORDER BY channel_id
+        LIMIT %s
+        """,
+        (max(1, int(limit)),),
+    )
+    if not rows:
+        return 0
+
+    payload = [
+        (
+            row["channel_id"],
+            row.get("channel_name", "") or "",
+            row.get("group_name", "other") or "other",
+            "",
+            True,
+        )
+        for row in rows
+    ]
+
+    query = """
+        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id, is_tracked)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (channel_id) DO UPDATE SET
+            channel_name = EXCLUDED.channel_name,
+            group_name = CASE
+                WHEN COALESCE(channels.group_name, '') IN ('', 'other') THEN EXCLUDED.group_name
+                ELSE channels.group_name
+            END,
+            is_tracked = TRUE
+    """
+    execute_many(query, payload)
+    logger.info("Backfilled %d channel(s) from videos.", len(payload))
+    return len(payload)
+
 # ── Load channels from DB ───────────────────────────────────────────
 def load_channels(tracked_only: bool = False) -> list[dict]:
     """Return rows from the `channels` table."""
@@ -355,7 +400,7 @@ def _infer_group_name(detail: dict, group_map: dict[str, str]) -> str:
 
 
 def _upsert_discovered_channels(details: list[dict], group_map: dict[str, str]) -> None:
-    """Persist discovered source channels without adding them to hourly crawl targets."""
+    """Persist discovered source channels and include them in tracked crawl targets."""
     seen: dict[str, tuple[str, str, str, str, bool]] = {}
     for detail in details:
         channel_id = detail.get("channel_id", "")
@@ -370,7 +415,7 @@ def _upsert_discovered_channels(details: list[dict], group_map: dict[str, str]) 
             detail.get("channel_name", "") or "",
             inferred_group,
             "",
-            False,
+            True,
         )
 
     rows = list(seen.values())
@@ -389,7 +434,8 @@ def _upsert_discovered_channels(details: list[dict], group_map: dict[str, str]) 
             uploads_playlist_id = CASE
                 WHEN COALESCE(channels.uploads_playlist_id, '') = '' THEN EXCLUDED.uploads_playlist_id
                 ELSE channels.uploads_playlist_id
-            END
+            END,
+            is_tracked = TRUE
     """
     execute_many(query, rows)
     logger.info("Upserted %d discovered channel(s).", len(rows))
@@ -454,6 +500,13 @@ def run_collector(
     if run_seed:
         seed_channels()
 
+    # Ensure existing video channels are promoted to tracked targets.
+    try:
+        backfill_channels_from_videos()
+    except Exception:
+        logger.exception("Failed to backfill channels from videos.")
+
+
     # Discover video IDs
     video_ids = discover_videos(
         include_channel_search=include_channel_search,
@@ -481,6 +534,9 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
+
+
+
 
 
 
