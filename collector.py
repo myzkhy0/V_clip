@@ -357,10 +357,28 @@ def discover_videos(
 
 # ── Filter & store ──────────────────────────────────────────────────
 def _is_valid_clip(detail: dict) -> bool:
-    """Return True for clip videos (shorts/video split is done separately)."""
+    """
+    Return True only when:
+      1) title/tags contain '切り抜き'
+      2) title/tags contain at least one search-keyword stem
+         (derived from SEARCH_KEYWORDS by removing '切り抜き')
+    """
     text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
-    return "切り抜き" in text
+    if "切り抜き" not in text:
+        return False
 
+    normalized = text.replace(" ", "").replace("　", "")
+    stems: set[str] = set()
+    for keyword in SEARCH_KEYWORDS:
+        stem = keyword.replace("切り抜き", "").strip().lower()
+        if not stem:
+            continue
+        stems.add(stem)
+        compact = stem.replace(" ", "").replace("　", "")
+        if compact:
+            stems.add(compact)
+
+    return any(stem in text or stem in normalized for stem in stems)
 
 def _classify_content_type(detail: dict) -> str:
     """Classify detail into 'shorts' or 'video'."""
