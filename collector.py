@@ -21,6 +21,7 @@ from config import (
     GROUP_KEYWORDS,
     MIN_DURATION_SECONDS,
     KEYWORD_ROTATION_STATE_FILE,
+    KEYWORD_PUBLISHED_AFTER_HOURS,
     KEYWORD_MAX_RESULTS_OVERRIDE,
     KEYWORD_SEARCH_BATCH_SIZE,
     SEARCH_KEYWORDS,
@@ -270,14 +271,15 @@ def discover_videos(
 
     Returns a de-duplicated list of video IDs.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=TRACK_DAYS)
+    now_utc = datetime.now(timezone.utc)
+    cutoff_channel = now_utc - timedelta(days=TRACK_DAYS)
+    cutoff_keyword = now_utc - timedelta(hours=max(1, KEYWORD_PUBLISHED_AFTER_HOURS))
     all_ids: set[str] = set()
     quota_guard_hit = False
 
     # 1) Channel-based search (uploads playlist + playlistItems.list)
     if include_channel_search:
         channels = load_channels(tracked_only=True)
-        now_utc = datetime.now(timezone.utc)
         for ch in channels:
             if quota_guard_hit:
                 break
@@ -299,7 +301,7 @@ def discover_videos(
 
                 ids = search_by_channel(
                     ch["channel_id"],
-                    cutoff,
+                    cutoff_channel,
                     uploads_playlist_id=uploads_playlist_id,
                 )
                 all_ids.update(ids)
@@ -329,7 +331,7 @@ def discover_videos(
                 break
             try:
                 keyword_max_results = max(1, int(KEYWORD_MAX_RESULTS_OVERRIDE.get(kw, SEARCH_MAX_RESULTS)))
-                ids = search_by_keyword(kw, cutoff, max_results=keyword_max_results)
+                ids = search_by_keyword(kw, cutoff_keyword, max_results=keyword_max_results)
                 all_ids.update(ids)
                 logger.info("Keyword '%s': %d videos", kw, len(ids))
             except QuotaExceededError as exc:
@@ -534,6 +536,9 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
+
+
+
 
 
 
