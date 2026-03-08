@@ -291,14 +291,14 @@ def _truncate_text(value: str, max_len: int = 42) -> str:
     return text[: max_len - 1].rstrip() + "…"
 
 
-def _share_prefix_for_period(period_key: str, month_day: str, rank: int) -> str:
+def _share_prefix_for_period(period_key: str, month_day: str, rank: int, content_label: str) -> str:
     if period_key == "daily":
-        return f"本日({month_day})の #VTuber切り抜きランキング {rank}位です！"
+        return f"本日({month_day})の #VTuber切り抜きランキング {rank}位の{content_label}です！"
     if period_key == "weekly":
-        return f"直近7日間の #VTuber切り抜きランキング {rank}位です！"
+        return f"直近7日間の #VTuber切り抜きランキング {rank}位の{content_label}です！"
     if period_key == "monthly":
-        return f"直近30日間の #VTuber切り抜きランキング {rank}位です！"
-    return f"#VTuber切り抜きランキング {rank}位です！"
+        return f"直近30日間の #VTuber切り抜きランキング {rank}位の{content_label}です！"
+    return f"#VTuber切り抜きランキング {rank}位の{content_label}です！"
 
 
 def _render_cards(
@@ -306,6 +306,7 @@ def _render_cards(
     card_class: str = "",
     show_group: bool = True,
     period_key: str = "daily",
+    content_label: str = "shorts",
 ) -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
@@ -325,7 +326,7 @@ def _render_cards(
         channel_url = f"https://www.youtube.com/channel/{channel_id}"
         title_plain = " ".join(str(row.get("title") or "").split())
         share_title = _truncate_text(title_plain, 56)
-        share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"])
+        share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
         share_text = f"{share_prefix}  {share_title}"
         share_url = (
             "https://twitter.com/intent/tweet?text="
@@ -366,15 +367,15 @@ def _render_cards(
             """
         )
     return "".join(cards)
-def _render_rank_sections(rows: list[dict], show_group: bool = True, period_key: str = "daily") -> str:
+def _render_rank_sections(rows: list[dict], show_group: bool = True, period_key: str = "daily", content_label: str = "shorts") -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     feature_rows = rows[:3]
     rest_rows = rows[3:]
 
-    feature_html = _render_cards(feature_rows, "feature-card", show_group=show_group, period_key=period_key)
-    rest_html = _render_cards(rest_rows, show_group=show_group, period_key=period_key)
+    feature_html = _render_cards(feature_rows, "feature-card", show_group=show_group, period_key=period_key, content_label=content_label)
+    rest_html = _render_cards(rest_rows, show_group=show_group, period_key=period_key, content_label=content_label)
     return f"""
     <section class="ranking-list">
       <h3>上位3件</h3>
@@ -392,18 +393,19 @@ def _render_group_content(
     video_rows: list[dict],
     show_group: bool = True,
     period_key: str = "daily",
+    content_label: str = "shorts",
 ) -> str:
     if not shorts_rows and not video_rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     default_tab = "shorts" if shorts_rows else "video"
     shorts_html = (
-        _render_rank_sections(shorts_rows, show_group=show_group, period_key=period_key)
+        _render_rank_sections(shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
         if shorts_rows
         else '<div class="empty">Shortsに該当する動画はありません。</div>'
     )
     video_html = (
-        _render_rank_sections(video_rows, show_group=show_group, period_key=period_key)
+        _render_rank_sections(video_rows, show_group=show_group, period_key=period_key, content_label="動画")
         if video_rows
         else '<div class="empty">動画に該当する動画はありません。</div>'
     )
@@ -1851,6 +1853,9 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
 
 
 
