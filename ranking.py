@@ -10,7 +10,9 @@ If no historical snapshot exists for the period, growth defaults to 0.
 
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
+from config import EXCLUDED_CHANNELS_FILE
 from db import get_connection
 
 logger = logging.getLogger(__name__)
@@ -39,6 +41,23 @@ RANKING_TABLES: dict[str, dict[str, str]] = {
 }
 
 
+def _load_excluded_channel_ids() -> list[str]:
+    """Load manually excluded channel IDs from a text file."""
+    path = Path(EXCLUDED_CHANNELS_FILE)
+    if not path.exists():
+        return []
+
+    channel_ids: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        value = line.strip()
+        if not value or value.startswith("#"):
+            continue
+        channel_ids.append(value)
+
+    # de-duplicate while preserving order
+    return list(dict.fromkeys(channel_ids))
+
+
 def _calculate_ranking(period_name: str, period_hours: int, content_type: str, table: str) -> None:
     """
     Compute view-growth ranking for one period and one content type.
@@ -51,6 +70,13 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
     """
     now_utc = datetime.now(timezone.utc)
     period_start = now_utc - timedelta(hours=period_hours)
+
+    excluded_channel_ids = _load_excluded_channel_ids()
+    exclude_clause = ""
+    excluded_params: tuple = ()
+    if excluded_channel_ids:
+        exclude_clause = " AND NOT (v.channel_id = ANY(%s))"
+        excluded_params = (excluded_channel_ids,)
 
     conn = get_connection()
     try:
@@ -84,6 +110,7 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
                     WHERE COALESCE(NULLIF(v.group_name, ''), 'other') <> 'other'
                       AND (v.title LIKE %s OR v.tags_text LIKE %s)
                       AND v.content_type = %s
+                      {exclude_clause}
                 ),
                 ranked AS (
                     SELECT
@@ -97,7 +124,15 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
                 SELECT video_id, view_growth, rank, %s
                 FROM ranked
                 """,
-                (period_start, period_start, "%切り抜き%", "%切り抜き%", content_type, now_utc),
+                (
+                    period_start,
+                    period_start,
+                    "%切り抜き%",
+                    "%切り抜き%",
+                    content_type,
+                    *excluded_params,
+                    now_utc,
+                ),
             )
 
             row_count = cur.rowcount
@@ -132,4 +167,6 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_rankings()
+
+
 

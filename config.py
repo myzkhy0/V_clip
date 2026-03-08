@@ -176,6 +176,9 @@ YOUTUBE_DAILY_SEARCH_UNIT_LIMIT: int = int(
 YOUTUBE_QUOTA_STATE_FILE: str = os.getenv(
     "YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json"
 )
+# ── Manual ranking exclusions ───────────────────────────────────────
+EXCLUDED_CHANNELS_FILE: str = os.getenv("EXCLUDED_CHANNELS_FILE", "excluded_channels.txt")
+
 
 # ── Scheduler ────────────────────────────────────────────────────────
 COLLECTION_INTERVAL_MINUTES: int = 360  # backward compatibility

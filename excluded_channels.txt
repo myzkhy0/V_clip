@@ -1,0 +1,5 @@
+# rankingから除外したいチャンネルIDを1行ずつ記入
+# 例:
+# UCxxxxxxxxxxxxxxxxxxxxxx
+
+https://www.youtube.com/channel/UCRtHAqa5RNWTRIj10ywhrOQ
