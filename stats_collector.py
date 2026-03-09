@@ -15,14 +15,29 @@ logger = logging.getLogger(__name__)
 
 
 def _get_tracked_video_ids() -> list[str]:
-    """Return video IDs that are still within the tracking window."""
+    """
+    Return video IDs to collect stats for.
+
+    - Regular target: videos within TRACK_DAYS.
+    - Safety net: videos that still have no stats at all.
+      (prevents newly inserted videos from being skipped)
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=TRACK_DAYS)
     rows = fetchall(
-        "SELECT video_id FROM videos WHERE published_at >= %s",
+        """
+        SELECT v.video_id
+        FROM videos v
+        WHERE v.published_at >= %s
+           OR NOT EXISTS (
+                SELECT 1
+                FROM video_stats s
+                WHERE s.video_id = v.video_id
+           )
+        """
+        ,
         (cutoff,),
     )
     return [r["video_id"] for r in rows]
-
 
 def _bulk_insert_stats(stats_rows: list[tuple]) -> None:
     """Insert multiple stat snapshots in a single transaction."""
