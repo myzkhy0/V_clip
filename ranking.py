@@ -63,9 +63,9 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
     """
     Compute view-growth ranking for one period and one content type.
 
-    Strict daily mode:
-      - requires an old snapshot at or before (now - 24h)
-      - does not fall back to first snapshot
+    Strict daily mode (hybrid):
+      - videos published today (JST): provisional growth (latest - first)
+      - videos published before today (JST): requires old snapshot at/before (now - 24h)
 
     Non-strict mode (weekly/monthly and optional daily fallback):
       - falls back to first snapshot when historical cutoff snapshot is missing
@@ -105,13 +105,26 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
                         WHERE timestamp <= %s
                         ORDER BY video_id, timestamp DESC
                     ),
+                    first_stats AS (
+                        SELECT DISTINCT ON (video_id)
+                            video_id,
+                            view_count,
+                            timestamp AS first_ts
+                        FROM video_stats
+                        ORDER BY video_id, timestamp ASC
+                    ),
                     growth AS (
                         SELECT
                             l.video_id,
-                            l.view_count - o.view_count AS view_growth
+                            CASE
+                                WHEN (v.published_at + interval '9 hours')::date = ((%s AT TIME ZONE 'Asia/Tokyo')::date)
+                                    THEN l.view_count - COALESCE(f.view_count, l.view_count)
+                                ELSE l.view_count - o.view_count
+                            END AS view_growth
                         FROM latest_stats l
-                        JOIN old_stats o ON l.video_id = o.video_id
                         JOIN videos v ON v.video_id = l.video_id
+                        LEFT JOIN old_stats o ON l.video_id = o.video_id
+                        LEFT JOIN first_stats f ON l.video_id = f.video_id
                         WHERE (v.title LIKE %s OR v.tags_text LIKE %s)
                           AND v.content_type = %s
                           {exclude_clause}
@@ -130,6 +143,7 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
                 """
                 params = (
                     period_start,
+                    now_utc,
                     "%切り抜き%",
                     "%切り抜き%",
                     content_type,
@@ -197,7 +211,7 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
             row_count = cur.rowcount
 
         conn.commit()
-        strict_suffix = " (strict24h)" if is_strict_daily else ""
+        strict_suffix = " (strict24h+today-provisional)" if is_strict_daily else ""
         logger.info(
             "%s/%s ranking%s: inserted %d row(s) into %s",
             period_name,
@@ -229,5 +243,3 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_rankings()
-
-
