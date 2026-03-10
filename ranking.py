@@ -112,8 +112,7 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
                         FROM latest_stats l
                         JOIN old_stats o ON l.video_id = o.video_id
                         JOIN videos v ON v.video_id = l.video_id
-                        WHERE COALESCE(NULLIF(v.group_name, ''), 'other') <> 'other'
-                          AND (v.title LIKE %s OR v.tags_text LIKE %s)
+                        WHERE (v.title LIKE %s OR v.tags_text LIKE %s)
                           AND v.content_type = %s
                           {exclude_clause}
                     ),
@@ -169,8 +168,7 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
                         LEFT JOIN old_stats o ON l.video_id = o.video_id
                         LEFT JOIN first_stats f ON l.video_id = f.video_id
                         JOIN videos v ON v.video_id = l.video_id
-                        WHERE COALESCE(NULLIF(v.group_name, ''), 'other') <> 'other'
-                          AND (v.title LIKE %s OR v.tags_text LIKE %s)
+                        WHERE (v.title LIKE %s OR v.tags_text LIKE %s)
                           AND v.content_type = %s
                           {exclude_clause}
                     ),
@@ -231,3 +229,5 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_rankings()
+
+
