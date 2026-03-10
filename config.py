@@ -9,6 +9,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+def _env_bool(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
 # ── YouTube Data API v3 ─────────────────────────────────────────────
 YOUTUBE_API_KEY: str = os.getenv("YOUTUBE_API_KEY", "")
 
@@ -179,14 +183,17 @@ YOUTUBE_QUOTA_STATE_FILE: str = os.getenv(
 )
 # ── Manual ranking exclusions ───────────────────────────────────────
 EXCLUDED_CHANNELS_FILE: str = os.getenv("EXCLUDED_CHANNELS_FILE", "excluded_channels.txt")
+DAILY_STRICT_24H_DIFF: bool = _env_bool("DAILY_STRICT_24H_DIFF", "1")
 
 
 # ── Scheduler ────────────────────────────────────────────────────────
 COLLECTION_INTERVAL_MINUTES: int = 360  # backward compatibility
-SEARCH_CRON_HOURS_JST: str = os.getenv("SEARCH_CRON_HOURS_JST", "6,18")
+SEARCH_CRON_HOURS_JST: str = os.getenv("SEARCH_CRON_HOURS_JST", "6")
 SEARCH_CRON_MINUTE_JST: int = int(os.getenv("SEARCH_CRON_MINUTE_JST", "0"))
-CHANNEL_UPDATE_INTERVAL_HOURS: int = int(os.getenv("CHANNEL_UPDATE_INTERVAL_HOURS", "8"))
+CHANNEL_UPDATE_INTERVAL_HOURS: int = int(os.getenv("CHANNEL_UPDATE_INTERVAL_HOURS", "4"))
 STATS_INTERVAL_HOURS: int = int(os.getenv("STATS_INTERVAL_HOURS", "4"))
+
+
 
 
 

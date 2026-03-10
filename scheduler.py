@@ -3,7 +3,7 @@ scheduler.py — APScheduler-based entry point for the VTuber Clip Ranking Syste
 
 Jobs:
   • Search discovery (collector): JST cron (default 06:00, once daily)
-  • Channel update (collector): interval (default every 1 hour, channels only)
+  • Channel update (collector): interval (default every 4 hours, channels only)
   • Stats + ranking: interval (default every 4 hours)
 
 Usage:
@@ -32,6 +32,20 @@ logger = logging.getLogger(__name__)
 JST = ZoneInfo("Asia/Tokyo")
 
 
+def _run_stats_and_rankings(trigger_name: str) -> None:
+    """Run stats collection and ranking calculation in sequence."""
+    logger.info("---- Triggering stats/ranking after %s ----", trigger_name)
+    try:
+        run_stats_collector()
+    except Exception:
+        logger.exception("Stats collector failed")
+
+    try:
+        run_rankings()
+    except Exception:
+        logger.exception("Ranking calculation failed")
+
+
 def search_pipeline() -> None:
     """Execute daily discovery pipeline (channel + keyword)."""
     logger.info("======== Search pipeline start ========")
@@ -39,6 +53,7 @@ def search_pipeline() -> None:
         run_collector(include_channel_search=True, include_keyword_search=True, run_seed=True)
     except Exception:
         logger.exception("Collector failed")
+    _run_stats_and_rankings("search pipeline")
     logger.info("======== Search pipeline end ========")
 
 
@@ -55,15 +70,7 @@ def channel_update_pipeline() -> None:
 def stats_ranking_pipeline() -> None:
     """Execute stats/ranking pipeline only."""
     logger.info("======== Stats/Ranking pipeline start ========")
-    try:
-        run_stats_collector()
-    except Exception:
-        logger.exception("Stats collector failed")
-
-    try:
-        run_rankings()
-    except Exception:
-        logger.exception("Ranking calculation failed")
+    _run_stats_and_rankings("stats/ranking schedule")
     logger.info("======== Stats/Ranking pipeline end ========")
 
 
@@ -127,6 +134,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-

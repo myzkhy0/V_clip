@@ -541,7 +541,7 @@ def run_collector(
 
     # Filter by clip keyword
     valid = [d for d in details if _is_valid_clip(d)]
-    logger.info("Clip filter: %d / %d passed (contains '切り抜き')", len(valid), len(details))
+    logger.info("Clip filter: %d / %d passed (requires '切り抜き' + SEARCH_KEYWORDS stem match)", len(valid), len(details))
 
     # Store
     store_new_videos(valid)
@@ -554,6 +554,7 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
+
 
 
 
