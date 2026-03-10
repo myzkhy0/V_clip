@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
-from config import GROUP_KEYWORDS
+from config import EXCLUDED_CHANNELS_FILE, GROUP_KEYWORDS
 from db import fetchall
 
 logger = logging.getLogger(__name__)
@@ -249,6 +249,120 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
 
     return calculated_at, rows
 
+
+def _load_excluded_channel_ids() -> list[str]:
+    path = Path(EXCLUDED_CHANNELS_FILE)
+    if not path.exists():
+        return []
+
+    channel_ids: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        value = line.strip()
+        if not value or value.startswith("#"):
+            continue
+        channel_ids.append(value)
+    return list(dict.fromkeys(channel_ids))
+
+
+def _fetch_daily_provisional_rows(content_type: str) -> list[dict]:
+    """
+    Provisional daily lane:
+    - videos without a snapshot older than 24h
+    - growth = latest - first snapshot (same-day provisional)
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    excluded_channel_ids = _load_excluded_channel_ids()
+    exclude_clause = ""
+    params: list[object] = [cutoff, "%切り抜き%", "%切り抜き%", content_type]
+    if excluded_channel_ids:
+        exclude_clause = " AND NOT (v.channel_id = ANY(%s))"
+        params.append(excluded_channel_ids)
+
+    rows = fetchall(
+        f"""
+        WITH latest_stats AS (
+            SELECT DISTINCT ON (video_id)
+                video_id,
+                view_count,
+                timestamp AS latest_ts
+            FROM video_stats
+            ORDER BY video_id, timestamp DESC
+        ),
+        old_stats AS (
+            SELECT DISTINCT ON (video_id)
+                video_id,
+                view_count
+            FROM video_stats
+            WHERE timestamp <= %s
+            ORDER BY video_id, timestamp DESC
+        ),
+        first_stats AS (
+            SELECT DISTINCT ON (video_id)
+                video_id,
+                view_count,
+                timestamp AS first_ts
+            FROM video_stats
+            ORDER BY video_id, timestamp ASC
+        ),
+        provisional AS (
+            SELECT
+                v.video_id,
+                v.title,
+                v.channel_id,
+                v.channel_name,
+                v.channel_icon_url,
+                v.group_name,
+                v.content_type,
+                v.duration_seconds,
+                v.tags_text,
+                v.published_at,
+                (l.view_count - f.view_count) AS view_growth
+            FROM latest_stats l
+            JOIN first_stats f ON f.video_id = l.video_id
+            LEFT JOIN old_stats o ON o.video_id = l.video_id
+            JOIN videos v ON v.video_id = l.video_id
+            WHERE o.video_id IS NULL
+              AND COALESCE(NULLIF(v.group_name, ''), 'other') <> 'other'
+              AND (v.title LIKE %s OR v.tags_text LIKE %s)
+              AND v.content_type = %s
+              {exclude_clause}
+        ),
+        ranked AS (
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY view_growth DESC) AS rank,
+                view_growth,
+                video_id,
+                title,
+                channel_id,
+                channel_name,
+                channel_icon_url,
+                group_name,
+                content_type,
+                duration_seconds,
+                tags_text,
+                published_at
+            FROM provisional
+            WHERE view_growth > 0
+        )
+        SELECT *
+        FROM ranked
+        ORDER BY rank
+        LIMIT 100
+        """,
+        tuple(params),
+    )
+
+    now_utc = datetime.now(timezone.utc)
+    for row in rows:
+        published_at = row.get("published_at")
+        if published_at is None:
+            row["is_new"] = False
+            continue
+        if published_at.tzinfo is None:
+            published_at = published_at.replace(tzinfo=timezone.utc)
+        row["is_new"] = (now_utc - published_at) <= timedelta(hours=24)
+
+    return rows
 def _fmt_datetime(value: datetime | None) -> str:
     if value is None:
         return "-"
@@ -393,22 +507,72 @@ def _render_group_content(
     video_rows: list[dict],
     show_group: bool = True,
     period_key: str = "daily",
-    content_label: str = "shorts",
+    provisional_shorts_rows: list[dict] | None = None,
+    provisional_video_rows: list[dict] | None = None,
 ) -> str:
-    if not shorts_rows and not video_rows:
+    provisional_shorts_rows = provisional_shorts_rows or []
+    provisional_video_rows = provisional_video_rows or []
+
+    has_strict = bool(shorts_rows or video_rows)
+    has_provisional = period_key == "daily" and bool(provisional_shorts_rows or provisional_video_rows)
+    if not has_strict and not has_provisional:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
-    default_tab = "shorts" if shorts_rows else "video"
-    shorts_html = (
-        _render_rank_sections(shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
-        if shorts_rows
-        else '<div class="empty">Shortsに該当する動画はありません。</div>'
-    )
-    video_html = (
-        _render_rank_sections(video_rows, show_group=show_group, period_key=period_key, content_label="動画")
-        if video_rows
-        else '<div class="empty">動画に該当する動画はありません。</div>'
-    )
+    default_tab = "shorts" if (shorts_rows or provisional_shorts_rows) else "video"
+
+    if period_key == "daily":
+        strict_shorts_html = (
+            _render_rank_sections(shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
+            if shorts_rows
+            else '<div class="empty">Shortsに該当する動画はありません。</div>'
+        )
+        provisional_shorts_html = (
+            _render_rank_sections(provisional_shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
+            if provisional_shorts_rows
+            else '<div class="empty">暫定レーンに該当するShortsはありません。</div>'
+        )
+        strict_video_html = (
+            _render_rank_sections(video_rows, show_group=show_group, period_key=period_key, content_label="動画")
+            if video_rows
+            else '<div class="empty">動画に該当する動画はありません。</div>'
+        )
+        provisional_video_html = (
+            _render_rank_sections(provisional_video_rows, show_group=show_group, period_key=period_key, content_label="動画")
+            if provisional_video_rows
+            else '<div class="empty">暫定レーンに該当する動画はありません。</div>'
+        )
+
+        shorts_html = f"""
+        <section class="ranking-list lane-block">
+          <h3>厳密24h差分</h3>
+          {strict_shorts_html}
+        </section>
+        <section class="ranking-list lane-block provisional-lane">
+          <h3>急上昇（暫定）</h3>
+          {provisional_shorts_html}
+        </section>
+        """
+        video_html = f"""
+        <section class="ranking-list lane-block">
+          <h3>厳密24h差分</h3>
+          {strict_video_html}
+        </section>
+        <section class="ranking-list lane-block provisional-lane">
+          <h3>急上昇（暫定）</h3>
+          {provisional_video_html}
+        </section>
+        """
+    else:
+        shorts_html = (
+            _render_rank_sections(shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
+            if shorts_rows
+            else '<div class="empty">Shortsに該当する動画はありません。</div>'
+        )
+        video_html = (
+            _render_rank_sections(video_rows, show_group=show_group, period_key=period_key, content_label="動画")
+            if video_rows
+            else '<div class="empty">動画に該当する動画はありません。</div>'
+        )
 
     shorts_active = " active" if default_tab == "shorts" else ""
     video_active = " active" if default_tab == "video" else ""
@@ -422,27 +586,44 @@ def _render_group_content(
     <div class="content-panel{video_active}" data-content-panel="video">{video_html}</div>
     """
 
-
 def _build_period_payload(is_admin: bool = False) -> list[dict]:
     payload = []
     for period_key, label, shorts_table, video_table in PERIODS:
         shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table)
         video_calculated_at, video_rows = _fetch_latest_rankings(video_table)
 
+        provisional_shorts_rows: list[dict] = []
+        provisional_video_rows: list[dict] = []
+        if period_key == "daily":
+            provisional_shorts_rows = _fetch_daily_provisional_rows("shorts")
+            provisional_video_rows = _fetch_daily_provisional_rows("video")
+
         grouped_shorts: dict[str, list[dict]] = defaultdict(list)
         grouped_video: dict[str, list[dict]] = defaultdict(list)
+        grouped_provisional_shorts: dict[str, list[dict]] = defaultdict(list)
+        grouped_provisional_video: dict[str, list[dict]] = defaultdict(list)
+
         grouped_shorts["all"] = shorts_rows
         grouped_video["all"] = video_rows
+        grouped_provisional_shorts["all"] = provisional_shorts_rows
+        grouped_provisional_video["all"] = provisional_video_rows
 
         for row in shorts_rows:
             grouped_shorts[_infer_group(row)].append(row)
         for row in video_rows:
             grouped_video[_infer_group(row)].append(row)
+        for row in provisional_shorts_rows:
+            grouped_provisional_shorts[_infer_group(row)].append(row)
+        for row in provisional_video_rows:
+            grouped_provisional_video[_infer_group(row)].append(row)
 
         available_groups = [
             group_name
             for group_name in GROUP_ORDER
-            if grouped_shorts.get(group_name) or grouped_video.get(group_name)
+            if grouped_shorts.get(group_name)
+            or grouped_video.get(group_name)
+            or grouped_provisional_shorts.get(group_name)
+            or grouped_provisional_video.get(group_name)
         ]
         if not available_groups:
             available_groups = ["all"]
@@ -463,6 +644,8 @@ def _build_period_payload(is_admin: bool = False) -> list[dict]:
                         grouped_video.get(group_name, []),
                         show_group=True,
                         period_key=period_key,
+                        provisional_shorts_rows=grouped_provisional_shorts.get(group_name, []),
+                        provisional_video_rows=grouped_provisional_video.get(group_name, []),
                     )
                     for group_name in available_groups
                 },
@@ -470,7 +653,6 @@ def _build_period_payload(is_admin: bool = False) -> list[dict]:
             }
         )
     return payload
-
 def _load_quota_usage() -> tuple[int, int]:
     """Return (used_units, limit_units) from local quota state file."""
     limit = max(0, YOUTUBE_DAILY_SEARCH_UNIT_LIMIT)
@@ -1853,6 +2035,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
 
 
 
