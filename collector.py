@@ -362,9 +362,14 @@ def _is_valid_clip(detail: dict) -> bool:
       1) title/tags contain '切り抜き'
       2) title/tags contain at least one search-keyword stem
          (derived from SEARCH_KEYWORDS by removing '切り抜き')
+      3) description does NOT contain 'ライブ配信'
     """
     text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
     if "切り抜き" not in text:
+        return False
+
+    description = str(detail.get("description", "")).lower()
+    if "ライブ配信" in description:
         return False
 
     normalized = text.replace(" ", "").replace("　", "")
@@ -554,13 +559,4 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
-
-
-
-
-
-
-
-
-
 

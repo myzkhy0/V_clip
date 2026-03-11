@@ -355,6 +355,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
             "like_count": int,
             "tags_text": str,
             "channel_icon_url": str,
+            "description": str,
         }
 
     Handles batching in chunks of VIDEO_BATCH_SIZE (max 50).
@@ -397,6 +398,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
                 "like_count": int(stats.get("likeCount", 0)),
                 "tags_text": " ".join(tags),
                 "channel_icon_url": icon_map.get(channel_id, ""),
+                "description": snippet.get("description", ""),
             }
         )
 
