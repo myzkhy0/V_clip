@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Amazonアソシエイト差し込みサンプル（本番構造寄せ）</title>
+  <style>
+    :root {
+      --bg: #0c1217;
+      --panel: #101821;
+      --ink: #eff6fb;
+      --muted: #9fb2c1;
+      --line: rgba(239, 246, 251, 0.12);
+      --accent: #63d0ff;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans JP", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(99, 208, 255, 0.16), transparent 24%),
+        radial-gradient(circle at top right, rgba(244, 185, 66, 0.16), transparent 22%),
+        linear-gradient(160deg, #081017 0%, #121b24 52%, #0b1218 100%);
+    }
+    .shell {
+      width: min(1320px, calc(100% - 24px));
+      margin: 24px auto 48px;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .mock-content {
+      min-height: 280px;
+      border: 1px dashed var(--line);
+      background: rgba(255,255,255,0.02);
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+      margin-top: 10px;
+    }
+    .ad-wrap {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 14px;
+      margin: 8px 0 14px;
+    }
+    .ad-head {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+    .ad-slot {
+      overflow: hidden;
+    }
+    .AMvertical {
+      width: 100%;
+    }
+    .AMvertical ul,
+    .AMvertical ol {
+      display: flex !important;
+      flex-wrap: nowrap;
+      justify-content: center;
+      gap: 10px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    .AMvertical li {
+      flex: 0 0 auto;
+    }
+    .back-top-wrap {
+      text-align: center;
+      margin-top: 12px;
+    }
+    .back-top-link {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      font-size: 0.9rem;
+    }
+    .site-footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-top: 14px;
+      opacity: 0.9;
+    }
+    @media (max-width: 640px) {
+      .shell {
+        width: calc(100% - 12px);
+        margin: 8px auto 22px;
+      }
+      .panel, .ad-wrap {
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="panel">
+      <h1 style="margin:0;font-size:1.12rem;">本番構造寄せサンプル（非実装）</h1>
+      <p style="margin:8px 0 0;color:var(--muted);font-size:0.9rem;">
+        「最下部とフッターの間」に広告を置く想定の見た目確認ページです。
+      </p>
+      <div class="mock-content">ここがランキングの最下部（#period-root の末尾想定）</div>
+    </section>
+
+    <section class="ad-wrap">
+      <p class="ad-head">広告（サンプル配置）</p>
+      <div class="ad-slot">
+        <div class="AMvertical black">
+          <script src="//solty.biz/amr/?key=videogames_all&get=5&size=160%2C220%2C0px%2C3px%2C80%25&aid=vcliprank-22"></script>
+          <a href="https://solty.2-d.jp/" title="Amazon Modern Ranking" target="_blank" class="AMbanner" rel="noreferrer">
+            <img src="//solty.biz/banner_amr.png" alt="Amazon Modern Ranking banner">
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <div class="back-top-wrap"><a id="back-to-top" class="back-top-link" href="#">TOPへ</a></div>
+    <footer class="site-footer">Copyright (C) 2026- 3vskhv0 All Rights Reserved.</footer>
+  </main>
+
+  <script>
+    const backToTop = document.getElementById("back-to-top");
+    if (backToTop) {
+      backToTop.addEventListener("click", (event) => {
+        event.preventDefault();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+  </script>
+</body>
+</html>
+

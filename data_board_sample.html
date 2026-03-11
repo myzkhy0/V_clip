@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data Board Style Sample</title>
+  <style>
+    :root {
+      --bg0: #06080d;
+      --bg1: #0d121a;
+      --panel: #121a25;
+      --panel-soft: #172232;
+      --line: rgba(255,255,255,0.09);
+      --text: #e8eef8;
+      --muted: #98abc1;
+      --accent: #5fc8ff;
+      --ok: #57d9a3;
+      --warn: #ffc35a;
+      --danger: #ff6e7f;
+      --newA: #ff7a5c;
+      --newB: #ff3d6d;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans JP", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% -2%, rgba(95, 200, 255, 0.2), transparent 26%),
+        radial-gradient(circle at 100% 0%, rgba(255, 122, 92, 0.16), transparent 22%),
+        linear-gradient(160deg, var(--bg0), var(--bg1));
+    }
+
+    .shell {
+      width: min(1260px, calc(100% - 20px));
+      margin: 12px auto 22px;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 12px;
+    }
+
+    .nav {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #121a26, #0f161f);
+      padding: 14px;
+      min-height: calc(100vh - 34px);
+      position: sticky;
+      top: 10px;
+      align-self: start;
+    }
+
+    .brand {
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 12px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.35;
+      letter-spacing: 0.03em;
+    }
+    .brand p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.83rem;
+    }
+
+    .block-title {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 0.74rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .menu {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 14px;
+    }
+    .menu button {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      font: inherit;
+      border-radius: 9px;
+      padding: 9px 10px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .menu button.active {
+      border-color: rgba(95, 200, 255, 0.65);
+      background: rgba(95, 200, 255, 0.13);
+      font-weight: 700;
+    }
+
+    .main {
+      display: grid;
+      gap: 12px;
+    }
+
+    .topbar {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #111926, #0d141f);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .topbar h2 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+    .topbar p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: end;
+    }
+    .chip {
+      border-radius: 999px;
+      height: 30px;
+      padding: 0 11px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+    .chip.ok { color: var(--ok); border-color: rgba(87,217,163,0.45); }
+
+    .board {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #111927, #0d141e);
+      padding: 12px;
+    }
+
+    .list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .row {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, var(--panel-soft), var(--panel));
+      display: grid;
+      grid-template-columns: 56px 140px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 82px;
+      padding: 8px;
+    }
+
+    .rank {
+      width: 44px;
+      height: 30px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.9rem;
+      color: #101010;
+      background: linear-gradient(135deg, #ffe08f, #ffb531);
+    }
+
+    .thumb {
+      width: 140px;
+      aspect-ratio: 16 / 9;
+      border: 1px solid var(--line);
+      overflow: hidden;
+      position: relative;
+    }
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .new {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      border-radius: 999px;
+      height: 22px;
+      padding: 0 8px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.69rem;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, var(--newA), var(--newB));
+    }
+
+    .info h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.35;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .sub {
+      margin-top: 6px;
+      color: var(--accent);
+      font-size: 0.83rem;
+    }
+
+    .metrics {
+      text-align: right;
+      min-width: 160px;
+    }
+    .metrics .v {
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+    .metrics .t {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.79rem;
+    }
+
+    @media (max-width: 1080px) {
+      .shell { grid-template-columns: 1fr; }
+      .nav { position: static; min-height: auto; }
+    }
+    @media (max-width: 780px) {
+      .row {
+        grid-template-columns: 48px 120px 1fr;
+      }
+      .metrics {
+        grid-column: 1 / -1;
+        text-align: left;
+      }
+      .thumb { width: 120px; }
+      .topbar { grid-template-columns: 1fr; }
+      .chips { justify-content: start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <aside class="nav">
+      <div class="brand">
+        <h1>ぶいくりっぷ<br>Data Board Sample</h1>
+        <p>管理画面寄りの構成サンプル</p>
+      </div>
+
+      <p class="block-title">期間</p>
+      <div class="menu">
+        <button class="active">24時間</button>
+        <button>7日</button>
+        <button>30日</button>
+      </div>
+
+      <p class="block-title">グループ</p>
+      <div class="menu">
+        <button class="active">全体</button>
+        <button>ホロライブ</button>
+        <button>にじさんじ</button>
+        <button>ぶいすぽっ！</button>
+        <button>ネオポルテ</button>
+      </div>
+    </aside>
+
+    <section class="main">
+      <header class="topbar">
+        <div>
+          <h2>24時間ランキング / 全体</h2>
+          <p>集計時刻: 2026-03-07 18:00 | 表示件数: 100</p>
+        </div>
+        <div class="chips">
+          <span class="chip ok">API状態: 通常</span>
+          <span class="chip">search: 2,140 / 10,000</span>
+          <span class="chip">最終成功: 17:58</span>
+        </div>
+      </header>
+
+      <section class="board">
+        <div class="list">
+          <article class="row">
+            <div class="rank">#1</div>
+            <div class="thumb"><img src="https://i.ytimg.com/vi/eUVGaxHrm74/hqdefault.jpg" alt=""><span class="new">NEW</span></div>
+            <div class="info"><h3>【NEWTOWN】だから僕は音楽を辞めた / ヨルシカ cover Live…</h3><div class="sub">ぶいくりっぷチャンネル / hololive</div></div>
+            <div class="metrics"><div class="v">再生数 +572,848</div><div class="t">2026-03-07 17:30</div></div>
+          </article>
+
+          <article class="row">
+            <div class="rank">#2</div>
+            <div class="thumb"><img src="https://i.ytimg.com/vi/yjNcz6I4Jq8/hqdefault.jpg" alt=""></div>
+            <div class="info"><h3>サンプルタイトル: 2位の表示</h3><div class="sub">にじさんじ切り抜きch / nijisanji</div></div>
+            <div class="metrics"><div class="v">再生数 +487,251</div><div class="t">2026-03-07 16:20</div></div>
+          </article>
+
+          <article class="row">
+            <div class="rank">#3</div>
+            <div class="thumb"><img src="https://i.ytimg.com/vi/XS6ysDFTbLU/hqdefault.jpg" alt=""><span class="new">NEW</span></div>
+            <div class="info"><h3>サンプルタイトル: 3位の表示</h3><div class="sub">ホロライブ切り抜きch / hololive</div></div>
+            <div class="metrics"><div class="v">再生数 +422,521</div><div class="t">2026-03-07 15:42</div></div>
+          </article>
+
+          <article class="row">
+            <div class="rank">#4</div>
+            <div class="thumb"><img src="https://i.ytimg.com/vi/q4LxQ8QvkbM/hqdefault.jpg" alt=""></div>
+            <div class="info"><h3>サンプルタイトル: 4位の表示</h3><div class="sub">ぶいすぽ切り抜き / VSPO</div></div>
+            <div class="metrics"><div class="v">再生数 +401,000</div><div class="t">2026-03-07 15:11</div></div>
+          </article>
+
+          <article class="row">
+            <div class="rank">#5</div>
+            <div class="thumb"><img src="https://i.ytimg.com/vi/kK7CkNfR6hY/hqdefault.jpg" alt=""></div>
+            <div class="info"><h3>サンプルタイトル: 5位の表示</h3><div class="sub">ななしいんく切り抜き / 774inc</div></div>
+            <div class="metrics"><div class="v">再生数 +390,882</div><div class="t">2026-03-07 14:35</div></div>
+          </article>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

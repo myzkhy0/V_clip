@@ -1,0 +1,1391 @@
+<!doctype html>
+<html lang="ja" id="top">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VCLIP — VTuber切り抜きランキング</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Noto+Sans+JP:wght@400;600;700;900&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #050e1a;
+      --bg-panel: rgba(12, 28, 50, 0.7);
+      --glass-border: rgba(100, 160, 240, 0.12);
+      --glass-shine: rgba(255, 255, 255, 0.04);
+      --text: #e8f0fb;
+      --text-dim: #8ba7c8;
+      --accent-purple: #a78bfa;
+      --accent-pink: #f472b6;
+      --accent-orange: #fb923c;
+      --accent-cyan: #22d3ee;
+      --accent-gradient: linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #fb923c 100%);
+      --card-border: rgba(80, 130, 200, 0.15);
+      --rank-gold: linear-gradient(135deg, #fbbf24, #f59e0b);
+      --rank-silver: linear-gradient(135deg, #d1d5db, #9ca3af);
+      --rank-bronze: linear-gradient(135deg, #d97706, #b45309);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      color: var(--text);
+      background: var(--bg-deep);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated background ── */
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 900px 500px at 15% 10%, rgba(167, 139, 250, 0.15), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 85% 5%, rgba(244, 114, 182, 0.12), transparent 55%),
+        radial-gradient(ellipse 600px 400px at 50% 80%, rgba(34, 211, 238, 0.06), transparent 50%);
+    }
+
+    .bg-canvas::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 500px 300px at 70% 40%, rgba(251, 146, 60, 0.07), transparent 50%),
+        radial-gradient(ellipse 400px 300px at 20% 60%, rgba(167, 139, 250, 0.06), transparent 50%);
+      animation: bgShift 18s ease-in-out infinite alternate;
+    }
+
+    @keyframes bgShift {
+      0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.6;
+      }
+
+      100% {
+        transform: translate(40px, -30px) scale(1.05);
+        opacity: 1;
+      }
+    }
+
+    /* ── Shell ── */
+    .shell {
+      position: relative;
+      z-index: 1;
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 20px 0 60px;
+    }
+
+    /* ── Top nav bar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      background: var(--bg-panel);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+      font-size: clamp(1.15rem, 2vw, 1.55rem);
+      letter-spacing: -0.01em;
+    }
+
+    .topbar-logo {
+      padding: 6px 14px;
+      border-radius: 10px;
+      background: var(--accent-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.95rem;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 0.06em;
+      box-shadow: 0 0 18px rgba(167, 139, 250, 0.3);
+    }
+
+    .topbar-accent {
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .topbar-nav {
+      display: flex;
+      gap: 6px;
+    }
+
+    .topbar-nav a {
+      padding: 7px 16px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: all 0.25s ease;
+    }
+
+    .topbar-nav a:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .topbar-nav a.active {
+      color: #fff;
+      background: rgba(167, 139, 250, 0.18);
+    }
+
+    /* ── Hero section ── */
+    .hero {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1.5fr 0.9fr;
+      gap: 16px;
+    }
+
+    .glass-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .glass-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(170deg, var(--glass-shine) 0%, transparent 40%);
+      pointer-events: none;
+    }
+
+    .hero-main {
+      padding: 36px 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 14px;
+    }
+
+    .hero-eyebrow .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.5);
+      }
+
+      50% {
+        opacity: 0.6;
+        box-shadow: 0 0 0 6px rgba(34, 211, 238, 0);
+      }
+    }
+
+    .hero-heading {
+      font-size: clamp(1.8rem, 3.2vw, 2.6rem);
+      font-weight: 900;
+      line-height: 1.3;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-heading .gradient-text {
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-desc {
+      margin-top: 14px;
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      max-width: 480px;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 24px;
+      margin-top: 22px;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-value {
+      font-size: 1.4rem;
+      font-weight: 900;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── NEW picks sidebar ── */
+    .hero-side {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .side-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .side-header-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #f472b6, #fb923c);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+    }
+
+    .side-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .new-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .new-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(100, 160, 240, 0.08);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      transition: all 0.3s ease;
+      cursor: default;
+    }
+
+    .new-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(167, 139, 250, 0.2);
+      transform: translateX(4px);
+    }
+
+    .new-badge {
+      flex-shrink: 0;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      background: linear-gradient(135deg, #f472b6, #fb923c);
+      color: #fff;
+      text-transform: uppercase;
+    }
+
+    .new-text {
+      font-size: 0.88rem;
+      line-height: 1.4;
+      color: #c8daf0;
+    }
+
+    /* ── Content area ── */
+    .content {
+      margin-top: 18px;
+      padding: 24px 28px;
+    }
+
+    .content-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .content-title {
+      font-size: 1.5rem;
+      font-weight: 900;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .content-title .fire {
+      font-style: normal;
+    }
+
+    .section-icon {
+      font-style: normal;
+    }
+
+    .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .type-tabs {
+      display: flex;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 4px;
+    }
+
+    .type-tab {
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      border-radius: 10px;
+      padding: 8px 22px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-family: inherit;
+    }
+
+    .type-tab:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .type-tab.active {
+      background: rgba(244, 114, 182, 0.2);
+      color: #fff;
+      box-shadow: 0 0 12px rgba(244, 114, 182, 0.12);
+    }
+
+    .filter-divider {
+      width: 1px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .ranking-panel {
+      display: none;
+    }
+
+    .ranking-panel.active {
+      display: block;
+    }
+
+    .period-tabs {
+      display: flex;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 4px;
+    }
+
+    .period-tab {
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      border-radius: 10px;
+      padding: 8px 20px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-family: inherit;
+    }
+
+    .period-tab:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .period-tab.active {
+      background: rgba(167, 139, 250, 0.2);
+      color: #fff;
+      box-shadow: 0 0 12px rgba(167, 139, 250, 0.15);
+    }
+
+    /* ── Pagination tabs ── */
+    .page-tabs {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .page-tabs.bottom {
+      margin-top: 16px;
+      margin-bottom: 0;
+      justify-content: center;
+    }
+
+    .page-tab {
+      border: 1px solid rgba(100, 160, 240, 0.12);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-dim);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-family: inherit;
+    }
+
+    .page-tab:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(167, 139, 250, 0.2);
+    }
+
+    .page-tab.active {
+      background: rgba(167, 139, 250, 0.15);
+      border-color: rgba(167, 139, 250, 0.3);
+      color: #fff;
+    }
+
+    /* ── Cards grid ── */
+    .cards {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .card {
+      background: var(--bg-panel);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: default;
+    }
+
+    .card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(167, 139, 250, 0.3);
+      box-shadow:
+        0 16px 40px rgba(0, 0, 0, 0.3),
+        0 0 30px rgba(167, 139, 250, 0.08);
+    }
+
+    /* ── Rank glow borders ── */
+    .card.card-rank-1 {
+      border-color: rgba(251, 191, 36, 0.45);
+      box-shadow:
+        0 0 20px rgba(251, 191, 36, 0.15),
+        0 0 40px rgba(245, 158, 11, 0.08),
+        inset 0 0 20px rgba(251, 191, 36, 0.03);
+    }
+
+    .card.card-rank-1:hover {
+      border-color: rgba(251, 191, 36, 0.6);
+      box-shadow:
+        0 16px 40px rgba(0, 0, 0, 0.3),
+        0 0 35px rgba(251, 191, 36, 0.2),
+        0 0 60px rgba(245, 158, 11, 0.1);
+    }
+
+    .card.card-rank-2 {
+      border-color: rgba(209, 213, 219, 0.35);
+      box-shadow:
+        0 0 18px rgba(209, 213, 219, 0.1),
+        0 0 35px rgba(156, 163, 175, 0.06),
+        inset 0 0 18px rgba(209, 213, 219, 0.02);
+    }
+
+    .card.card-rank-2:hover {
+      border-color: rgba(209, 213, 219, 0.5);
+      box-shadow:
+        0 16px 40px rgba(0, 0, 0, 0.3),
+        0 0 30px rgba(209, 213, 219, 0.15),
+        0 0 50px rgba(156, 163, 175, 0.08);
+    }
+
+    .card.card-rank-3 {
+      border-color: rgba(217, 119, 6, 0.35);
+      box-shadow:
+        0 0 18px rgba(217, 119, 6, 0.12),
+        0 0 35px rgba(180, 83, 9, 0.06),
+        inset 0 0 18px rgba(217, 119, 6, 0.02);
+    }
+
+    .card.card-rank-3:hover {
+      border-color: rgba(217, 119, 6, 0.5);
+      box-shadow:
+        0 16px 40px rgba(0, 0, 0, 0.3),
+        0 0 30px rgba(217, 119, 6, 0.18),
+        0 0 50px rgba(180, 83, 9, 0.08);
+    }
+
+    .thumb {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+    }
+
+    .thumb-bg {
+      position: absolute;
+      inset: 0;
+      transition: transform 0.5s ease;
+    }
+
+    .card:hover .thumb-bg {
+      transform: scale(1.08);
+    }
+
+    .card:nth-child(1) .thumb-bg {
+      background:
+        radial-gradient(circle at 30% 30%, rgba(167, 139, 250, 0.35), transparent 50%),
+        radial-gradient(circle at 70% 60%, rgba(244, 114, 182, 0.25), transparent 50%),
+        linear-gradient(135deg, #14243d, #1a1035);
+    }
+
+    .card:nth-child(2) .thumb-bg {
+      background:
+        radial-gradient(circle at 60% 20%, rgba(34, 211, 238, 0.3), transparent 50%),
+        radial-gradient(circle at 30% 70%, rgba(167, 139, 250, 0.2), transparent 50%),
+        linear-gradient(135deg, #0d2136, #151030);
+    }
+
+    .card:nth-child(3) .thumb-bg {
+      background:
+        radial-gradient(circle at 40% 40%, rgba(251, 146, 60, 0.25), transparent 50%),
+        radial-gradient(circle at 70% 30%, rgba(244, 114, 182, 0.2), transparent 50%),
+        linear-gradient(135deg, #1a1a0e, #1e1028);
+    }
+
+    .rank-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 900;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .rank-1 {
+      background: var(--rank-gold);
+    }
+
+    .rank-2 {
+      background: var(--rank-silver);
+      color: #1a1a1a;
+    }
+
+    .rank-3 {
+      background: var(--rank-bronze);
+    }
+
+    .duration-badge {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      backdrop-filter: blur(4px);
+    }
+
+    .card-meta {
+      padding: 14px 16px;
+    }
+
+    .card-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      line-height: 1.5;
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-channel {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    .channel-avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
+    }
+
+    .card-views {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent-purple);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .card-views .arrow {
+      font-style: normal;
+      color: #34d399;
+    }
+
+    /* ── Back to top ── */
+    .back-to-top {
+      display: flex;
+      justify-content: center;
+      margin-top: 28px;
+    }
+
+    .back-to-top a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 28px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--glass-border);
+      color: var(--text-dim);
+      font-size: 0.88rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: all 0.25s ease;
+    }
+
+    .back-to-top a:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(167, 139, 250, 0.25);
+      transform: translateY(-2px);
+    }
+
+    .back-to-top .arrow-up {
+      font-style: normal;
+      font-size: 1rem;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 28px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.78rem;
+      opacity: 0.6;
+      padding-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .footer a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer a:hover {
+      color: var(--text);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 16px;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-in {
+      animation: fadeUp 0.6s ease forwards;
+      opacity: 0;
+    }
+
+    .delay-1 {
+      animation-delay: 0.1s;
+    }
+
+    .delay-2 {
+      animation-delay: 0.2s;
+    }
+
+    .delay-3 {
+      animation-delay: 0.3s;
+    }
+
+    .delay-4 {
+      animation-delay: 0.4s;
+    }
+
+    .delay-5 {
+      animation-delay: 0.5s;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 1024px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+
+      /* Shell */
+      .shell {
+        width: calc(100% - 20px);
+        padding: 12px 0 40px;
+      }
+
+      /* Topbar - hide nav on mobile */
+      .topbar-nav {
+        display: none;
+      }
+
+      .topbar {
+        padding: 10px 14px;
+        border-radius: 12px;
+      }
+
+      .topbar-brand {
+        gap: 8px;
+        font-size: 0.9rem;
+      }
+
+      .topbar-logo {
+        padding: 5px 10px;
+        font-size: 0.8rem;
+        border-radius: 8px;
+      }
+
+      .topbar-nav a {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+      }
+
+      /* Hero */
+      .hero {
+        margin-top: 12px;
+        gap: 12px;
+      }
+
+      .glass-panel {
+        border-radius: 14px;
+      }
+
+      .hero-main {
+        padding: 22px 16px;
+      }
+
+      .hero-eyebrow {
+        font-size: 0.7rem;
+        margin-bottom: 10px;
+      }
+
+      .hero-heading {
+        font-size: 1.35rem;
+        line-height: 1.35;
+      }
+
+      .hero-desc {
+        font-size: 0.85rem;
+        margin-top: 10px;
+      }
+
+      .hero-stats {
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .stat-value {
+        font-size: 1.15rem;
+      }
+
+      .stat-label {
+        font-size: 0.68rem;
+      }
+
+      /* Sidebar / NEW picks */
+      .hero-side {
+        padding: 18px 14px;
+      }
+
+      .side-header {
+        margin-bottom: 12px;
+      }
+
+      .side-header-icon {
+        width: 24px;
+        height: 24px;
+        font-size: 0.75rem;
+      }
+
+      .side-title {
+        font-size: 0.95rem;
+      }
+
+      .new-list {
+        gap: 8px;
+      }
+
+      .new-item {
+        padding: 10px 12px;
+        border-radius: 10px;
+        gap: 8px;
+      }
+
+      .new-badge {
+        padding: 2px 8px;
+        font-size: 0.65rem;
+      }
+
+      .new-text {
+        font-size: 0.82rem;
+      }
+
+      /* Content area */
+      .content {
+        padding: 16px 14px;
+      }
+
+      .content-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .content-title {
+        font-size: 1.2rem;
+        gap: 8px;
+      }
+
+      /* Filter tabs - horizontal scroll */
+      .filter-row {
+        width: 100%;
+        gap: 8px;
+      }
+
+      .filter-divider {
+        display: none;
+      }
+
+      .type-tabs,
+      .period-tabs {
+        border-radius: 10px;
+      }
+
+      .page-tabs {
+        gap: 3px;
+      }
+
+      .page-tab {
+        padding: 5px 10px;
+        font-size: 0.75rem;
+        border-radius: 6px;
+      }
+
+      .type-tab {
+        padding: 7px 16px;
+        font-size: 0.82rem;
+      }
+
+      .period-tab {
+        padding: 7px 14px;
+        font-size: 0.82rem;
+      }
+
+      /* Cards - single column */
+      .cards {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .card {
+        border-radius: 14px;
+      }
+
+      .card-meta {
+        padding: 12px 14px;
+      }
+
+      .card-title {
+        font-size: 0.88rem;
+        margin-bottom: 8px;
+      }
+
+      .card-channel {
+        font-size: 0.75rem;
+      }
+
+      .card-views {
+        font-size: 0.75rem;
+      }
+
+      .rank-badge {
+        width: 28px;
+        height: 28px;
+        font-size: 0.78rem;
+        border-radius: 8px;
+        top: 8px;
+        left: 8px;
+      }
+
+      .duration-badge {
+        font-size: 0.7rem;
+        bottom: 6px;
+        right: 6px;
+      }
+
+      /* Back to top */
+      .back-to-top {
+        margin-top: 20px;
+      }
+
+      .back-to-top a {
+        padding: 10px 24px;
+        font-size: 0.82rem;
+        border-radius: 10px;
+      }
+
+      /* Footer */
+      .footer {
+        margin-top: 20px;
+        font-size: 0.72rem;
+        padding-bottom: 16px;
+      }
+
+      .footer-links {
+        gap: 12px;
+        font-size: 0.72rem;
+      }
+    }
+
+    /* Extra small screens */
+    @media (max-width: 400px) {
+      .topbar-brand span {
+        display: none;
+      }
+
+      .hero-heading {
+        font-size: 1.15rem;
+      }
+
+      .hero-stats {
+        gap: 12px;
+      }
+
+      .stat-value {
+        font-size: 1rem;
+      }
+
+      .filter-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="bg-canvas"></div>
+
+  <main class="shell">
+    <!-- ── Top bar ── -->
+    <nav class="topbar animate-in">
+      <div class="topbar-brand">
+        <div class="topbar-logo">VCLIP</div>
+        <span>VTuber切り抜き<span class="topbar-accent">ランキング</span></span>
+      </div>
+      <div class="topbar-nav">
+        <a href="#" class="active">ランキング</a>
+        <a href="#">About</a>
+      </div>
+    </nav>
+
+    <!-- ── Hero ── -->
+    <section class="hero">
+      <section class="glass-panel hero-main animate-in delay-1">
+        <div class="hero-eyebrow">
+          <span class="dot"></span>
+          <span>LIVE — リアルタイム更新中</span>
+        </div>
+        <h1 class="hero-heading">
+          VTuber切り抜きの<br>
+          <span class="gradient-text">トレンドを一目でチェック</span>
+        </h1>
+        <p class="hero-desc">
+          Shorts・動画の再生数増加をリアルタイムで集計。<br>
+          いま話題の切り抜きをランキング形式でお届けします。
+        </p>
+        <div class="hero-stats">
+          <div class="stat-item">
+            <span class="stat-value">12,847</span>
+            <span class="stat-label">トラッキング動画数</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">1.2M</span>
+            <span class="stat-label">本日の総再生増加</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">324</span>
+            <span class="stat-label">新着（24h）</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="glass-panel hero-side animate-in delay-2">
+        <div class="side-header">
+          <div class="side-header-icon">✨</div>
+          <h2 class="side-title">新着ピックアップ</h2>
+        </div>
+        <div id="new-list" class="new-list"></div>
+      </aside>
+    </section>
+
+    <!-- ── ランキング ── -->
+    <section class="glass-panel content animate-in delay-3">
+      <div class="content-head">
+        <h2 class="content-title">
+          <em class="section-icon" id="ranking-icon">🎬</em><span id="ranking-label">Shorts ランキング</span>
+        </h2>
+        <div class="filter-row">
+          <div class="type-tabs">
+            <button class="type-tab active" data-type="shorts">Shorts</button>
+            <button class="type-tab" data-type="video">動画</button>
+          </div>
+          <div class="filter-divider"></div>
+          <div class="period-tabs">
+            <button class="period-tab active">24時間</button>
+            <button class="period-tab">7日</button>
+            <button class="period-tab">30日</button>
+          </div>
+        </div>
+        <div class="page-tabs" id="page-tabs-top">
+          <button class="page-tab active" data-page="1">1位-20位</button>
+          <button class="page-tab" data-page="2">21位-40位</button>
+          <button class="page-tab" data-page="3">41位-60位</button>
+          <button class="page-tab" data-page="4">61位-80位</button>
+          <button class="page-tab" data-page="5">81位-100位</button>
+        </div>
+      </div>
+
+      <!-- Shorts パネル -->
+      <div class="ranking-panel active" id="panel-shorts">
+        <div class="cards">
+          <article class="card card-rank-1 animate-in delay-3">
+            <div class="thumb">
+              <div class="thumb-bg"></div>
+              <div class="rank-badge rank-1">1</div>
+              <span class="duration-badge">0:59</span>
+            </div>
+            <div class="card-meta">
+              <p class="card-title">【Shorts】神回すぎるコラボ配信のハイライト集</p>
+              <div class="card-info">
+                <span class="card-channel">
+                  <span class="channel-avatar"></span>
+                  VTuberクリップ
+                </span>
+                <span class="card-views"><em class="arrow">↑</em>+456,789</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="card card-rank-2 animate-in delay-4">
+            <div class="thumb">
+              <div class="thumb-bg"></div>
+              <div class="rank-badge rank-2">2</div>
+              <span class="duration-badge">0:45</span>
+            </div>
+            <div class="card-meta">
+              <p class="card-title">【Shorts】まさかの展開に全員フリーズした瞬間</p>
+              <div class="card-info">
+                <span class="card-channel">
+                  <span class="channel-avatar"></span>
+                  推し切り抜きch
+                </span>
+                <span class="card-views"><em class="arrow">↑</em>+321,000</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="card card-rank-3 animate-in delay-5">
+            <div class="thumb">
+              <div class="thumb-bg"></div>
+              <div class="rank-badge rank-3">3</div>
+              <span class="duration-badge">0:48</span>
+            </div>
+            <div class="card-meta">
+              <p class="card-title">【Shorts】圧倒的歌唱力で視聴者を虜にした一曲</p>
+              <div class="card-info">
+                <span class="card-channel">
+                  <span class="channel-avatar"></span>
+                  歌まとめ切り抜き
+                </span>
+                <span class="card-views"><em class="arrow">↑</em>+287,654</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <!-- 動画パネル -->
+      <div class="ranking-panel" id="panel-video">
+        <div class="cards">
+          <article class="card card-rank-1">
+            <div class="thumb">
+              <div class="thumb-bg"></div>
+              <div class="rank-badge rank-1">1</div>
+              <span class="duration-badge">8:24</span>
+            </div>
+            <div class="card-meta">
+              <p class="card-title">【切り抜き】伝説のコラボ配信まとめ — 爆笑シーン集</p>
+              <div class="card-info">
+                <span class="card-channel">
+                  <span class="channel-avatar"></span>
+                  VTuberまとめch
+                </span>
+                <span class="card-views"><em class="arrow">↑</em>+234,567</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="card card-rank-2">
+            <div class="thumb">
+              <div class="thumb-bg"></div>
+              <div class="rank-badge rank-2">2</div>
+              <span class="duration-badge">5:12</span>
+            </div>
+            <div class="card-meta">
+              <p class="card-title">【切り抜き】感動の卒業ライブ — ファンへのメッセージ</p>
+              <div class="card-info">
+                <span class="card-channel">
+                  <span class="channel-avatar"></span>
+                  感動切り抜きch
+                </span>
+                <span class="card-views"><em class="arrow">↑</em>+189,012</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="card card-rank-3">
+            <div class="thumb">
+              <div class="thumb-bg"></div>
+              <div class="rank-badge rank-3">3</div>
+              <span class="duration-badge">6:38</span>
+            </div>
+            <div class="card-meta">
+              <p class="card-title">【切り抜き】大会ハイライト — 奇跡の逆転劇</p>
+              <div class="card-info">
+                <span class="card-channel">
+                  <span class="channel-avatar"></span>
+                  eスポまとめ
+                </span>
+                <span class="card-views"><em class="arrow">↑</em>+156,789</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <!-- ページタブ（下部） -->
+      <div class="page-tabs bottom" id="page-tabs-bottom">
+        <button class="page-tab active" data-page="1">1位-20位</button>
+        <button class="page-tab" data-page="2">21位-40位</button>
+        <button class="page-tab" data-page="3">41位-60位</button>
+        <button class="page-tab" data-page="4">61位-80位</button>
+        <button class="page-tab" data-page="5">81位-100位</button>
+      </div>
+    </section>
+
+    <!-- ── Back to top ── -->
+    <div class="back-to-top animate-in delay-5">
+      <a href="#top"><em class="arrow-up">↑</em>TOPへ</a>
+    </div>
+
+    <footer class="footer animate-in delay-5">
+      <div class="footer-links">
+        <a href="#">プライバシーポリシー</a>
+        <a href="#">利用規約</a>
+        <a href="#">お問い合わせ</a>
+      </div>
+      <span>VCLIP — VTuber切り抜きランキング &copy; 2026</span>
+    </footer>
+  </main>
+
+  <script>
+    /* ── NEW picks ── */
+    const newPool = [
+      { rank: "#12", text: "にじさんじ切り抜き — コラボの爆笑シーン" },
+      { rank: "#24", text: "ホロライブ切り抜き — 感動の卒業ライブ" },
+      { rank: "#7", text: "ぶいすぽ切り抜き — 大会で魅せた神プレイ" },
+      { rank: "#33", text: "REJECT 切り抜き —  eスポーツ対決ハイライト" },
+      { rank: "#15", text: "RIOT MUSIC 切り抜き — 新曲初披露の瞬間" },
+      { rank: "#27", text: "パレプロ切り抜き — テンション爆上がり配信" },
+      { rank: "#18", text: "あおぎり高校切り抜き — 企画回の名場面" }
+    ];
+
+    function pickRandom(arr, count) {
+      const copied = [...arr];
+      const picked = [];
+      while (copied.length > 0 && picked.length < count) {
+        const idx = Math.floor(Math.random() * copied.length);
+        picked.push(copied.splice(idx, 1)[0]);
+      }
+      return picked;
+    }
+
+    const list = document.getElementById("new-list");
+    pickRandom(newPool, 4).forEach((entry, i) => {
+      const item = document.createElement("article");
+      item.className = "new-item animate-in";
+      item.style.animationDelay = `${0.3 + i * 0.1}s`;
+      item.innerHTML = `
+        <span class="new-badge">NEW ${entry.rank}</span>
+        <p class="new-text"></p>
+      `;
+      item.querySelector(".new-text").textContent = entry.text;
+      list.appendChild(item);
+    });
+
+    /* ── Tab interaction (scoped per section) ── */
+    document.querySelectorAll('.period-tabs').forEach(tabGroup => {
+      tabGroup.querySelectorAll('.period-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabGroup.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+        });
+      });
+    });
+
+    /* ── Type tab switching (Shorts / 動画) ── */
+    const typeConfig = {
+      shorts: { icon: '🎬', label: 'Shorts ランキング' },
+      video: { icon: '🎥', label: '動画ランキング' }
+    };
+    document.querySelectorAll('.type-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const type = tab.dataset.type;
+        document.querySelectorAll('.ranking-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById('panel-' + type).classList.add('active');
+        document.getElementById('ranking-icon').textContent = typeConfig[type].icon;
+        document.getElementById('ranking-label').textContent = typeConfig[type].label;
+      });
+    });
+
+    /* ── Smooth scroll for TOPへ ── */
+    document.querySelector('.back-to-top a').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    /* ── Pagination tab sync ── */
+    const rankingSection = document.querySelector('.content');
+    function syncPageTabs(clickedTab, scrollToTop) {
+      const page = clickedTab.dataset.page;
+      document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll(`.page-tab[data-page="${page}"]`).forEach(t => t.classList.add('active'));
+      if (scrollToTop && rankingSection) {
+        rankingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+    // Top pagination
+    document.getElementById('page-tabs-top').querySelectorAll('.page-tab').forEach(tab => {
+      tab.addEventListener('click', () => syncPageTabs(tab, false));
+    });
+    // Bottom pagination - scroll to ranking top
+    document.getElementById('page-tabs-bottom').querySelectorAll('.page-tab').forEach(tab => {
+      tab.addEventListener('click', () => syncPageTabs(tab, true));
+    });
+  </script>
+</body>
+
+</html>

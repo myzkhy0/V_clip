@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Magazine Style Sample</title>
+  <style>
+    :root {
+      --bg: #f2efe9;
+      --paper: #fffdfa;
+      --ink: #17140f;
+      --muted: #6f675d;
+      --line: #d7cec2;
+      --accent: #b35c2e;
+      --new: #d64545;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(179, 92, 46, 0.1), transparent 32%),
+        linear-gradient(180deg, #efebe4 0%, #f7f4ef 100%);
+    }
+
+    .shell {
+      width: min(1160px, calc(100% - 22px));
+      margin: 14px auto 24px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      box-shadow: 0 16px 36px rgba(38, 26, 15, 0.08);
+    }
+
+    .masthead {
+      border-bottom: 1px solid var(--line);
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 12px;
+    }
+    .masthead h1 {
+      margin: 0;
+      font-size: clamp(1rem, 1.8vw, 1.35rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .masthead p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .feature {
+      border-right: 1px solid var(--line);
+      padding: 12px;
+      min-height: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .feature:last-child { border-right: 0; }
+
+    .tag-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .rank {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 38px;
+      height: 24px;
+      padding: 0 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #fff;
+      background: #24201b;
+      letter-spacing: 0.03em;
+    }
+    .new {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 40px;
+      height: 22px;
+      padding: 0 8px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #fff;
+      background: var(--new);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .thumb {
+      border: 1px solid var(--line);
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      background: #ddd;
+    }
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .feature h2 {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.45;
+      min-height: 4.2em;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+    .feature .meta {
+      margin-top: auto;
+      color: var(--muted);
+      font-size: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .channel {
+      color: var(--accent);
+      font-size: 0.84rem;
+    }
+
+    .section-head {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 0.8rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .item {
+      display: grid;
+      grid-template-columns: 46px 108px 1fr;
+      gap: 10px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      align-items: center;
+      min-height: 88px;
+    }
+    .item:nth-child(2n) { border-right: 0; }
+
+    .item .rank {
+      min-width: 34px;
+      height: 22px;
+      font-size: 0.72rem;
+      background: #3a332c;
+    }
+    .item .thumb {
+      width: 108px;
+      border-color: #d9d1c7;
+    }
+    .item h3 {
+      margin: 0;
+      font-size: 0.88rem;
+      line-height: 1.4;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .item .sub {
+      margin-top: 5px;
+      font-size: 0.77rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    @media (max-width: 940px) {
+      .hero-grid { grid-template-columns: 1fr; }
+      .feature { border-right: 0; border-bottom: 1px solid var(--line); }
+      .feature:last-child { border-bottom: 0; }
+      .list { grid-template-columns: 1fr; }
+      .item, .item:nth-child(2n) { border-right: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <h1>VTuber Clips Journal / Magazine Sample</h1>
+        <p>上位3件は特集、4位以下は読みやすい記事一覧として表示</p>
+      </div>
+      <p>24H EDITION | 2026-03-07 18:00</p>
+    </header>
+
+    <section class="hero-grid">
+      <article class="feature">
+        <div class="tag-row"><span class="rank">#1</span><span class="new">NEW</span></div>
+        <div class="thumb"><img src="https://i.ytimg.com/vi/eUVGaxHrm74/hqdefault.jpg" alt=""></div>
+        <h2>【NEWTOWN】だから僕は音楽を辞めた / ヨルシカ cover Live…</h2>
+        <div class="channel">ぶいくりっぷチャンネル</div>
+        <div class="meta"><span>再生数 +572,848</span><span>3/7 17:30</span></div>
+      </article>
+
+      <article class="feature">
+        <div class="tag-row"><span class="rank">#2</span></div>
+        <div class="thumb"><img src="https://i.ytimg.com/vi/yjNcz6I4Jq8/hqdefault.jpg" alt=""></div>
+        <h2>サンプルタイトル: 2位記事の見出しをここに表示</h2>
+        <div class="channel">にじさんじ切り抜きch</div>
+        <div class="meta"><span>再生数 +487,251</span><span>3/7 16:20</span></div>
+      </article>
+
+      <article class="feature">
+        <div class="tag-row"><span class="rank">#3</span><span class="new">NEW</span></div>
+        <div class="thumb"><img src="https://i.ytimg.com/vi/XS6ysDFTbLU/hqdefault.jpg" alt=""></div>
+        <h2>サンプルタイトル: 3位記事の見出しをここに表示</h2>
+        <div class="channel">ホロライブ切り抜きch</div>
+        <div class="meta"><span>再生数 +422,521</span><span>3/7 15:42</span></div>
+      </article>
+    </section>
+
+    <div class="section-head">4位以下</div>
+    <section class="list">
+      <article class="item"><span class="rank">#4</span><div class="thumb"><img src="https://i.ytimg.com/vi/q4LxQ8QvkbM/hqdefault.jpg" alt=""></div><div><h3>サンプルタイトル: 4位の短い記事見出し</h3><div class="sub"><span>+401,000</span><span>3/7 15:11</span></div></div></article>
+      <article class="item"><span class="rank">#5</span><div class="thumb"><img src="https://i.ytimg.com/vi/kK7CkNfR6hY/hqdefault.jpg" alt=""></div><div><h3>サンプルタイトル: 5位の短い記事見出し</h3><div class="sub"><span>+390,882</span><span>3/7 14:35</span></div></div></article>
+      <article class="item"><span class="rank">#6</span><div class="thumb"><img src="https://i.ytimg.com/vi/iXv3w8S3qRI/hqdefault.jpg" alt=""></div><div><h3>サンプルタイトル: 6位の短い記事見出し</h3><div class="sub"><span>+372,611</span><span>3/7 14:10</span></div></div></article>
+      <article class="item"><span class="rank">#7</span><div class="thumb"><img src="https://i.ytimg.com/vi/4s1zQtew9fM/hqdefault.jpg" alt=""></div><div><h3>サンプルタイトル: 7位の短い記事見出し</h3><div class="sub"><span>+350,149</span><span>3/7 13:59</span></div></div></article>
+      <article class="item"><span class="rank">#8</span><div class="thumb"><img src="https://i.ytimg.com/vi/7FfQ0LbcM3A/hqdefault.jpg" alt=""></div><div><h3>サンプルタイトル: 8位の短い記事見出し</h3><div class="sub"><span>+334,901</span><span>3/7 13:30</span></div></div></article>
+      <article class="item"><span class="rank">#9</span><div class="thumb"><img src="https://i.ytimg.com/vi/8LZB5Qx0N3k/hqdefault.jpg" alt=""></div><div><h3>サンプルタイトル: 9位の短い記事見出し</h3><div class="sub"><span>+320,507</span><span>3/7 13:05</span></div></div></article>
+      <article class="item"><span class="rank">#10</span><div class="thumb"><img src="https://i.ytimg.com/vi/CwR4SLA_2zY/hqdefault.jpg" alt=""></div><div><h3>サンプルタイトル: 10位の短い記事見出し</h3><div class="sub"><span>+300,100</span><span>3/7 12:42</span></div></div></article>
+      <article class="item"><span class="rank">#11</span><div class="thumb"><img src="https://i.ytimg.com/vi/0h6JH8fy8rw/hqdefault.jpg" alt=""></div><div><h3>サンプルタイトル: 11位の短い記事見出し</h3><div class="sub"><span>+289,120</span><span>3/7 12:15</span></div></div></article>
+    </section>
+  </main>
+</body>
+</html>

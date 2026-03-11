@@ -72,7 +72,7 @@ GROUP_LABELS = {
     "other": "その他",
 }
 
-SITE_TITLE = "ぶいくりっぷ VTuber切り抜きランキング"
+SITE_TITLE = "VCLIP — VTuber切り抜きランキング"
 SITE_DESCRIPTION = (
     "VTuber切り抜きの再生数ランキング。24時間・7日・30日ごとの注目クリップを確認できます。"
 )
@@ -435,7 +435,6 @@ def _render_cards(
         channel_name = html.escape(row["channel_name"])
         channel_icon_url = html.escape(row.get("channel_icon_url") or "")
         group_name = html.escape(_infer_group(row))
-        published_at = _fmt_datetime(row["published_at"])
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         channel_url = f"https://www.youtube.com/channel/{channel_id}"
         title_plain = " ".join(str(row.get("title") or "").split())
@@ -446,35 +445,48 @@ def _render_cards(
             "https://twitter.com/intent/tweet?text="
             f"{quote(share_text, safe='')}&url={quote(video_url, safe='')}"
         )
-        class_name = "video-card" if not card_class else f"video-card {card_class}"
         content_type = html.escape((row.get("content_type") or "").lower())
+
+        # Rank-specific glow classes for top 3
+        rank = row["rank"]
+        rank_class = ""
+        if rank <= 3:
+            rank_class = f" card-rank-{rank}"
+
+        rank_badge_class = f"rank-badge rank-{rank}" if rank <= 3 else "rank-badge"
         new_badge_html = '<span class="new-badge">NEW</span>' if row.get("is_new") else ""
         group_pill_html = f'<span class="pill">{group_name}</span>' if show_group else ""
+
+        # Channel icon HTML
+        icon_html = ""
+        if channel_icon_url:
+            icon_html = f"""
+                <img class="channel-icon" src="{channel_icon_url}" alt="" loading="lazy"
+                     referrerpolicy="no-referrer"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';">
+                <span class="channel-icon-fallback" style="display:none;">ch</span>
+            """
+        else:
+            icon_html = '<span class="channel-avatar"></span>'
+
         cards.append(
             f"""
-            <article class="{class_name}">
-              <button class="thumb thumb-play" type="button" data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}" aria-label="{title} を再生">
+            <article class="card video-card{rank_class}">
+              <a class="thumb" href="{video_url}" target="_blank" rel="noreferrer"
+                 data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
-                <span class="rank-badge">#{row['rank']}</span>
+                <div class="{rank_badge_class}">{rank}</div>
                 {new_badge_html}
-              </button>
-              <div class="video-body">
-                <button class="video-title video-play" type="button" data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">{title}</button>
-                <div class="meta-row">
-                  <a class="channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
-                    <img class="channel-icon" src="{channel_icon_url}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';">
-                    <span class="channel-icon-fallback" style="display:none;">ch</span>
+              </a>
+              <div class="card-meta">
+                <a class="card-title" href="{video_url}" target="_blank" rel="noreferrer">{title}</a>
+                <div class="card-info">
+                  <a class="card-channel channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
+                    {icon_html}
                     <span class="channel-name">{channel_name}</span>
                   </a>
                   {group_pill_html}
-                </div>
-                <div class="meta-row compact stats-row">
-                  <span>再生数 +{row['view_growth']:,}</span>
-                  <span>{published_at}</span>
-                </div>
-                <div class="meta-row compact action-row">
-                  <a class="watch-link" href="{video_url}" target="_blank" rel="noreferrer">YouTubeで開く</a>
-                  <a class="share-link" href="{share_url}" target="_blank" rel="noreferrer">SNSでシェア</a>
+                  <span class="card-views"><em class="arrow">\u2191</em>+{row['view_growth']:,}</span>
                 </div>
               </div>
             </article>
@@ -485,20 +497,9 @@ def _render_rank_sections(rows: list[dict], show_group: bool = True, period_key:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
-    feature_rows = rows[:3]
-    rest_rows = rows[3:]
-
-    feature_html = _render_cards(feature_rows, "feature-card", show_group=show_group, period_key=period_key, content_label=content_label)
-    rest_html = _render_cards(rest_rows, show_group=show_group, period_key=period_key, content_label=content_label)
+    all_html = _render_cards(rows, show_group=show_group, period_key=period_key, content_label=content_label)
     return f"""
-    <section class="ranking-list">
-      <h3>上位3件</h3>
-      <div class="feature-grid">{feature_html}</div>
-    </section>
-    <section class="ranking-list">
-      <h3>4位以下</h3>
-      <div class="rest-grid">{rest_html}</div>
-    </section>
+    <div class="cards">{all_html}</div>
     """
 
 
@@ -681,6 +682,82 @@ def _quota_status(used: int, limit: int) -> tuple[str, str]:
     if ratio >= 0.8:
         return "注意", "warn"
     return "通常", "ok"
+
+
+def _fetch_admin_board_data() -> dict:
+    """Fetch compact operational metrics for admin board."""
+    data = {
+        "channels_total": 0,
+        "channels_tracked": 0,
+        "videos_total": 0,
+        "stats_total": 0,
+        "videos_today": 0,
+        "daily_shorts_rows": 0,
+        "daily_video_rows": 0,
+        "excluded_count": 0,
+    }
+    try:
+        rows = fetchall(
+            """
+            SELECT
+                COUNT(*) AS channels_total,
+                COUNT(*) FILTER (WHERE is_tracked = TRUE) AS channels_tracked
+            FROM channels
+            """
+        )
+        if rows:
+            data["channels_total"] = int(rows[0].get("channels_total") or 0)
+            data["channels_tracked"] = int(rows[0].get("channels_tracked") or 0)
+    except Exception:
+        logger.exception("Failed to fetch channels metrics for admin board")
+
+    try:
+        rows = fetchall("SELECT COUNT(*) AS c FROM videos")
+        if rows:
+            data["videos_total"] = int(rows[0].get("c") or 0)
+    except Exception:
+        logger.exception("Failed to fetch videos count for admin board")
+
+    try:
+        rows = fetchall("SELECT COUNT(*) AS c FROM video_stats")
+        if rows:
+            data["stats_total"] = int(rows[0].get("c") or 0)
+    except Exception:
+        logger.exception("Failed to fetch stats count for admin board")
+
+    try:
+        rows = fetchall(
+            """
+            SELECT COUNT(*) AS c
+            FROM videos
+            WHERE (published_at + interval '9 hours')::date = CURRENT_DATE
+            """
+        )
+        if rows:
+            data["videos_today"] = int(rows[0].get("c") or 0)
+    except Exception:
+        logger.exception("Failed to fetch today's videos count for admin board")
+
+    try:
+        rows = fetchall(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM daily_ranking_shorts WHERE calculated_at = (SELECT MAX(calculated_at) FROM daily_ranking_shorts)) AS shorts_rows,
+                (SELECT COUNT(*) FROM daily_ranking_video  WHERE calculated_at = (SELECT MAX(calculated_at) FROM daily_ranking_video))  AS video_rows
+            """
+        )
+        if rows:
+            data["daily_shorts_rows"] = int(rows[0].get("shorts_rows") or 0)
+            data["daily_video_rows"] = int(rows[0].get("video_rows") or 0)
+    except Exception:
+        logger.exception("Failed to fetch daily ranking rows for admin board")
+
+    try:
+        data["excluded_count"] = len(_load_excluded_channel_ids())
+    except Exception:
+        logger.exception("Failed to count excluded channels for admin board")
+
+    return data
 def render_error_page(error: Exception, base_url: str = "") -> str:
     message = html.escape(str(error) or error.__class__.__name__)
     database_url = os.getenv("DATABASE_URL", "(not set)")
@@ -825,6 +902,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     head_meta = _build_head_meta(normalized_base_url, is_admin=is_admin)
     show_admin_meta = "true" if is_admin else "false"
     admin_html = ""
+    admin_board_html = ""
+    body_class = "admin-mode" if is_admin else ""
     logo_html = ""
     analytics_html = ""
     if LOGO_FILE and Path(LOGO_FILE).exists():
@@ -847,15 +926,33 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     if is_admin:
         used, limit = _load_quota_usage()
         status_label, status_class = _quota_status(used, limit)
+        board = _fetch_admin_board_data()
         admin_html = f"""
           <div class="admin-quota">
             <span class="admin-pill {status_class}">API状態: {status_label}</span>
             <span class="admin-metrics">search.list {used:,} / {limit:,}</span>
           </div>
         """
+        admin_board_html = f"""
+        <section class="admin-board">
+          <div class="admin-board-head">
+            <h2>管理ボード</h2>
+            <p>運用メトリクス（リアルタイム）</p>
+          </div>
+          <div class="admin-metric-grid">
+            <article class="admin-metric-card"><span>チャンネル（追跡/全体）</span><strong>{board['channels_tracked']:,} / {board['channels_total']:,}</strong></article>
+            <article class="admin-metric-card"><span>動画総数</span><strong>{board['videos_total']:,}</strong></article>
+            <article class="admin-metric-card"><span>本日公開動画（JST）</span><strong>{board['videos_today']:,}</strong></article>
+            <article class="admin-metric-card"><span>統計スナップショット総数</span><strong>{board['stats_total']:,}</strong></article>
+            <article class="admin-metric-card"><span>最新 daily / shorts 行数</span><strong>{board['daily_shorts_rows']:,}</strong></article>
+            <article class="admin-metric-card"><span>最新 daily / video 行数</span><strong>{board['daily_video_rows']:,}</strong></article>
+            <article class="admin-metric-card"><span>除外チャンネル数</span><strong>{board['excluded_count']:,}</strong></article>
+          </div>
+        </section>
+        """
 
     return f"""<!doctype html>
-<html lang="ja">
+<html lang="ja" id="top">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -870,664 +967,400 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font-display: swap;
     }}
     :root {{
-      --bg: #0c1217;
-      --panel: rgba(12, 18, 23, 0.84);
-      --panel-strong: rgba(16, 24, 31, 0.96);
-      --ink: #eff6fb;
-      --accent: #f4b942;
-      --accent-strong: #ff8a3d;
-      --accent-cool: #63d0ff;
-      --line: rgba(239, 246, 251, 0.12);
-      --muted: #9fb2c1;
-      --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      --bg-base: #0b0f1a;
+      --bg-panel: rgba(15,20,35,0.72);
+      --glass-border: rgba(100,160,240,0.10);
+      --text: #e8edf4;
+      --text-dim: rgba(232,237,244,0.52);
+      --accent-gradient: linear-gradient(135deg,#a78bfa,#f472b6);
+      --rank-gold:   rgba(255,215,0,0.7);
+      --rank-silver: rgba(192,192,192,0.6);
+      --rank-bronze: rgba(205,127,50,0.6);
     }}
-    * {{ box-sizing: border-box; }}
+    *,*::before,*::after {{ box-sizing:border-box; }}
     body {{
-      margin: 0;
-      font-family: "Noto Sans JP Local", sans-serif;
-      color: var(--ink);
+      margin:0;
+      font-family:"Noto Sans JP Local","Hiragino Kaku Gothic ProN",sans-serif;
+      color:var(--text);
       background:
-        radial-gradient(circle at top left, rgba(99, 208, 255, 0.16), transparent 24%),
-        radial-gradient(circle at top right, rgba(244, 185, 66, 0.16), transparent 22%),
-        linear-gradient(160deg, #081017 0%, #121b24 52%, #0b1218 100%);
+        radial-gradient(ellipse at 20% 0%,rgba(167,139,250,0.13),transparent 50%),
+        radial-gradient(ellipse at 80% 0%,rgba(244,114,182,0.09),transparent 50%),
+        var(--bg-base);
     }}
     .shell {{
-      width: min(1320px, calc(100% - 24px));
-      margin: 24px auto 48px;
+      width:min(1220px,calc(100% - 32px));
+      margin:0 auto;
+      padding:18px 0 48px;
     }}
-    .back-top-wrap {{
-      text-align: center;
-      margin-top: 16px;
+    /* ── Topbar ── */
+    .topbar {{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 24px;
+      background:var(--bg-panel);border:1px solid var(--glass-border);
+      border-radius:16px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
     }}
-    .back-top-link {{
-      color: var(--accent-cool);
-      text-decoration: underline;
-      text-underline-offset: 2px;
-      font-size: 0.9rem;
+    .topbar-brand {{
+      display:flex;align-items:center;gap:10px;
+      font-weight:900;font-size:clamp(1.15rem,2vw,1.55rem);letter-spacing:-0.01em;
     }}
-
-    .site-footer {{
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.78rem;
-      letter-spacing: 0.02em;
-      margin-top: 18px;
-      opacity: 0.9;
+    .topbar-logo {{
+      padding:6px 14px;border-radius:10px;background:var(--accent-gradient);
+      display:flex;align-items:center;justify-content:center;
+      font-size:0.95rem;font-weight:900;color:#fff;letter-spacing:0.06em;
+      box-shadow:0 0 18px rgba(167,139,250,0.3);
     }}
-    .footer-policy-link {{
-      color: var(--accent-cool);
-      text-decoration: underline;
-      text-underline-offset: 2px;
+    .topbar-accent {{
+      background:var(--accent-gradient);-webkit-background-clip:text;
+      -webkit-text-fill-color:transparent;background-clip:text;
     }}
-    .hero, .panel {{
-      border: 1px solid var(--line);
-      background: #101821;
-      box-shadow: var(--shadow);
+    .topbar-nav {{ display:flex;gap:6px; }}
+    .topbar-nav a {{
+      padding:7px 16px;border-radius:10px;font-size:0.88rem;font-weight:600;
+      color:var(--text-dim);text-decoration:none;transition:all 0.25s ease;
     }}
-    .hero {{
-      padding: 28px;
+    .topbar-nav a:hover {{ color:var(--text);background:rgba(255,255,255,0.06); }}
+    .topbar-nav a.active {{ color:#fff;background:rgba(167,139,250,0.18); }}
+    /* ── Hero ── */
+    .hero {{ margin-top:18px;display:grid;grid-template-columns:1.5fr 0.9fr;gap:16px; }}
+    .glass-panel {{
+      background:var(--bg-panel);border:1px solid var(--glass-border);
+      border-radius:18px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
     }}
-    .hero-logo-wrap {{
-      display: flex;
-      justify-content: center;
-      width: 100%;
-      margin: 2px 0 10px;
-      padding: 0;
-      pointer-events: none;
+    .hero-main {{ padding:30px 28px; }}
+    .hero-eyebrow {{
+      display:flex;align-items:center;gap:8px;font-size:0.78rem;
+      color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:14px;
     }}
-    .hero-logo {{
-      width: min(100%, 640px);
-      max-height: 150px;
-      object-fit: contain;
-      opacity: 0.92;
-      filter: none;
+    .dot {{ width:7px;height:7px;border-radius:50%;background:#34d399;animation:pulse 2s infinite; }}
+    @keyframes pulse {{ 0%,100%{{opacity:1}} 50%{{opacity:0.4}} }}
+    .hero-heading {{ font-size:clamp(1.5rem,3vw,2rem);font-weight:900;letter-spacing:-0.02em;line-height:1.3;margin:0; }}
+    .gradient-text {{ background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }}
+    .hero-desc {{ color:var(--text-dim);font-size:0.92rem;line-height:1.7;margin-top:12px; }}
+    .hero-stats {{ display:flex;gap:28px;margin-top:22px; }}
+    .stat-item {{ display:flex;flex-direction:column;gap:2px; }}
+    .stat-value {{ font-size:1.35rem;font-weight:800;letter-spacing:-0.01em; }}
+    .stat-label {{ font-size:0.72rem;color:var(--text-dim);letter-spacing:0.03em; }}
+    /* ── Sidebar NEW picks ── */
+    .hero-side {{ padding:22px 18px; }}
+    .side-header {{ display:flex;align-items:center;gap:10px;margin-bottom:16px; }}
+    .side-header-icon {{
+      width:28px;height:28px;border-radius:8px;
+      background:linear-gradient(135deg,#fbbf24,#f97316);
+      display:flex;align-items:center;justify-content:center;font-size:0.85rem;
     }}
-    h1, h2, h3, p {{
-      margin: 0;
+    .side-title {{ font-size:1.05rem;font-weight:800;margin:0; }}
+    .new-list {{ display:flex;flex-direction:column;gap:10px; }}
+    .new-item {{
+      padding:12px 14px;border-radius:12px;border:1px solid var(--glass-border);
+      background:rgba(255,255,255,0.03);display:flex;align-items:center;gap:10px;
+      transition:background 0.2s;cursor:pointer;text-decoration:none;color:var(--text);
     }}
-    .hero-copy {{
-      display: flex;
-      justify-content: space-between;
-      align-items: end;
-      gap: 16px;
-      flex-wrap: wrap;
-    }}
-    .hero-copy > div {{
-      flex: 1 1 640px;
-      min-width: 0;
-    }}
-    .hero-copy p {{
-      color: var(--muted);
-      margin-top: 10px;
-      max-width: 760px;
-    }}
-    .admin-quota {{
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.88rem;
-      color: var(--muted);
-    }}
-    .admin-pill {{
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-weight: 700;
-      color: #081017;
-    }}
-    .admin-pill.ok {{
-      background: #5ee0b0;
-    }}
-    .admin-pill.warn {{
-      background: #f4b942;
-    }}
-    .admin-pill.danger {{
-      background: #ff7c7c;
-    }}
-    .admin-pill.muted {{
-      background: #9fb2c1;
-    }}
-    .period-tabs, .group-tabs {{
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }}
-    .period-tabs {{
-      margin-top: 20px;
-    }}
-    .tab-button {{
-      border: 1px solid var(--line);
-      background: transparent;
-      color: var(--ink);
-      padding: 10px 15px;
-      border-radius: 999px;
-      cursor: pointer;
-      font: inherit;
-    }}
-    .tab-button.active {{
-      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-      border-color: transparent;
-      color: #081017;
-      font-weight: 700;
-    }}
-    .content-tabs {{
-      display: flex;
-      gap: 8px;
-      margin-bottom: 14px;
-      flex-wrap: wrap;
-    }}
-    .content-tab-button {{
-      padding: 7px 12px;
-      font-size: 0.86rem;
-    }}
-    .content-panel {{
-      display: none;
-    }}
-    .content-panel.active {{
-      display: block;
-    }}
-    .period-panel {{
-      display: none;
-      margin-top: 18px;
-      padding: 22px;
-      background: var(--panel-strong);
-    }}
-    .period-panel.active {{
-      display: block;
-    }}
-    .panel-head {{
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-    }}
-    .panel-head p {{
-      color: var(--muted);
-      margin-top: 6px;
-    }}
-    .group-panel {{
-      display: none;
-      margin-top: 18px;
-    }}
-    .group-panel.active {{
-      display: block;
-    }}
-    .card-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-      gap: 16px;
-    }}
-    .feature-grid {{
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 16px;
-      margin-bottom: 22px;
-    }}
-    .rest-grid {{
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-    }}
-    .video-card {{
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-      overflow: hidden;
-      position: relative;
-    }}
-    .feature-card {{
-      border-color: rgba(244, 185, 66, 0.5);
-      box-shadow: 0 18px 40px rgba(244, 185, 66, 0.14);
-    }}
-    .feature-card .thumb {{
-      aspect-ratio: 16 / 9;
-      background: #0a0f13;
-    }}
-    .feature-card .thumb img {{
-      object-fit: cover;
-      background: #0a0f13;
-    }}
-    .feature-card .video-body {{
-      padding: 15px 18px 17px;
-    }}
-    .feature-card .video-title {{
-      font-size: 1.08rem;
-      min-height: 4.2em;
-      line-height: 1.38;
-      -webkit-line-clamp: 3;
-    }}
-    .feature-card .meta-row.compact {{
-      font-size: 0.84rem;
-    }}
-    .feature-card .rank-badge {{
-      top: 12px;
-      left: 12px;
-      padding: 8px 11px;
-      font-size: 0.9rem;
-      background: rgba(8, 16, 23, 0.88);
-      color: var(--accent);
-      font-weight: 800;
-    }}
-    .video-card .thumb {{
-      aspect-ratio: 16 / 9;
-    }}
-    .rest-grid .video-card .video-body {{
-      padding: 12px;
-    }}
-    .rest-grid .video-card .video-title {{
-      min-height: 3.8em;
-      font-size: 0.96rem;
-    }}
-    .rest-grid .video-card .meta-row {{
-      font-size: 0.84rem;
-    }}
-    .ranking-list h3 {{
-      margin-bottom: 14px;
-      color: var(--accent-cool);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-size: 0.82rem;
-    }}
-    .thumb {{
-      position: relative;
-      display: block;
-      aspect-ratio: 16 / 9;
-      background: #ded4c3;
-      border: 0;
-      padding: 0;
-      width: 100%;
-      cursor: pointer;
-    }}
-    .thumb img {{
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }}
-    .rank-badge {{
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      padding: 7px 11px;
-      border-radius: 999px;
-      background: rgba(29, 42, 51, 0.8);
-      color: #fff;
-      font-size: 0.95rem;
-    }}
+    .new-item:hover {{ background:rgba(255,255,255,0.07); }}
     .new-badge {{
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      padding: 6px 9px;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #ff7a18, #ff3d54);
-      color: #fff;
-      font-size: 0.75rem;
-      letter-spacing: 0.04em;
-      font-weight: 800;
-      box-shadow: 0 8px 18px rgba(255, 61, 84, 0.35);
+      padding:3px 10px;border-radius:999px;
+      background:linear-gradient(135deg,#f472b6,#a78bfa);
+      font-size:0.7rem;font-weight:800;color:#fff;white-space:nowrap;
     }}
-    .video-body {{
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
+    .new-text {{ font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }}
+    /* ── Content area ── */
+    .content {{ padding:22px 24px;margin-top:16px; }}
+    .content-head {{ display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px; }}
+    .content-title {{ font-size:1.35rem;font-weight:800;margin:0;display:flex;align-items:center;gap:10px; }}
+    .section-icon {{ font-style:normal; }}
+    .filter-row {{ display:flex;align-items:center;gap:10px; }}
+    .filter-divider {{ width:1px;height:22px;background:var(--glass-border); }}
+    .type-tabs,.period-tabs {{
+      display:flex;gap:2px;background:rgba(255,255,255,0.04);
+      border-radius:12px;padding:3px;border:1px solid var(--glass-border);
     }}
-    .video-title {{
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 3;
-      overflow: hidden;
-      color: var(--ink);
-      text-decoration: none;
-      line-height: 1.45;
-      min-height: 4.2em;
-      font-weight: 700;
+    .type-tab,.period-tab {{
+      border:none;background:transparent;color:var(--text-dim);
+      border-radius:10px;padding:8px 18px;font-size:0.88rem;font-weight:700;
+      cursor:pointer;transition:all 0.25s ease;font-family:inherit;
     }}
-    .video-play {{
-      background: transparent;
-      border: 0;
-      padding: 0;
-      width: 100%;
-      text-align: left;
-      cursor: pointer;
-      font: inherit;
+    .type-tab:hover,.period-tab:hover {{ color:var(--text);background:rgba(255,255,255,0.06); }}
+    .type-tab.active {{ background:rgba(167,139,250,0.2);color:#fff;box-shadow:0 0 12px rgba(167,139,250,0.15); }}
+    .period-tab.active {{ background:rgba(167,139,250,0.2);color:#fff;box-shadow:0 0 12px rgba(167,139,250,0.15); }}
+    /* ── Ranking panel display ── */
+    .ranking-panel {{ display:none; }}
+    .ranking-panel.active {{ display:block; }}
+    .period-panel {{ display:none; }}
+    .period-panel.active {{ display:block; }}
+    .group-panel {{ display:none; }}
+    .group-panel.active {{ display:block; }}
+    .content-panel {{ display:none; }}
+    .content-panel.active {{ display:block; }}
+    /* ── Cards grid ── */
+    .cards {{ display:grid;grid-template-columns:repeat(3,1fr);gap:16px; }}
+    .card {{
+      border:1px solid var(--glass-border);border-radius:18px;overflow:hidden;
+      background:rgba(255,255,255,0.03);transition:transform 0.2s,box-shadow 0.2s;
     }}
-    .watch-link {{
-      color: var(--muted);
-      text-decoration: underline;
-      text-underline-offset: 2px;
+    .card:hover {{ transform:translateY(-3px);box-shadow:0 14px 34px rgba(0,0,0,0.3); }}
+    .card-rank-1 {{ border-color:var(--rank-gold);box-shadow:0 0 20px rgba(255,215,0,0.15); }}
+    .card-rank-2 {{ border-color:var(--rank-silver);box-shadow:0 0 18px rgba(192,192,192,0.12); }}
+    .card-rank-3 {{ border-color:var(--rank-bronze);box-shadow:0 0 18px rgba(205,127,50,0.12); }}
+    .thumb {{
+      position:relative;display:block;aspect-ratio:16/9;
+      background:#1a1e30;border:0;padding:0;width:100%;
     }}
-    .share-link {{
-      color: var(--accent-cool);
-      text-decoration: underline;
-      text-underline-offset: 2px;
+    .thumb img {{ width:100%;height:100%;object-fit:cover;display:block; }}
+    .rank-badge {{
+      position:absolute;top:10px;left:10px;
+      width:32px;height:32px;border-radius:10px;
+      background:rgba(10,15,30,0.82);color:#fff;
+      display:flex;align-items:center;justify-content:center;
+      font-size:0.85rem;font-weight:800;
     }}
-    .action-row {{
-      justify-content: flex-start;
-      gap: 14px;
+    .rank-1 {{ background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1a0a00; }}
+    .rank-2 {{ background:linear-gradient(135deg,#94a3b8,#cbd5e1);color:#1a1a2e; }}
+    .rank-3 {{ background:linear-gradient(135deg,#cd7f32,#b8860b);color:#1a0a00; }}
+    .card-meta {{ padding:14px 16px; }}
+    .card-title {{
+      display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+      overflow:hidden;font-size:0.92rem;font-weight:700;line-height:1.45;
+      min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
     }}
-    .player-modal {{
-      position: fixed;
-      inset: 0;
-      background: rgba(2, 6, 10, 0.84);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      padding: 14px;
-    }}
-    .player-modal.open {{
-      display: flex;
-    }}
-    .player-sheet {{
-      width: min(94vw, 460px);
-      background: #0a131a;
-      border: 1px solid var(--line);
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
-    }}
-    .player-sheet.landscape {{
-      width: min(96vw, 980px);
-    }}
-    .player-topbar {{
-      height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 6px 8px;
-      border-bottom: 1px solid rgba(231, 242, 251, 0.12);
-      background: rgba(10, 19, 26, 0.92);
-    }}
-    .player-controls {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }}
-    .player-toggle {{
-      min-width: 38px;
-      height: 30px;
-      border-radius: 999px;
-      border: 1px solid rgba(231, 242, 251, 0.24);
-      background: rgba(255, 255, 255, 0.04);
-      color: #c9d8e5;
-      font-size: 0.78rem;
-      cursor: pointer;
-      font: inherit;
-      padding: 0 10px;
-    }}
-    .player-toggle.active {{
-      background: rgba(99, 208, 255, 0.2);
-      border-color: rgba(99, 208, 255, 0.72);
-      color: #e9f7ff;
-      font-weight: 700;
-    }}
-    .player-close {{
-      position: static;
-      width: 34px;
-      height: 34px;
-      border-radius: 999px;
-      background: rgba(10, 19, 26, 0.82);
-      color: #e7f2fb;
-      border: 1px solid rgba(231, 242, 251, 0.28);
-      font-size: 1.15rem;
-      line-height: 1;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font: inherit;
-    }}
-    .player-frame {{
-      position: relative;
-      width: 100%;
-      aspect-ratio: 9 / 16;
-      background: #000;
-    }}
-    .player-frame.landscape {{
-      aspect-ratio: 16 / 9;
-    }}
-    .player-frame iframe {{
-      width: 100%;
-      height: 100%;
-      border: 0;
-    }}
-    .channel-link {{
-      color: var(--accent-cool);
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      flex: 1;
-      max-width: calc(100% - 84px);
-    }}
-    .channel-name {{
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }}
+    .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-dim); }}
+    .channel-link {{ display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--text-dim);min-width:0;flex:1;max-width:calc(100% - 84px); }}
     .channel-icon {{
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      object-fit: cover;
-      flex: 0 0 22px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.08);
+      width:20px;height:20px;border-radius:50%;object-fit:cover;flex:0 0 20px;
+      border:1px solid var(--glass-border);background:rgba(255,255,255,0.08);
     }}
     .channel-icon-fallback {{
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      border: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 0.64rem;
-      line-height: 1;
-      align-items: center;
-      justify-content: center;
-      flex: 0 0 22px;
-      text-transform: uppercase;
+      width:20px;height:20px;border-radius:50%;border:1px solid var(--glass-border);
+      color:var(--text-dim);font-size:0.6rem;align-items:center;justify-content:center;flex:0 0 20px;
     }}
-    .meta-row {{
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 0.92rem;
+    .channel-name {{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0; }}
+    .channel-avatar {{ width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#f472b6,#a78bfa);flex:0 0 18px; }}
+    .card-views {{ margin-left:auto;white-space:nowrap;color:#34d399;font-weight:700;font-size:0.82rem; }}
+    .arrow {{ font-style:normal;margin-right:2px; }}
+    .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim); }}
+    .empty {{ padding:20px;border:1px dashed var(--glass-border);color:var(--text-dim);background:rgba(255,255,255,0.03); }}
+    /* ── Pagination tabs ── */
+    .page-tabs {{ display:flex;gap:4px;flex-wrap:wrap;margin-top:12px; }}
+    .page-tabs.bottom {{ margin-top:16px;justify-content:center; }}
+    .page-tab {{
+      border:1px solid rgba(100,160,240,0.12);background:rgba(255,255,255,0.03);
+      color:var(--text-dim);border-radius:8px;padding:6px 14px;font-size:0.82rem;
+      font-weight:700;cursor:pointer;transition:all 0.25s ease;font-family:inherit;
     }}
-    .meta-row.compact {{
-      font-size: 0.86rem;
+    .page-tab:hover {{ color:var(--text);background:rgba(255,255,255,0.06); }}
+    .page-tab.active {{ background:rgba(167,139,250,0.15);border-color:rgba(167,139,250,0.3);color:#fff; }}
+    /* ── Back to top ── */
+    .back-to-top {{ text-align:center;margin-top:28px; }}
+    .back-to-top a {{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:12px 28px;border-radius:14px;
+      border:1px solid var(--glass-border);background:var(--bg-panel);
+      color:var(--text-dim);text-decoration:none;font-size:0.88rem;font-weight:600;
+      transition:all 0.25s ease;backdrop-filter:blur(12px);
     }}
-    .stats-row {{
-      margin-top: auto;
+    .back-to-top a:hover {{ color:var(--text);background:rgba(255,255,255,0.08);border-color:rgba(167,139,250,0.3); }}
+    .arrow-up {{ font-style:normal;transform:translateY(-1px); }}
+    /* ── Footer ── */
+    .footer {{
+      text-align:center;color:var(--text-dim);font-size:0.78rem;
+      letter-spacing:0.02em;margin-top:18px;opacity:0.6;padding-bottom:24px;
+      display:flex;flex-direction:column;gap:6px;align-items:center;
     }}
-    .pill {{
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 2px 8px;
-      white-space: nowrap;
-      color: var(--ink);
+    .footer a {{ color:var(--text-dim);text-decoration:none;transition:color 0.2s; }}
+    .footer a:hover {{ color:var(--text); }}
+    .footer-links {{ display:flex;gap:16px; }}
+    /* ── Animations ── */
+    @keyframes fadeUp {{ from{{opacity:0;transform:translateY(16px)}} to{{opacity:1;transform:translateY(0)}} }}
+    .animate-in {{ animation:fadeUp 0.6s ease forwards;opacity:0; }}
+    .delay-1 {{ animation-delay:0.1s; }}
+    .delay-2 {{ animation-delay:0.2s; }}
+    .delay-3 {{ animation-delay:0.3s; }}
+    /* ── Player modal ── */
+    .player-modal {{
+      position:fixed;inset:0;background:rgba(2,6,10,0.84);
+      display:none;align-items:center;justify-content:center;z-index:1000;padding:14px;
     }}
-    .empty {{
-      padding: 20px;
-      border: 1px dashed var(--line);
-      color: var(--muted);
-      background: rgba(255, 255, 255, 0.03);
+    .player-modal.open {{ display:flex; }}
+    .player-sheet {{ width:min(94vw,460px);background:#0a131a;border:1px solid var(--glass-border);box-shadow:0 20px 60px rgba(0,0,0,0.55);border-radius:16px;overflow:hidden; }}
+    .player-sheet.landscape {{ width:min(96vw,980px); }}
+    .player-topbar {{
+      height:44px;display:flex;align-items:center;justify-content:space-between;
+      gap:10px;padding:6px 8px;border-bottom:1px solid rgba(231,242,251,0.12);background:rgba(10,19,26,0.92);
     }}
-    .mobile-pager {{
-      display: none;
-      align-items: center;
-      gap: 8px;
-      margin: 10px 0 12px;
-      overflow-x: auto;
-      white-space: nowrap;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: thin;
+    .player-controls {{ display:inline-flex;align-items:center;gap:6px; }}
+    .player-toggle {{
+      min-width:38px;height:30px;border-radius:999px;
+      border:1px solid rgba(231,242,251,0.24);background:rgba(255,255,255,0.04);
+      color:#c9d8e5;font-size:0.78rem;cursor:pointer;font:inherit;padding:0 10px;
     }}
-    .mobile-pager button {{
-      flex: 0 0 auto;
-      min-width: 90px;
-      padding: 6px 10px;
-      font-size: 0.78rem;
+    .player-toggle.active {{ background:rgba(99,208,255,0.2);border-color:rgba(99,208,255,0.72);color:#e9f7ff;font-weight:700; }}
+    .player-close {{
+      width:34px;height:34px;border-radius:999px;
+      background:rgba(10,19,26,0.82);color:#e7f2fb;border:1px solid rgba(231,242,251,0.28);
+      font-size:1.15rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font:inherit;
     }}
-    @media (max-width: 1024px) {{
-      .feature-grid {{
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }}
-      .rest-grid {{
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }}
+    .player-frame {{ position:relative;width:100%;aspect-ratio:9/16;background:#000; }}
+    .player-frame.landscape {{ aspect-ratio:16/9; }}
+    .player-frame iframe {{ width:100%;height:100%;border:0; }}
+    /* ── Admin ── */
+    .admin-board {{ border:1px solid var(--glass-border);background:linear-gradient(180deg,#121a25,#0f161f);box-shadow:0 24px 60px rgba(0,0,0,0.35);margin-top:12px;padding:14px;border-radius:16px; }}
+    .admin-board-head h2 {{ font-size:1rem;margin:0; }}
+    .admin-board-head p {{ color:var(--text-dim);margin-top:4px;font-size:0.82rem; }}
+    .admin-metric-grid {{ margin-top:10px;display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr)); }}
+    .admin-metric-card {{ border:1px solid var(--glass-border);background:linear-gradient(180deg,#172232,#121a25);padding:9px 10px;min-height:62px;display:grid;align-content:center;gap:4px;border-radius:10px; }}
+    .admin-metric-card span {{ color:var(--text-dim);font-size:0.75rem; }}
+    .admin-metric-card strong {{ font-size:1rem;font-weight:800; }}
+    .admin-quota {{ display:inline-flex;align-items:center;gap:10px;font-size:0.88rem;color:var(--text-dim); }}
+    .admin-pill {{ border-radius:999px;padding:4px 10px;font-weight:700;color:#081017; }}
+    .admin-pill.ok {{ background:#5ee0b0; }}
+    .admin-pill.warn {{ background:#f4b942; }}
+    .admin-pill.danger {{ background:#ff7c7c; }}
+    .admin-pill.muted {{ background:#9fb2c1; }}
+    /* ── Responsive ── */
+    @media (max-width:1024px) {{
+      .hero {{ grid-template-columns:1fr; }}
+      .cards {{ grid-template-columns:repeat(2,1fr); }}
+      .admin-metric-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
     }}
-    @media (max-width: 640px) {{
-      .shell {{
-        width: calc(100% - 12px);
-        margin: 8px auto 22px;
-      }}
-      .hero, .period-panel {{
-        padding: 12px;
-      }}
-      .hero-copy {{
-        align-items: flex-start;
-        gap: 10px;
-      }}
-      .hero-logo-wrap {{
-        margin: 2px 0 8px;
-        padding: 0;
-      }}
-      .hero-logo {{
-        width: min(100%, 500px);
-        max-height: 112px;
-      }}
-      .hero-copy h1 {{
-        font-size: 1.16rem;
-        line-height: 1.3;
-      }}
-      .hero-copy p {{
-        margin-top: 6px;
-        font-size: 0.86rem;
-      }}
-      .period-tabs,
-      .group-tabs,
-      .content-tabs {{
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        scrollbar-width: thin;
-        -webkit-overflow-scrolling: touch;
-        padding-bottom: 4px;
-      }}
-      .tab-button {{
-        flex: 0 0 auto;
-        padding: 8px 12px;
-        font-size: 0.84rem;
-      }}
-      .content-tab-button {{
-        font-size: 0.8rem;
-        padding: 6px 10px;
-      }}
-      .panel-head {{
-        margin-bottom: 12px;
-      }}
-      .panel-head h2 {{
-        font-size: 1.04rem;
-      }}
-      .panel-head p {{
-        margin-top: 4px;
-        font-size: 0.82rem;
-      }}
-      .feature-grid,
-      .rest-grid {{
-        grid-template-columns: 1fr;
-        gap: 12px;
-      }}
-      .feature-card .video-body,
-      .rest-grid .video-card .video-body {{
-        padding: 10px 11px 12px;
-      }}
-      .feature-card .video-title,
-      .rest-grid .video-card .video-title,
-      .video-title {{
-        min-height: auto;
-        font-size: 0.95rem;
-        line-height: 1.36;
-      }}
-      .meta-row {{
-        font-size: 0.83rem;
-        gap: 6px;
-      }}
-      .stats-row {{
-        margin-top: 8px;
-      }}
-      .channel-link {{
-        max-width: calc(100% - 70px);
-      }}
-      .rank-badge {{
-        font-size: 0.9rem;
-        padding: 6px 10px;
-      }}
-      .new-badge {{
-        font-size: 0.7rem;
-        padding: 5px 8px;
-      }}
-      .player-modal {{
-        align-items: flex-end;
-        padding: 4px;
-      }}
-      .player-sheet {{
-        width: 100%;
-        max-height: calc(100dvh - 8px);
-      }}
-      .player-sheet.landscape {{
-        width: 100%;
-      }}
-      .player-topbar {{
-        height: 40px;
-        padding: 4px 6px;
-      }}
-      .player-toggle {{
-        min-width: 34px;
-        height: 28px;
-        font-size: 0.75rem;
-        padding: 0 8px;
-      }}
-      .player-close {{
-        width: 30px;
-        height: 30px;
-      }}
-      .player-frame {{
-        max-height: calc(100dvh - 130px);
-      }}
-      .mobile-pager {{
-        display: flex;
-      }}
+    @media (max-width:760px) {{
+      .shell {{ width:calc(100% - 20px);padding:12px 0 40px; }}
+      .topbar-nav {{ display:none; }}
+      .topbar {{ padding:10px 14px;border-radius:12px; }}
+      .topbar-brand {{ gap:8px;font-size:0.9rem; }}
+      .topbar-logo {{ padding:5px 10px;font-size:0.8rem;border-radius:8px; }}
+      .hero {{ margin-top:12px;gap:12px; }}
+      .glass-panel {{ border-radius:14px; }}
+      .hero-main {{ padding:22px 16px; }}
+      .hero-eyebrow {{ font-size:0.7rem;margin-bottom:10px; }}
+      .hero-heading {{ font-size:1.35rem;line-height:1.35; }}
+      .hero-desc {{ font-size:0.85rem;margin-top:10px; }}
+      .hero-stats {{ flex-wrap:wrap;gap:16px;margin-top:16px; }}
+      .stat-value {{ font-size:1.15rem; }}
+      .stat-label {{ font-size:0.68rem; }}
+      .hero-side {{ padding:18px 14px; }}
+      .side-header {{ margin-bottom:12px; }}
+      .side-header-icon {{ width:24px;height:24px;font-size:0.75rem; }}
+      .side-title {{ font-size:0.95rem; }}
+      .new-list {{ gap:8px; }}
+      .new-item {{ padding:10px 12px;border-radius:10px;gap:8px; }}
+      .new-badge {{ padding:2px 8px;font-size:0.65rem; }}
+      .new-text {{ font-size:0.82rem; }}
+      .content {{ padding:16px 14px; }}
+      .content-head {{ flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:16px; }}
+      .content-title {{ font-size:1.2rem;gap:8px; }}
+      .filter-row {{ width:100%;gap:8px; }}
+      .filter-divider {{ display:none; }}
+      .type-tabs,.period-tabs {{ border-radius:10px; }}
+      .type-tab {{ padding:7px 16px;font-size:0.82rem; }}
+      .period-tab {{ padding:7px 14px;font-size:0.82rem; }}
+      .page-tabs {{ gap:3px; }}
+      .page-tab {{ padding:5px 10px;font-size:0.75rem;border-radius:6px; }}
+      .cards {{ grid-template-columns:1fr;gap:12px; }}
+      .card {{ border-radius:14px; }}
+      .card-meta {{ padding:12px 14px; }}
+      .card-title {{ font-size:0.88rem;margin-bottom:8px; }}
+      .card-info {{ font-size:0.75rem; }}
+      .rank-badge {{ width:28px;height:28px;font-size:0.78rem;border-radius:8px;top:8px;left:8px; }}
+      .back-to-top {{ margin-top:20px; }}
+      .back-to-top a {{ padding:10px 24px;font-size:0.82rem;border-radius:10px; }}
+      .footer {{ margin-top:20px;font-size:0.72rem;padding-bottom:16px; }}
+      .footer-links {{ gap:12px;font-size:0.72rem; }}
+      .admin-metric-grid {{ grid-template-columns:1fr; }}
+      .player-modal {{ align-items:flex-end;padding:4px; }}
+      .player-sheet {{ width:100%;max-height:calc(100dvh - 8px); }}
+      .player-frame {{ max-height:calc(100dvh - 130px); }}
+    }}
+    @media (max-width:400px) {{
+      .topbar-brand span {{ display:none; }}
+      .hero-heading {{ font-size:1.15rem; }}
+      .hero-stats {{ gap:12px; }}
+      .stat-value {{ font-size:1rem; }}
+      .filter-row {{ flex-direction:column;align-items:flex-start; }}
     }}
   </style>
 </head>
-<body>
+<body class="{body_class}">
+  <div style="position:fixed;inset:0;z-index:-1;background:radial-gradient(ellipse at 20% 0%,rgba(167,139,250,0.13),transparent 50%),radial-gradient(ellipse at 80% 0%,rgba(244,114,182,0.09),transparent 50%),var(--bg-base);"></div>
   <main class="shell">
-    <section class="hero">
-      <div class="hero-copy">
-        <div>
-          {logo_html}
-          <h1>ぶいくりっぷ Vtuber切り抜きランキング</h1>
-          <p>テスト運用中です。。。</p>
-        </div>
-        {admin_html}
+    <!-- ── Topbar ── -->
+    <nav class="topbar animate-in">
+      <div class="topbar-brand">
+        <div class="topbar-logo">VCLIP</div>
+        <span>VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></span>
       </div>
-      <div class="period-tabs" id="period-tabs"></div>
+      <div class="topbar-nav">
+        <a href="/" class="active">\u30e9\u30f3\u30ad\u30f3\u30b0</a>
+        <a href="/policy">\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc</a>
+      </div>
+    </nav>
+
+    <!-- ── Hero + Sidebar ── -->
+    <section class="hero">
+      <section class="glass-panel hero-main animate-in delay-1">
+        <div class="hero-eyebrow">
+          <span class="dot"></span>
+          <span>LIVE \u2014 \u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0\u4e2d</span>
+        </div>
+        <h1 class="hero-heading">
+          VTuber\u5207\u308a\u629c\u304d\u306e<br>
+          <span class="gradient-text">\u30c8\u30ec\u30f3\u30c9\u3092\u4e00\u76ee\u3067\u30c1\u30a7\u30c3\u30af</span>
+        </h1>
+        <p class="hero-desc">
+          Shorts\u30fb\u52d5\u753b\u306e\u518d\u751f\u6570\u5897\u52a0\u3092\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u3067\u96c6\u8a08\u3002<br>
+          \u3044\u307e\u8a71\u984c\u306e\u5207\u308a\u629c\u304d\u3092\u30e9\u30f3\u30ad\u30f3\u30b0\u5f62\u5f0f\u3067\u304a\u5c4a\u3051\u3057\u307e\u3059\u3002
+        </p>
+        <div class="hero-stats" id="hero-stats"></div>
+        {admin_html}
+      </section>
+
+      <aside class="glass-panel hero-side animate-in delay-2">
+        <div class="side-header">
+          <div class="side-header-icon">\u2728</div>
+          <h2 class="side-title">\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
+        </div>
+        <div id="new-list" class="new-list"></div>
+      </aside>
     </section>
-    <div id="period-root"></div>
-    <div class="back-top-wrap"><a id="back-to-top" class="back-top-link" href="#">TOPへ</a></div>
-    <footer class="site-footer">Copyright (C) 2026- 3vskhv0 All Rights Reserved. <span>|</span> <a class="footer-policy-link" href="/policy">プライバシーポリシー</a></footer>
+
+    {admin_board_html}
+
+    <!-- ── Ranking ── -->
+    <section class="glass-panel content animate-in delay-3" id="ranking-section">
+      <div class="content-head">
+        <h2 class="content-title">
+          <em class="section-icon" id="ranking-icon">\ud83c\udfac</em><span id="ranking-label">Shorts \u30e9\u30f3\u30ad\u30f3\u30b0</span>
+        </h2>
+        <div class="filter-row">
+          <div class="type-tabs" id="type-tabs"></div>
+          <div class="filter-divider"></div>
+          <div class="period-tabs" id="period-tabs"></div>
+        </div>
+      </div>
+      <div class="page-tabs" id="page-tabs-top"></div>
+      <div id="period-root"></div>
+      <div class="page-tabs bottom" id="page-tabs-bottom"></div>
+    </section>
+
+    <!-- ── Back to top ── -->
+    <div class="back-to-top animate-in">
+      <a id="back-to-top" href="#top"><em class="arrow-up">\u2191</em>TOP\u3078</a>
+    </div>
+
+    <footer class="footer animate-in">
+      <div class="footer-links">
+        <a href="/policy">\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc</a>
+        <a href="#">\u5229\u7528\u898f\u7d04</a>
+        <a href="#">\u304a\u554f\u3044\u5408\u308f\u305b</a>
+      </div>
+      <span>VCLIP \u2014 VTuber\u5207\u308a\u629c\u304d\u30e9\u30f3\u30ad\u30f3\u30b0 &copy; 2026</span>
+    </footer>
   </main>
   <div id="player-modal" class="player-modal" aria-hidden="true">
-    <div class="player-sheet" role="dialog" aria-modal="true" aria-label="動画プレイヤー">
+    <div class="player-sheet" role="dialog" aria-modal="true" aria-label="\u52d5\u753b\u30d7\u30ec\u30a4\u30e4\u30fc">
       <div class="player-topbar">
-        <div class="player-controls" role="group" aria-label="プレーヤー表示切替">
-          <button id="player-mode-portrait" class="player-toggle active" type="button" aria-label="縦表示">縦</button>
-          <button id="player-mode-landscape" class="player-toggle" type="button" aria-label="横表示">横</button>
+        <div class="player-controls" role="group" aria-label="\u30d7\u30ec\u30fc\u30e4\u30fc\u8868\u793a\u5207\u66ff">
+          <button id="player-mode-portrait" class="player-toggle active" type="button" aria-label="\u7e26\u8868\u793a">\u7e26</button>
+          <button id="player-mode-landscape" class="player-toggle" type="button" aria-label="\u6a2a\u8868\u793a">\u6a2a</button>
         </div>
-        <button id="player-close" class="player-close" type="button" aria-label="閉じる">×</button>
+        <button id="player-close" class="player-close" type="button" aria-label="\u9589\u3058\u308b">\u00d7</button>
       </div>
       <div class="player-frame">
         <iframe id="player-iframe" src="" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
@@ -1538,9 +1371,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const payload = {payload_json};
     const groupLabels = {group_labels_json};
     const showAdminMeta = {show_admin_meta};
+    const typeTabs = document.getElementById("type-tabs");
     const periodTabs = document.getElementById("period-tabs");
     const periodRoot = document.getElementById("period-root");
     const backToTop = document.getElementById("back-to-top");
+    const rankingSection = document.getElementById("ranking-section");
+    const rankingIcon = document.getElementById("ranking-icon");
+    const rankingLabel = document.getElementById("ranking-label");
+    const pageTabsTop = document.getElementById("page-tabs-top");
+    const pageTabsBottom = document.getElementById("page-tabs-bottom");
     const playerModal = document.getElementById("player-modal");
     const playerSheet = playerModal.querySelector(".player-sheet");
     const playerFrame = playerModal.querySelector(".player-frame");
@@ -1549,8 +1388,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const playerModePortrait = document.getElementById("player-mode-portrait");
     const playerModeLandscape = document.getElementById("player-mode-landscape");
     let activePeriod = "{first_period}";
-    const MOBILE_PAGE_SIZE = 20;
+    let activeContentType = "shorts";
+    const PAGE_SIZE = 20;
     const pageState = {{}};
+    const typeConfig = {{
+      shorts: {{ icon: "\ud83c\udfac", label: "Shorts \u30e9\u30f3\u30ad\u30f3\u30b0" }},
+      video:  {{ icon: "\ud83c\udfa5", label: "\u52d5\u753b\u30e9\u30f3\u30ad\u30f3\u30b0" }}
+    }};
 
     function setPlayerLayout(layout) {{
       const normalized = layout === "landscape" ? "landscape" : "portrait";
@@ -1560,14 +1404,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       playerModePortrait.classList.toggle("active", !isLandscape);
       playerModeLandscape.classList.toggle("active", isLandscape);
     }}
-
     function openPlayer(videoId, layout) {{
       setPlayerLayout(layout);
       playerIframe.src = `https://www.youtube.com/embed/${{videoId}}?autoplay=1&playsinline=1`;
       playerModal.classList.add("open");
       playerModal.setAttribute("aria-hidden", "false");
     }}
-
     function closePlayer() {{
       playerModal.classList.remove("open");
       playerModal.setAttribute("aria-hidden", "true");
@@ -1575,212 +1417,238 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       playerIframe.src = "";
     }}
 
-    function isMobileViewport() {{
-      return window.matchMedia("(max-width: 640px)").matches;
+    function resolvePlayerLayout(trigger) {{
+      const contentType = (trigger.dataset.contentType || "").toLowerCase();
+      if (contentType !== "video") return "portrait";
+      const card = trigger.closest(".card");
+      const thumbImg = card ? card.querySelector(".thumb img") : null;
+      if (!thumbImg) return "portrait";
+      const w = thumbImg.naturalWidth || thumbImg.clientWidth || 0;
+      const h = thumbImg.naturalHeight || thumbImg.clientHeight || 0;
+      if (h <= 0) return "portrait";
+      return w / h >= 1.2 ? "landscape" : "portrait";
     }}
 
-    function contentPanelKey(contentPanel) {{
-      const periodPanel = contentPanel.closest(".period-panel");
-      const groupPanel = contentPanel.closest(".group-panel");
-      const periodKey = periodPanel ? (periodPanel.dataset.period || "") : "";
-      const groupKey = groupPanel ? (groupPanel.dataset.group || "") : "";
-      const contentKey = contentPanel.dataset.contentPanel || "";
-      return `${{periodKey}}::${{groupKey}}::${{contentKey}}`;
+    /* ── Pagination helpers ── */
+    function paginationKey() {{
+      return `${{activePeriod}}::${{activeContentType}}`;
     }}
-
-    function makePager(totalPages, currentPage, pageSize, totalItems, onPageChange) {{
-      const pager = document.createElement("div");
-      pager.className = "mobile-pager";
-
-      for (let page = 1; page <= totalPages; page += 1) {{
-        const startRank = (page - 1) * pageSize + 1;
-        const endRank = Math.min(page * pageSize, totalItems);
-
-        const tab = document.createElement("button");
-        tab.type = "button";
-        tab.className = "tab-button" + (page === currentPage ? " active" : "");
-        tab.textContent = `${{startRank}}-${{endRank}}位`;
-        tab.addEventListener("click", () => onPageChange(page));
-        pager.appendChild(tab);
-      }}
-
-      return pager;
+    function getCurrentCards() {{
+      const activePanel = periodRoot.querySelector(".period-panel.active");
+      if (!activePanel) return [];
+      const contentPanel = activePanel.querySelector(`.content-panel[data-content-panel="${{activeContentType}}"]`);
+      if (!contentPanel) return [];
+      return Array.from(contentPanel.querySelectorAll(".card"));
     }}
-    function applyMobilePagination(scope) {{
-      const root = scope || periodRoot;
-      const panels = root.querySelectorAll(".content-panel");
-
-      for (const contentPanel of panels) {{
-        for (const existingPager of contentPanel.querySelectorAll(".mobile-pager")) {{
-          existingPager.remove();
-        }}
-
-        const cards = Array.from(contentPanel.querySelectorAll(".video-card"));
-        if (!cards.length) {{
-          continue;
-        }}
-
-        if (!isMobileViewport()) {{
-          cards.forEach((card) => {{
-            card.style.display = "";
+    function applyPagination() {{
+      const cards = getCurrentCards();
+      const totalPages = Math.max(1, Math.ceil(cards.length / PAGE_SIZE));
+      const key = paginationKey();
+      let currentPage = pageState[key] || 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+      pageState[key] = currentPage;
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const end = start + PAGE_SIZE;
+      cards.forEach((card, i) => {{
+        card.style.display = (i >= start && i < end) ? "" : "none";
+      }});
+      renderPageTabs(totalPages, currentPage, cards.length);
+    }}
+    function renderPageTabs(totalPages, currentPage, totalItems) {{
+      [pageTabsTop, pageTabsBottom].forEach(container => {{
+        container.innerHTML = "";
+        if (totalPages <= 1) return;
+        for (let p = 1; p <= totalPages; p++) {{
+          const s = (p - 1) * PAGE_SIZE + 1;
+          const e = Math.min(p * PAGE_SIZE, totalItems);
+          const btn = document.createElement("button");
+          btn.className = "page-tab" + (p === currentPage ? " active" : "");
+          btn.textContent = `${{s}}\u4f4d-${{e}}\u4f4d`;
+          btn.type = "button";
+          const page = p;
+          btn.addEventListener("click", () => {{
+            pageState[paginationKey()] = page;
+            applyPagination();
+            if (container === pageTabsBottom && rankingSection) {{
+              rankingSection.scrollIntoView({{ behavior: "smooth", block: "start" }});
+            }}
           }});
-          continue;
+          container.appendChild(btn);
         }}
-
-        const totalPages = Math.ceil(cards.length / MOBILE_PAGE_SIZE);
-        if (totalPages <= 1) {{
-          cards.forEach((card) => {{
-            card.style.display = "";
-          }});
-          continue;
-        }}
-
-        const key = contentPanelKey(contentPanel);
-        let currentPage = pageState[key] || 1;
-        if (currentPage < 1) {{
-          currentPage = 1;
-        }}
-        if (currentPage > totalPages) {{
-          currentPage = totalPages;
-        }}
-        pageState[key] = currentPage;
-
-        const start = (currentPage - 1) * MOBILE_PAGE_SIZE;
-        const end = start + MOBILE_PAGE_SIZE;
-
-        cards.forEach((card, index) => {{
-          card.style.display = index >= start && index < end ? "" : "none";
-        }});
-
-        const onPageChange = (nextPage) => {{
-          pageState[key] = nextPage;
-          applyMobilePagination(contentPanel.closest(".group-panel") || contentPanel);
-          contentPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
-        }};
-
-        const topPager = makePager(totalPages, currentPage, MOBILE_PAGE_SIZE, cards.length, onPageChange);
-        const bottomPager = makePager(totalPages, currentPage, MOBILE_PAGE_SIZE, cards.length, onPageChange);
-        contentPanel.prepend(topPager);
-        contentPanel.appendChild(bottomPager);
-      }}
+      }});
     }}
 
+    /* ── Build hero stats from payload ── */
+    function buildHeroStats() {{
+      const statsEl = document.getElementById("hero-stats");
+      if (!statsEl || !payload.length) return;
+      const daily = payload.find(p => p.table === "daily");
+      if (!daily) return;
+      let totalShorts = 0, totalVideo = 0;
+      if (daily.groups && daily.groups["all"]) {{
+        const tmpDiv = document.createElement("div");
+        tmpDiv.innerHTML = daily.groups["all"];
+        totalShorts = tmpDiv.querySelectorAll('[data-content-panel="shorts"] .card').length;
+        totalVideo = tmpDiv.querySelectorAll('[data-content-panel="video"] .card').length;
+      }}
+      const total = totalShorts + totalVideo;
+      statsEl.innerHTML = `
+        <div class="stat-item"><span class="stat-value">${{total || "\u2014"}}</span><span class="stat-label">\u4eca\u65e5\u306e\u30e9\u30f3\u30af\u30a4\u30f3\u6570</span></div>
+        <div class="stat-item"><span class="stat-value">${{totalShorts || "\u2014"}}</span><span class="stat-label">Shorts</span></div>
+        <div class="stat-item"><span class="stat-value">${{totalVideo || "\u2014"}}</span><span class="stat-label">\u52d5\u753b</span></div>
+      `;
+    }}
+
+    /* ── Build NEW picks from payload ── */
+    function buildNewPicks() {{
+      const listEl = document.getElementById("new-list");
+      if (!listEl || !payload.length) return;
+      const daily = payload.find(p => p.table === "daily");
+      if (!daily || !daily.groups || !daily.groups["all"]) return;
+      const tmpDiv = document.createElement("div");
+      tmpDiv.innerHTML = daily.groups["all"];
+      const newBadges = tmpDiv.querySelectorAll(".new-badge");
+      const picks = [];
+      newBadges.forEach(badge => {{
+        const card = badge.closest(".card");
+        if (!card) return;
+        const titleEl = card.querySelector(".card-title");
+        const rankEl = card.querySelector(".rank-badge");
+        if (titleEl && picks.length < 4) {{
+          picks.push({{
+            rank: rankEl ? "#" + rankEl.textContent.trim() : "",
+            text: titleEl.textContent.trim(),
+            href: titleEl.href || "#"
+          }});
+        }}
+      }});
+      if (!picks.length) {{
+        listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">\u65b0\u7740\u52d5\u753b\u306f\u307e\u3060\u3042\u308a\u307e\u305b\u3093</div>';
+        return;
+      }}
+      picks.forEach((pick, i) => {{
+        const item = document.createElement("a");
+        item.className = "new-item animate-in";
+        item.style.animationDelay = `${{0.3 + i * 0.1}}s`;
+        item.href = pick.href;
+        item.target = "_blank";
+        item.rel = "noreferrer";
+        item.innerHTML = `<span class="new-badge">NEW ${{pick.rank}}</span><p class="new-text"></p>`;
+        item.querySelector(".new-text").textContent = pick.text;
+        listEl.appendChild(item);
+      }});
+    }}
+
+    /* ── Main render ── */
     function render() {{
+      // Type tabs (Shorts / 動画)
+      typeTabs.innerHTML = "";
+      ["shorts", "video"].forEach(type => {{
+        const btn = document.createElement("button");
+        btn.className = "type-tab" + (type === activeContentType ? " active" : "");
+        btn.textContent = type === "shorts" ? "Shorts" : "\u52d5\u753b";
+        btn.type = "button";
+        btn.addEventListener("click", () => {{
+          activeContentType = type;
+          rankingIcon.textContent = typeConfig[type].icon;
+          rankingLabel.textContent = typeConfig[type].label;
+          render();
+        }});
+        typeTabs.appendChild(btn);
+      }});
+
+      // Period tabs (24h / 7d / 30d)
       periodTabs.innerHTML = "";
       periodRoot.innerHTML = "";
-
-      payload.forEach((period) => {{
-        const periodButton = document.createElement("button");
-        periodButton.className = "tab-button" + (period.table === activePeriod ? " active" : "");
-        periodButton.textContent = period.label;
-        periodButton.type = "button";
-        periodButton.onclick = () => {{
+      payload.forEach(period => {{
+        const btn = document.createElement("button");
+        btn.className = "period-tab" + (period.table === activePeriod ? " active" : "");
+        btn.textContent = period.label;
+        btn.type = "button";
+        btn.addEventListener("click", () => {{
           activePeriod = period.table;
           render();
-        }};
-        periodTabs.appendChild(periodButton);
+        }});
+        periodTabs.appendChild(btn);
 
         const panel = document.createElement("section");
-        panel.className = "panel period-panel" + (period.table === activePeriod ? " active" : "");
+        panel.className = "period-panel" + (period.table === activePeriod ? " active" : "");
         panel.dataset.period = period.table;
 
         const groupsForRender = showAdminMeta ? period.available_groups : ["all"];
         const defaultGroup = groupsForRender[0];
-        panel.innerHTML = `
-          <div class="panel-head">
-            <div>
-              <h2>${{period.label}}ランキング</h2>
-              ${{showAdminMeta ? `<p>集計時刻: ${{period.calculated_at}}</p>` : ""}}
-            </div>
-            ${{showAdminMeta ? '<div class="group-tabs"></div>' : ""}}
-          </div>
-          <div class="group-root"></div>
-        `;
 
-        const groupTabs = panel.querySelector(".group-tabs");
+        let groupTabsHtml = "";
+        if (showAdminMeta && groupsForRender.length > 1) {{
+          groupTabsHtml = '<div class="type-tabs" style="margin-bottom:12px;" id="group-tabs-' + period.table + '"></div>';
+        }}
+
+        panel.innerHTML = groupTabsHtml + '<div class="group-root"></div>';
         const groupRoot = panel.querySelector(".group-root");
 
-        groupsForRender.forEach((groupName) => {{
-          if (groupTabs) {{
-            const groupButton = document.createElement("button");
-            groupButton.className = "tab-button" + (groupName === defaultGroup ? " active" : "");
-            groupButton.textContent = groupLabels[groupName] || groupName;
-            groupButton.type = "button";
-            groupButton.onclick = () => {{
-              for (const btn of groupTabs.querySelectorAll(".tab-button")) {{
-                btn.classList.remove("active");
-              }}
-              for (const panelEl of groupRoot.querySelectorAll(".group-panel")) {{
-                panelEl.classList.remove("active");
-              }}
-              groupButton.classList.add("active");
-              groupRoot.querySelector(`[data-group="${{groupName}}"]`).classList.add("active");
-            }};
-            groupTabs.appendChild(groupButton);
-          }}
-
+        groupsForRender.forEach(groupName => {{
           const groupPanel = document.createElement("div");
           groupPanel.className = "group-panel" + (groupName === defaultGroup ? " active" : "");
           groupPanel.dataset.group = groupName;
           groupPanel.innerHTML = period.groups[groupName];
           groupRoot.appendChild(groupPanel);
-          applyMobilePagination(groupPanel);
         }});
+
+        // Group tabs event
+        if (showAdminMeta && groupsForRender.length > 1) {{
+          const gTabs = panel.querySelector("#group-tabs-" + period.table);
+          if (gTabs) {{
+            groupsForRender.forEach(groupName => {{
+              const gBtn = document.createElement("button");
+              gBtn.className = "type-tab" + (groupName === defaultGroup ? " active" : "");
+              gBtn.textContent = groupLabels[groupName] || groupName;
+              gBtn.type = "button";
+              gBtn.addEventListener("click", () => {{
+                gTabs.querySelectorAll(".type-tab").forEach(b => b.classList.remove("active"));
+                groupRoot.querySelectorAll(".group-panel").forEach(p => p.classList.remove("active"));
+                gBtn.classList.add("active");
+                groupRoot.querySelector(`[data-group="${{groupName}}"]`).classList.add("active");
+                applyPagination();
+              }});
+              gTabs.appendChild(gBtn);
+            }});
+          }}
+        }}
 
         periodRoot.appendChild(panel);
       }});
-      applyMobilePagination(periodRoot);
+
+      // Content tab switching within each group panel
+      periodRoot.querySelectorAll(".content-tab-button").forEach(btn => {{
+        btn.addEventListener("click", () => {{
+          const groupPanel = btn.closest(".group-panel");
+          if (!groupPanel) return;
+          groupPanel.querySelectorAll(".content-tab-button").forEach(b => b.classList.remove("active"));
+          groupPanel.querySelectorAll(".content-panel").forEach(p => p.classList.remove("active"));
+          btn.classList.add("active");
+          const target = btn.dataset.contentTarget;
+          const targetPanel = groupPanel.querySelector(`.content-panel[data-content-panel="${{target}}"]`);
+          if (targetPanel) targetPanel.classList.add("active");
+          applyPagination();
+        }});
+      }});
+
+      // Show correct content type panels
+      periodRoot.querySelectorAll(".content-panel").forEach(panel => {{
+        panel.classList.toggle("active", panel.dataset.contentPanel === activeContentType);
+      }});
+      periodRoot.querySelectorAll(".content-tab-button").forEach(btn => {{
+        btn.classList.toggle("active", btn.dataset.contentTarget === activeContentType);
+      }});
+
+      applyPagination();
     }}
 
-    function resolvePlayerLayout(trigger) {{
-      const contentType = (trigger.dataset.contentType || "").toLowerCase();
-      if (contentType !== "video") {{
-        return "portrait";
-      }}
-
-      const card = trigger.closest(".video-card");
-      const thumbImg = card ? card.querySelector(".thumb img") : null;
-      if (!thumbImg) {{
-        return "portrait";
-      }}
-
-      const width = thumbImg.naturalWidth || thumbImg.clientWidth || 0;
-      const height = thumbImg.naturalHeight || thumbImg.clientHeight || 0;
-      if (height <= 0) {{
-        return "portrait";
-      }}
-
-      return width / height >= 1.2 ? "landscape" : "portrait";
-    }}
-
+    // Player modal event delegation
     periodRoot.addEventListener("click", (event) => {{
-      const contentTabButton = event.target.closest(".content-tab-button");
-      if (contentTabButton) {{
-        const contentTabs = contentTabButton.closest(".content-tabs");
-        const groupPanel = contentTabButton.closest(".group-panel");
-        if (!contentTabs || !groupPanel) {{
-          return;
-        }}
-        const target = contentTabButton.dataset.contentTarget;
-        for (const btn of contentTabs.querySelectorAll(".content-tab-button")) {{
-          btn.classList.remove("active");
-        }}
-        for (const panelEl of groupPanel.querySelectorAll(".content-panel")) {{
-          panelEl.classList.remove("active");
-        }}
-        contentTabButton.classList.add("active");
-        const targetPanel = groupPanel.querySelector(`.content-panel[data-content-panel="${{target}}"]`);
-        if (targetPanel) {{
-          targetPanel.classList.add("active");
-        }}
-        applyMobilePagination(groupPanel);
-        return;
-      }}
-
-      const trigger = event.target.closest(".thumb-play, .video-play");
-      if (!trigger) {{
-        return;
-      }}
+      const trigger = event.target.closest(".thumb, .card-title");
+      if (!trigger || !trigger.dataset.videoId) return;
       event.preventDefault();
       openPlayer(trigger.dataset.videoId, resolvePlayerLayout(trigger));
     }});
@@ -1788,14 +1656,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     playerModeLandscape.addEventListener("click", () => setPlayerLayout("landscape"));
     playerClose.addEventListener("click", closePlayer);
     playerModal.addEventListener("click", (event) => {{
-      if (event.target === playerModal) {{
-        closePlayer();
-      }}
-    }});
-    let resizeTimer = null;
-    window.addEventListener("resize", () => {{
-      window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(() => applyMobilePagination(periodRoot), 120);
+      if (event.target === playerModal) closePlayer();
     }});
     if (backToTop) {{
       backToTop.addEventListener("click", (event) => {{
@@ -1804,11 +1665,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       }});
     }}
     document.addEventListener("keydown", (event) => {{
-      if (event.key === "Escape" && playerModal.classList.contains("open")) {{
-        closePlayer();
-      }}
+      if (event.key === "Escape" && playerModal.classList.contains("open")) closePlayer();
     }});
 
+    buildHeroStats();
+    buildNewPicks();
     render();
   </script>
 </body>
@@ -1830,6 +1691,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         parsed = urlparse(self.path)
         path_only = parsed.path
+        query = parse_qs(parsed.query)
 
         if path_only == "/favicon.ico":
             self.send_response(302)
@@ -1898,8 +1760,18 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        self.send_error(404, "Not found")
+        if path_only == "/admin":
+            if ADMIN_TOKEN:
+                token = (query.get("admin_token") or [""])[0]
+                if token != ADMIN_TOKEN:
+                    self.send_error(403, "Admin token required")
+                    return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            return
 
+        self.send_error(404, "Not found")
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path_only = parsed.path
@@ -1987,13 +1859,20 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if path_only not in {"/", "/index.html"}:
+        if path_only not in {"/", "/index.html", "/admin"}:
             self.send_error(404, "Not found")
             return
 
+        requested_admin = path_only == "/admin"
+        token = (query.get("admin_token") or [""])[0]
+
         is_admin = False
-        if ADMIN_TOKEN:
-            token = (query.get("admin_token") or [""])[0]
+        if requested_admin:
+            if ADMIN_TOKEN and token != ADMIN_TOKEN:
+                self.send_error(403, "Admin token required")
+                return
+            is_admin = True
+        elif ADMIN_TOKEN:
             is_admin = token == ADMIN_TOKEN
 
         base_url = self._request_base_url()
@@ -2035,6 +1914,22 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

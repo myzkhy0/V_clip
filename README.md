@@ -63,6 +63,23 @@ python register_channel.py list --tracked-only
 python register_channel.py set-tracked UCxxxxxx --enabled
 python register_channel.py set-tracked UCxxxxxx --disabled
 ```
+
+### 4.5 (Optional) 個人勢URLを一括登録
+
+`other_channels.txt` に 1 行 1 URL で記載して、以下を実行します。
+
+```bash
+python bulk_register_other.py
+```
+
+別ファイルを使う場合:
+
+```bash
+python bulk_register_other.py my_channels.txt --group other
+```
+
+内部的には各行ごとに `register_channel.py add ... --group other` を順番実行します。
+`channels` テーブルは `ON CONFLICT` で upsert しているため、重複投入しても安全です。
 ### 5. Run
 
 ```bash
@@ -95,6 +112,8 @@ V_clip/
 ├── scheduler.py           # スケジューラ (エントリポイント)
 ├── test_site.py           # 最新ランキングを表示するローカル確認ページ
 ├── register_channel.py    # チャンネル手動登録/追跡ON-OFFツール
+├── bulk_register_other.py # other_channels.txt を順次登録する一括登録ツール
+├── other_channels.txt     # 個人勢チャンネルURL管理（1行1URL）
 ├── open_test_site.bat     # テストサイトをブラウザで開く Windows 用ランチャー
 ├── check_postgres.py      # DATABASE_URL に対する PostgreSQL 接続確認
 ├── start_local_postgres.bat # 同梱したローカル PostgreSQL を起動
@@ -178,4 +197,6 @@ bash deploy.sh
 ```
 
 環境変数で上書き可能です: `APP_DIR`, `SERVICE_NAME`, `BRANCH`。
+
+
 

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pink Purple Theme Sample</title>
+  <style>
+    :root {
+      --bg-1: #09071a;
+      --bg-2: #1b1038;
+      --bg-3: #2d1345;
+      --panel: rgba(14, 10, 32, 0.9);
+      --panel-line: rgba(219, 141, 255, 0.28);
+      --text: #f5ecff;
+      --muted: #c9b9e6;
+      --accent: #ff66c4;
+      --accent-2: #b47dff;
+      --accent-3: #7f5dff;
+      --link: #f69ad3;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans JP", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 400px at -10% -10%, rgba(255, 102, 196, 0.2), transparent 50%),
+        radial-gradient(900px 350px at 110% 0%, rgba(180, 125, 255, 0.24), transparent 55%),
+        linear-gradient(165deg, var(--bg-1) 0%, var(--bg-2) 45%, var(--bg-3) 100%);
+    }
+
+    .shell {
+      width: min(1140px, calc(100% - 28px));
+      margin: 20px auto 30px;
+    }
+
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--panel-line);
+      box-shadow: 0 14px 40px rgba(7, 2, 26, 0.45);
+    }
+
+    .hero {
+      padding: 24px;
+    }
+
+    .hero-logo {
+      display: block;
+      width: min(420px, 100%);
+      margin: 0 auto 14px;
+      border-radius: 10px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.8rem, 3vw, 2.3rem);
+      letter-spacing: 0.02em;
+    }
+
+    .sub {
+      margin: 0 0 16px;
+      color: var(--muted);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      border: 1px solid rgba(206, 133, 255, 0.45);
+      color: var(--text);
+      background: rgba(116, 72, 177, 0.22);
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .tab.active {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 60%, var(--accent-3) 100%);
+      color: #1f0824;
+      border-color: transparent;
+    }
+
+    .panel {
+      margin-top: 16px;
+      padding: 18px;
+    }
+
+    .section-title {
+      margin: 0 0 12px;
+      font-size: 1.8rem;
+    }
+
+    .cards {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .card {
+      border: 1px solid rgba(209, 128, 255, 0.35);
+      background: rgba(11, 7, 27, 0.84);
+    }
+
+    .thumb {
+      aspect-ratio: 16 / 9;
+      background:
+        linear-gradient(0deg, rgba(10,7,26,0.1), rgba(10,7,26,0.1)),
+        radial-gradient(circle at 20% 20%, rgba(255,102,196,.28), transparent 45%),
+        radial-gradient(circle at 80% 20%, rgba(127,93,255,.35), transparent 48%),
+        #1b1038;
+    }
+
+    .meta { padding: 12px; }
+    .title { margin: 0 0 8px; font-size: 1.02rem; font-weight: 800; }
+    .line { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    .links { margin-top: 10px; display: flex; gap: 14px; }
+    .links a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+
+    @media (max-width: 900px) {
+      .cards { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <img class="hero-logo" src="/assets/site-logo.png" alt="logo">
+      <h1>ぶいくりっぷ VTuber切り抜きランキング</h1>
+      <p class="sub">ロゴに寄せたピンク＋パープル配色サンプル</p>
+      <div class="tabs">
+        <button class="tab active">24時間</button>
+        <button class="tab">7日</button>
+        <button class="tab">30日</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">24時間ランキング</h2>
+      <div class="tabs" style="margin-bottom:12px">
+        <button class="tab active">Shorts</button>
+        <button class="tab">動画</button>
+      </div>
+      <div class="cards">
+        <article class="card">
+          <div class="thumb"></div>
+          <div class="meta">
+            <p class="title">#1 サンプルタイトル（配色確認用）</p>
+            <p class="line">再生数 +123,456</p>
+            <div class="links"><a href="#">YouTubeで開く</a><a href="#">SNSでシェア</a></div>
+          </div>
+        </article>
+        <article class="card">
+          <div class="thumb"></div>
+          <div class="meta">
+            <p class="title">#2 サンプルタイトル（配色確認用）</p>
+            <p class="line">再生数 +98,765</p>
+            <div class="links"><a href="#">YouTubeで開く</a><a href="#">SNSでシェア</a></div>
+          </div>
+        </article>
+        <article class="card">
+          <div class="thumb"></div>
+          <div class="meta">
+            <p class="title">#3 サンプルタイトル（配色確認用）</p>
+            <p class="line">再生数 +77,777</p>
+            <div class="links"><a href="#">YouTubeで開く</a><a href="#">SNSでシェア</a></div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
