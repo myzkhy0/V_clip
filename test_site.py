@@ -991,15 +991,35 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       margin:0;
       font-family:"Noto Sans JP Local","Hiragino Kaku Gothic ProN",sans-serif;
       color:var(--text);
+      background:var(--bg-base);
+      min-height:100vh;
+      overflow-x:hidden;
+    }}
+    .bg-canvas {{
+      position:fixed;inset:0;z-index:0;pointer-events:none;
       background:
-        radial-gradient(ellipse at 20% 0%,rgba(167,139,250,0.13),transparent 50%),
-        radial-gradient(ellipse at 80% 0%,rgba(244,114,182,0.09),transparent 50%),
-        var(--bg-base);
+        radial-gradient(ellipse 900px 500px at 15% 10%, rgba(167, 139, 250, 0.15), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 85% 5%, rgba(244, 114, 182, 0.12), transparent 55%),
+        radial-gradient(ellipse 600px 400px at 50% 80%, rgba(34, 211, 238, 0.06), transparent 50%);
+    }}
+    .bg-canvas::after {{
+      content:"";
+      position:absolute;inset:0;
+      background:
+        radial-gradient(ellipse 500px 300px at 70% 40%, rgba(251, 146, 60, 0.07), transparent 50%),
+        radial-gradient(ellipse 400px 300px at 20% 60%, rgba(167, 139, 250, 0.06), transparent 50%);
+      animation:bgShift 18s ease-in-out infinite alternate;
+    }}
+    @keyframes bgShift {{
+      0% {{ transform:translate(0,0) scale(1); opacity:0.6; }}
+      100% {{ transform:translate(40px,-30px) scale(1.05); opacity:1; }}
     }}
     .shell {{
-      width:min(1220px,calc(100% - 32px));
+      position:relative;
+      z-index:1;
+      width:min(1200px,calc(100% - 32px));
       margin:0 auto;
-      padding:18px 0 48px;
+      padding:20px 0 60px;
     }}
     /* ── Topbar ── */
     .topbar {{
@@ -1034,6 +1054,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .glass-panel {{
       background:var(--bg-panel);border:1px solid var(--glass-border);
       border-radius:18px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+      position:relative;overflow:hidden;
+    }}
+    .glass-panel::before {{
+      content:"";
+      position:absolute;inset:0;
+      background:linear-gradient(170deg, rgba(255,255,255,0.04) 0%, transparent 40%);
+      pointer-events:none;
     }}
     .hero-main {{ padding:30px 28px; }}
     .hero-eyebrow {{
@@ -1099,6 +1126,30 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .group-panel.active {{ display:block; }}
     .content-panel {{ display:none; }}
     .content-panel.active {{ display:block; }}
+    .content-tabs {{
+      display:flex;gap:2px;background:rgba(255,255,255,0.04);
+      border-radius:12px;padding:3px;border:1px solid var(--glass-border);
+      width:max-content;max-width:100%;margin-bottom:12px;
+    }}
+    .tab-button {{
+      border:none;background:transparent;color:var(--text-dim);
+      border-radius:10px;padding:8px 18px;font-size:0.88rem;font-weight:700;
+      cursor:pointer;transition:all 0.25s ease;font-family:inherit;
+    }}
+    .tab-button:hover {{ color:var(--text);background:rgba(255,255,255,0.06); }}
+    .tab-button.active {{ background:rgba(167,139,250,0.2);color:#fff;box-shadow:0 0 12px rgba(167,139,250,0.15); }}
+    .ranking-list {{ margin-top:8px; }}
+    .lane-block {{
+      margin-top:14px;padding:12px;border-radius:14px;
+      border:1px solid var(--glass-border);background:rgba(255,255,255,0.02);
+    }}
+    .lane-block h3 {{
+      margin:0 0 10px;font-size:0.95rem;font-weight:800;letter-spacing:0.01em;color:var(--text);
+    }}
+    .provisional-lane {{
+      border-color:rgba(251,191,36,0.24);
+      background:linear-gradient(180deg,rgba(251,191,36,0.08),rgba(255,255,255,0.02));
+    }}
     /* ── Cards grid ── */
     .cards {{ display:grid;grid-template-columns:repeat(3,1fr);gap:16px; }}
     .card {{
@@ -1260,6 +1311,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .type-tabs,.period-tabs {{ border-radius:10px; }}
       .type-tab {{ padding:7px 16px;font-size:0.82rem; }}
       .period-tab {{ padding:7px 14px;font-size:0.82rem; }}
+      .content-tabs {{ margin-bottom:10px;padding:2px;border-radius:10px; }}
+      .tab-button {{ padding:7px 14px;font-size:0.82rem;border-radius:9px; }}
+      .lane-block {{ margin-top:10px;padding:10px;border-radius:12px; }}
+      .lane-block h3 {{ margin-bottom:8px;font-size:0.86rem; }}
       .page-tabs {{ gap:3px; }}
       .page-tab {{ padding:5px 10px;font-size:0.75rem;border-radius:6px; }}
       .cards {{ grid-template-columns:1fr;gap:12px; }}
@@ -1287,7 +1342,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
   </style>
 </head>
 <body class="{body_class}">
-  <div style="position:fixed;inset:0;z-index:-1;background:radial-gradient(ellipse at 20% 0%,rgba(167,139,250,0.13),transparent 50%),radial-gradient(ellipse at 80% 0%,rgba(244,114,182,0.09),transparent 50%),var(--bg-base);"></div>
+  <div class="bg-canvas"></div>
   <main class="shell">
     <!-- ── Topbar ── -->
     <nav class="topbar animate-in">
@@ -1306,11 +1361,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       <section class="glass-panel hero-main animate-in delay-1">
         <div class="hero-eyebrow">
           <span class="dot"></span>
-          <span>LIVE \u2014 \u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0\u4e2d</span>
+          <span>Live Update</span>
         </div>
         <h1 class="hero-heading">
-          VTuber\u5207\u308a\u629c\u304d\u306e<br>
-          <span class="gradient-text">\u30c8\u30ec\u30f3\u30c9\u3092\u4e00\u76ee\u3067\u30c1\u30a7\u30c3\u30af</span>
+          \u4eca\u65e5\u4f38\u3073\u3066\u3044\u308bVTuber\u5207\u308a\u629c\u304d\u3092<br>
+          <span class="gradient-text">\u30b9\u30bf\u30a4\u30ea\u30c3\u30b7\u30e5\u306b\u4e00\u89a7\u3067\u30c1\u30a7\u30c3\u30af</span>
         </h1>
         <p class="hero-desc">
           Shorts\u30fb\u52d5\u753b\u306e\u518d\u751f\u6570\u5897\u52a0\u3092\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u3067\u96c6\u8a08\u3002<br>
@@ -1323,7 +1378,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       <aside class="glass-panel hero-side animate-in delay-2">
         <div class="side-header">
           <div class="side-header-icon">\u2728</div>
-          <h2 class="side-title">\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
+          <h2 class="side-title">注目の NEW</h2>
         </div>
         <div id="new-list" class="new-list"></div>
       </aside>
@@ -1923,45 +1978,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
