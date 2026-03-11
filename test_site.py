@@ -423,6 +423,52 @@ def _share_prefix_for_period(period_key: str, month_day: str, rank: int, content
     return f"#VTuber切り抜きランキング {rank}位の{content_label}です！"
 
 
+def _format_duration_label(duration_seconds: object) -> str:
+    try:
+        total = int(duration_seconds or 0)
+    except (TypeError, ValueError):
+        return ""
+    if total <= 0:
+        return ""
+    minutes, seconds = divmod(total, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes}:{seconds:02d}"
+
+
+def _merge_daily_rows(strict_rows: list[dict], provisional_rows: list[dict]) -> list[dict]:
+    merged: dict[str, dict] = {}
+
+    def _row_growth(row: dict) -> int:
+        try:
+            return int(row.get("view_growth") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    for source in (strict_rows, provisional_rows):
+        for row in source:
+            video_id = str(row.get("video_id") or "").strip()
+            if not video_id:
+                continue
+            current = merged.get(video_id)
+            if current is None or _row_growth(row) > _row_growth(current):
+                next_row = dict(row)
+                if current and current.get("is_new"):
+                    next_row["is_new"] = bool(next_row.get("is_new")) or True
+                merged[video_id] = next_row
+            elif row.get("is_new"):
+                current["is_new"] = True
+
+    sorted_rows = sorted(
+        merged.values(),
+        key=lambda r: (_row_growth(r), r.get("video_id") or ""),
+        reverse=True,
+    )[:100]
+    for idx, row in enumerate(sorted_rows, start=1):
+        row["rank"] = idx
+    return sorted_rows
+
 def _render_cards(
     rows: list[dict],
     card_class: str = "",
@@ -469,7 +515,9 @@ def _render_cards(
             rank_class = f" card-rank-{rank}"
 
         rank_badge_class = f"rank-badge rank-{rank}" if rank <= 3 else "rank-badge"
-        new_badge_html = '<span class="new-badge">NEW</span>' if row.get("is_new") else ""
+        new_badge_html = '<span class="new-badge thumb-new-badge">NEW</span>' if row.get("is_new") else ""
+        duration_label = _format_duration_label(row.get("duration_seconds"))
+        duration_html = f'<span class="duration-badge">{html.escape(duration_label)}</span>' if duration_label else ""
         group_pill_html = f'<span class="pill">{group_name}</span>' if show_group else ""
 
         # Channel icon HTML
@@ -492,6 +540,7 @@ def _render_cards(
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <div class="{rank_badge_class}">{rank}</div>
                 {new_badge_html}
+                {duration_html}
               </a>
               <div class="card-meta">
                 <a class="card-title" href="{video_url}" target="_blank" rel="noreferrer">{title}</a>
@@ -536,66 +585,27 @@ def _render_group_content(
     provisional_shorts_rows = provisional_shorts_rows or []
     provisional_video_rows = provisional_video_rows or []
 
-    has_strict = bool(shorts_rows or video_rows)
-    has_provisional = period_key == "daily" and bool(provisional_shorts_rows or provisional_video_rows)
-    if not has_strict and not has_provisional:
+    if period_key == "daily":
+        display_shorts_rows = _merge_daily_rows(shorts_rows, provisional_shorts_rows)
+        display_video_rows = _merge_daily_rows(video_rows, provisional_video_rows)
+    else:
+        display_shorts_rows = shorts_rows
+        display_video_rows = video_rows
+
+    if not display_shorts_rows and not display_video_rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
-    default_tab = "shorts" if (shorts_rows or provisional_shorts_rows) else "video"
-
-    if period_key == "daily":
-        strict_shorts_html = (
-            _render_rank_sections(shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
-            if shorts_rows
-            else '<div class="empty">Shortsに該当する動画はありません。</div>'
-        )
-        provisional_shorts_html = (
-            _render_rank_sections(provisional_shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
-            if provisional_shorts_rows
-            else '<div class="empty">暫定レーンに該当するShortsはありません。</div>'
-        )
-        strict_video_html = (
-            _render_rank_sections(video_rows, show_group=show_group, period_key=period_key, content_label="動画")
-            if video_rows
-            else '<div class="empty">動画に該当する動画はありません。</div>'
-        )
-        provisional_video_html = (
-            _render_rank_sections(provisional_video_rows, show_group=show_group, period_key=period_key, content_label="動画")
-            if provisional_video_rows
-            else '<div class="empty">暫定レーンに該当する動画はありません。</div>'
-        )
-
-        shorts_html = f"""
-        <section class="ranking-list lane-block">
-          <h3>厳密24h差分</h3>
-          {strict_shorts_html}
-        </section>
-        <section class="ranking-list lane-block provisional-lane">
-          <h3>急上昇（暫定）</h3>
-          {provisional_shorts_html}
-        </section>
-        """
-        video_html = f"""
-        <section class="ranking-list lane-block">
-          <h3>厳密24h差分</h3>
-          {strict_video_html}
-        </section>
-        <section class="ranking-list lane-block provisional-lane">
-          <h3>急上昇（暫定）</h3>
-          {provisional_video_html}
-        </section>
-        """
-    else:
-        shorts_html = (
-            _render_rank_sections(shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
-            if shorts_rows
-            else '<div class="empty">Shortsに該当する動画はありません。</div>'
-        )
-        video_html = (
-            _render_rank_sections(video_rows, show_group=show_group, period_key=period_key, content_label="動画")
-            if video_rows
-            else '<div class="empty">動画に該当する動画はありません。</div>'
-        )
+    default_tab = "shorts" if display_shorts_rows else "video"
+    shorts_html = (
+        _render_rank_sections(display_shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
+        if display_shorts_rows
+        else '<div class="empty">Shortsに該当する動画はありません。</div>'
+    )
+    video_html = (
+        _render_rank_sections(display_video_rows, show_group=show_group, period_key=period_key, content_label="動画")
+        if display_video_rows
+        else '<div class="empty">動画に該当する動画はありません。</div>'
+    )
 
     shorts_active = " active" if default_tab == "shorts" else ""
     video_active = " active" if default_tab == "video" else ""
@@ -608,7 +618,6 @@ def _render_group_content(
     <div class="content-panel{shorts_active}" data-content-panel="shorts">{shorts_html}</div>
     <div class="content-panel{video_active}" data-content-panel="video">{video_html}</div>
     """
-
 def _build_period_payload(is_admin: bool = False) -> list[dict]:
     payload = []
     for period_key, label, shorts_table, video_table in PERIODS:
@@ -1236,6 +1245,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .rank-1 {{ background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1a0a00; }}
     .rank-2 {{ background:linear-gradient(135deg,#94a3b8,#cbd5e1);color:#1a1a2e; }}
     .rank-3 {{ background:linear-gradient(135deg,#cd7f32,#b8860b);color:#1a0a00; }}
+    .thumb-new-badge {{
+      position:absolute;top:10px;right:10px;z-index:2;
+    }}
+    .duration-badge {{
+      position:absolute;right:10px;bottom:10px;z-index:2;
+      padding:3px 8px;border-radius:999px;
+      background:rgba(10,15,30,0.82);color:#fff;
+      font-size:0.74rem;font-weight:800;line-height:1;
+    }}
     .card-meta {{ padding:14px 16px; }}
     .card-title {{
       display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
@@ -2059,7 +2077,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
 
 
