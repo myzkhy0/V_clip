@@ -1361,11 +1361,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       <section class="glass-panel hero-main animate-in delay-1">
         <div class="hero-eyebrow">
           <span class="dot"></span>
-          <span>Live Update</span>
+          <span>LIVE \u2014 \u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0\u4e2d</span>
         </div>
         <h1 class="hero-heading">
-          \u4eca\u65e5\u4f38\u3073\u3066\u3044\u308bVTuber\u5207\u308a\u629c\u304d\u3092<br>
-          <span class="gradient-text">\u30b9\u30bf\u30a4\u30ea\u30c3\u30b7\u30e5\u306b\u4e00\u89a7\u3067\u30c1\u30a7\u30c3\u30af</span>
+          VTuber\u5207\u308a\u629c\u304d\u306e<br>
+          <span class="gradient-text">\u30c8\u30ec\u30f3\u30c9\u3092\u4e00\u76ee\u3067\u30c1\u30a7\u30c3\u30af</span>
         </h1>
         <p class="hero-desc">
           Shorts\u30fb\u52d5\u753b\u306e\u518d\u751f\u6570\u5897\u52a0\u3092\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u3067\u96c6\u8a08\u3002<br>
@@ -1378,7 +1378,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       <aside class="glass-panel hero-side animate-in delay-2">
         <div class="side-header">
           <div class="side-header-icon">\u2728</div>
-          <h2 class="side-title">注目の NEW</h2>
+          <h2 class="side-title">\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
         </div>
         <div id="new-list" class="new-list"></div>
       </aside>
