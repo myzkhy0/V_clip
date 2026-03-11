@@ -1886,10 +1886,10 @@ class TestSiteHandler(BaseHTTPRequestHandler):
 
         base_url = self._request_base_url()
         try:
-            body = render_homepage(is_admin=is_admin, base_url=base_url).encode("utf-8")
+            body = render_homepage(is_admin=is_admin, base_url=base_url).encode("utf-8", errors="replace")
         except Exception as exc:
             logger.exception("Failed to render test site")
-            body = render_error_page(exc, base_url=base_url).encode("utf-8")
+            body = render_error_page(exc, base_url=base_url).encode("utf-8", errors="replace")
             self.send_response(500)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
