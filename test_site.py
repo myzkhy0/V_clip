@@ -373,7 +373,7 @@ def _fmt_datetime(value: datetime | None) -> str:
 
 
 def _infer_group(row: dict) -> str:
-    current = (row.get("group_name") or "").strip()
+    current = _sanitize_text(row.get("group_name")).strip()
     if current:
         for group_name in GROUP_ORDER:
             if group_name != "all" and current.lower() == group_name.lower():
@@ -382,9 +382,9 @@ def _infer_group(row: dict) -> str:
 
     haystack = " ".join(
         [
-            row.get("title", ""),
-            row.get("tags_text", ""),
-            row.get("channel_name", ""),
+            _sanitize_text(row.get("title", "")),
+            _sanitize_text(row.get("tags_text", "")),
+            _sanitize_text(row.get("channel_name", "")),
         ]
     ).lower()
     for group_name, keywords in GROUP_KEYWORDS.items():
@@ -403,6 +403,14 @@ def _truncate_text(value: str, max_len: int = 42) -> str:
     if len(text) <= max_len:
         return text
     return text[: max_len - 1].rstrip() + "…"
+
+
+def _sanitize_text(value: object) -> str:
+    """Drop invalid surrogate code points from external text before HTML rendering."""
+    if value is None:
+        return ""
+    text = str(value)
+    return "".join(ch for ch in text if not (0xD800 <= ord(ch) <= 0xDFFF))
 
 
 def _share_prefix_for_period(period_key: str, month_day: str, rank: int, content_label: str) -> str:
@@ -430,14 +438,15 @@ def _render_cards(
     month_day = f"{today.month}/{today.day}"
     for row in rows:
         video_id = html.escape(row["video_id"])
-        title = html.escape(row["title"])
+        title_raw = _sanitize_text(row.get("title", ""))
+        title = html.escape(title_raw)
         channel_id = html.escape(row["channel_id"])
-        channel_name = html.escape(row["channel_name"])
-        channel_icon_url = html.escape(row.get("channel_icon_url") or "")
+        channel_name = html.escape(_sanitize_text(row.get("channel_name", "")))
+        channel_icon_url = html.escape(_sanitize_text(row.get("channel_icon_url") or ""))
         group_name = html.escape(_infer_group(row))
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         channel_url = f"https://www.youtube.com/channel/{channel_id}"
-        title_plain = " ".join(str(row.get("title") or "").split())
+        title_plain = " ".join(title_raw.split())
         share_title = _truncate_text(title_plain, 56)
         share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
         share_text = f"{share_prefix}  {share_title}"
