@@ -455,6 +455,12 @@ def _render_cards(
             f"{quote(share_text, safe='')}&url={quote(video_url, safe='')}"
         )
         content_type = html.escape((row.get("content_type") or "").lower())
+        published_label = ""
+        published_at = row.get("published_at")
+        if isinstance(published_at, datetime):
+            if published_at.tzinfo is None:
+                published_at = published_at.replace(tzinfo=timezone.utc)
+            published_label = published_at.astimezone(JST).strftime("%Y-%m-%d %H:%M")
 
         # Rank-specific glow classes for top 3
         rank = row["rank"]
@@ -489,13 +495,20 @@ def _render_cards(
               </a>
               <div class="card-meta">
                 <a class="card-title" href="{video_url}" target="_blank" rel="noreferrer">{title}</a>
-                <div class="card-info">
+                <div class="card-info card-info-top">
                   <a class="card-channel channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
                     {icon_html}
                     <span class="channel-name">{channel_name}</span>
                   </a>
                   {group_pill_html}
-                  <span class="card-views"><em class="arrow">\u2191</em>+{row['view_growth']:,}</span>
+                </div>
+                <div class="card-info card-info-bottom">
+                  <span class="card-views">再生数+{row['view_growth']:,}</span>
+                  <span class="card-date">{html.escape(published_label)}</span>
+                </div>
+                <div class="card-actions">
+                  <a class="card-action-link" href="{video_url}" target="_blank" rel="noreferrer">YouTubeで開く</a>
+                  <a class="card-action-link card-share-link" href="{share_url}" target="_blank" rel="noreferrer">SNSでシェア</a>
                 </div>
               </div>
             </article>
@@ -767,6 +780,53 @@ def _fetch_admin_board_data() -> dict:
         logger.exception("Failed to count excluded channels for admin board")
 
     return data
+def _fetch_public_hero_stats() -> dict:
+    """Public hero metrics for top summary cards."""
+    stats = {
+        "tracking_videos": 0,
+        "daily_growth_total": 0,
+        "new_24h": 0,
+    }
+
+    try:
+        rows = fetchall("SELECT COUNT(*) AS c FROM videos")
+        if rows:
+            stats["tracking_videos"] = int(rows[0].get("c") or 0)
+    except Exception:
+        logger.exception("Failed to fetch tracking_videos")
+
+    try:
+        rows = fetchall(
+            """
+            SELECT
+              COALESCE((
+                (SELECT COALESCE(SUM(view_growth), 0) FROM daily_ranking_shorts WHERE calculated_at = (SELECT MAX(calculated_at) FROM daily_ranking_shorts))
+                +
+                (SELECT COALESCE(SUM(view_growth), 0) FROM daily_ranking_video  WHERE calculated_at = (SELECT MAX(calculated_at) FROM daily_ranking_video))
+              ), 0) AS total_growth
+            """
+        )
+        if rows:
+            stats["daily_growth_total"] = int(rows[0].get("total_growth") or 0)
+    except Exception:
+        logger.exception("Failed to fetch daily_growth_total")
+
+    try:
+        rows = fetchall(
+            """
+            SELECT COUNT(*) AS c
+            FROM videos
+            WHERE published_at >= (NOW() AT TIME ZONE 'UTC') - interval '24 hours'
+            """
+        )
+        if rows:
+            stats["new_24h"] = int(rows[0].get("c") or 0)
+    except Exception:
+        logger.exception("Failed to fetch new_24h")
+
+    return stats
+
+
 def render_error_page(error: Exception, base_url: str = "") -> str:
     message = html.escape(str(error) or error.__class__.__name__)
     database_url = os.getenv("DATABASE_URL", "(not set)")
@@ -907,6 +967,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     first_period = payload[0]["table"] if payload else ""
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+    hero_stats_json = json.dumps(_fetch_public_hero_stats(), ensure_ascii=False).replace("</", "<\\/")
     normalized_base_url = _normalize_base_url(base_url)
     head_meta = _build_head_meta(normalized_base_url, is_admin=is_admin)
     show_admin_meta = "true" if is_admin else "false"
@@ -1182,6 +1243,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-dim); }}
+    .card-info-top {{ margin-bottom:6px; }}
+    .card-info-bottom {{ justify-content:space-between;margin-bottom:8px;font-size:0.8rem; }}
+    .card-date {{ color:var(--text-dim);white-space:nowrap; }}
+    .card-actions {{ display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:0.82rem; }}
+    .card-action-link {{ color:#8ad7ff;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px; }}
+    .card-action-link:hover {{ color:#b8e9ff; }}
+    .card-share-link {{ margin-left:auto; }}
     .channel-link {{ display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--text-dim);min-width:0;flex:1;max-width:calc(100% - 84px); }}
     .channel-icon {{
       width:20px;height:20px;border-radius:50%;object-fit:cover;flex:0 0 20px;
@@ -1193,12 +1261,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .channel-name {{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0; }}
     .channel-avatar {{ width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#f472b6,#a78bfa);flex:0 0 18px; }}
-    .card-views {{ margin-left:auto;white-space:nowrap;color:#34d399;font-weight:700;font-size:0.82rem; }}
+    .card-views {{ white-space:nowrap;color:#d8f2ff;font-weight:700;font-size:0.82rem; }}
     .arrow {{ font-style:normal;margin-right:2px; }}
     .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim); }}
     .empty {{ padding:20px;border:1px dashed var(--glass-border);color:var(--text-dim);background:rgba(255,255,255,0.03); }}
     /* ── Pagination tabs ── */
-    .page-tabs {{ display:flex;gap:4px;flex-wrap:wrap;margin-top:12px; }}
+    .page-tabs {{ display:none;gap:4px;flex-wrap:wrap;margin-top:12px; }}
     .page-tabs.bottom {{ margin-top:16px;justify-content:center; }}
     .page-tab {{
       border:1px solid rgba(100,160,240,0.12);background:rgba(255,255,255,0.03);
@@ -1315,7 +1383,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .tab-button {{ padding:7px 14px;font-size:0.82rem;border-radius:9px; }}
       .lane-block {{ margin-top:10px;padding:10px;border-radius:12px; }}
       .lane-block h3 {{ margin-bottom:8px;font-size:0.86rem; }}
-      .page-tabs {{ gap:3px; }}
+      .page-tabs {{ display:flex;gap:3px; }}
       .page-tab {{ padding:5px 10px;font-size:0.75rem;border-radius:6px; }}
       .cards {{ grid-template-columns:1fr;gap:12px; }}
       .card {{ border-radius:14px; }}
@@ -1433,6 +1501,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
   </div>
   <script>
     const payload = {payload_json};
+    const heroStats = {hero_stats_json};
     const groupLabels = {group_labels_json};
     const showAdminMeta = {show_admin_meta};
     const typeTabs = document.getElementById("type-tabs");
@@ -1454,6 +1523,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     let activePeriod = "{first_period}";
     let activeContentType = "shorts";
     const PAGE_SIZE = 20;
+    const MOBILE_BREAKPOINT = 760;
     const pageState = {{}};
     const typeConfig = {{
       shorts: {{ icon: "\ud83c\udfac", label: "Shorts \u30e9\u30f3\u30ad\u30f3\u30b0" }},
@@ -1506,6 +1576,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     function applyPagination() {{
       const cards = getCurrentCards();
+      const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+      if (!isMobile) {{
+        cards.forEach(card => {{ card.style.display = ""; }});
+        [pageTabsTop, pageTabsBottom].forEach(container => {{
+          container.innerHTML = "";
+          container.style.display = "none";
+        }});
+        return;
+      }}
+
       const totalPages = Math.max(1, Math.ceil(cards.length / PAGE_SIZE));
       const key = paginationKey();
       let currentPage = pageState[key] || 1;
@@ -1522,6 +1602,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function renderPageTabs(totalPages, currentPage, totalItems) {{
       [pageTabsTop, pageTabsBottom].forEach(container => {{
         container.innerHTML = "";
+        container.style.display = "flex";
         if (totalPages <= 1) return;
         for (let p = 1; p <= totalPages; p++) {{
           const s = (p - 1) * PAGE_SIZE + 1;
@@ -1542,55 +1623,55 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         }}
       }});
     }}
-
     /* ── Build hero stats from payload ── */
     function buildHeroStats() {{
       const statsEl = document.getElementById("hero-stats");
-      if (!statsEl || !payload.length) return;
-      const daily = payload.find(p => p.table === "daily");
-      if (!daily) return;
-      let totalShorts = 0, totalVideo = 0;
-      if (daily.groups && daily.groups["all"]) {{
-        const tmpDiv = document.createElement("div");
-        tmpDiv.innerHTML = daily.groups["all"];
-        totalShorts = tmpDiv.querySelectorAll('[data-content-panel="shorts"] .card').length;
-        totalVideo = tmpDiv.querySelectorAll('[data-content-panel="video"] .card').length;
-      }}
-      const total = totalShorts + totalVideo;
+      if (!statsEl) return;
+      const tracking = Number(heroStats?.tracking_videos || 0);
+      const growth = Number(heroStats?.daily_growth_total || 0);
+      const fresh = Number(heroStats?.new_24h || 0);
       statsEl.innerHTML = `
-        <div class="stat-item"><span class="stat-value">${{total || "\u2014"}}</span><span class="stat-label">\u4eca\u65e5\u306e\u30e9\u30f3\u30af\u30a4\u30f3\u6570</span></div>
-        <div class="stat-item"><span class="stat-value">${{totalShorts || "\u2014"}}</span><span class="stat-label">Shorts</span></div>
-        <div class="stat-item"><span class="stat-value">${{totalVideo || "\u2014"}}</span><span class="stat-label">\u52d5\u753b</span></div>
+        <div class="stat-item"><span class="stat-value">${{tracking.toLocaleString("ja-JP")}}</span><span class="stat-label">トラッキング動画数</span></div>
+        <div class="stat-item"><span class="stat-value">${{growth.toLocaleString("ja-JP")}}</span><span class="stat-label">本日の総再生増加</span></div>
+        <div class="stat-item"><span class="stat-value">${{fresh.toLocaleString("ja-JP")}}</span><span class="stat-label">新着（24h）</span></div>
       `;
     }}
-
     /* ── Build NEW picks from payload ── */
     function buildNewPicks() {{
       const listEl = document.getElementById("new-list");
       if (!listEl || !payload.length) return;
       const daily = payload.find(p => p.table === "daily");
       if (!daily || !daily.groups || !daily.groups["all"]) return;
+
       const tmpDiv = document.createElement("div");
       tmpDiv.innerHTML = daily.groups["all"];
-      const newBadges = tmpDiv.querySelectorAll(".new-badge");
-      const picks = [];
-      newBadges.forEach(badge => {{
-        const card = badge.closest(".card");
-        if (!card) return;
+      const cards = Array.from(tmpDiv.querySelectorAll(".card")).filter((card) => card.querySelector(".new-badge"));
+
+      const dedup = new Map();
+      cards.forEach((card) => {{
         const titleEl = card.querySelector(".card-title");
         const rankEl = card.querySelector(".rank-badge");
-        if (titleEl && picks.length < 4) {{
-          picks.push({{
-            rank: rankEl ? "#" + rankEl.textContent.trim() : "",
-            text: titleEl.textContent.trim(),
-            href: titleEl.href || "#"
-          }});
-        }}
+        if (!titleEl) return;
+        const href = titleEl.href || "#";
+        if (dedup.has(href)) return;
+        dedup.set(href, {{
+          rank: rankEl ? "#" + rankEl.textContent.trim() : "",
+          text: titleEl.textContent.trim(),
+          href,
+        }});
       }});
+
+      const pool = Array.from(dedup.values());
+      for (let i = pool.length - 1; i > 0; i--) {{
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }}
+      const picks = pool.slice(0, 4);
       if (!picks.length) {{
-        listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">\u65b0\u7740\u52d5\u753b\u306f\u307e\u3060\u3042\u308a\u307e\u305b\u3093</div>';
+        listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">新着動画はまだありません</div>';
         return;
       }}
+      listEl.innerHTML = "";
       picks.forEach((pick, i) => {{
         const item = document.createElement("a");
         item.className = "new-item animate-in";
@@ -1603,7 +1684,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         listEl.appendChild(item);
       }});
     }}
-
     /* ── Main render ── */
     function render() {{
       // Type tabs (Shorts / 動画)
@@ -1731,6 +1811,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     document.addEventListener("keydown", (event) => {{
       if (event.key === "Escape" && playerModal.classList.contains("open")) closePlayer();
     }});
+    window.addEventListener("resize", () => {{ applyPagination(); }});
 
     buildHeroStats();
     buildNewPicks();
@@ -1978,4 +2059,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
 
