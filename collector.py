@@ -363,8 +363,10 @@ def _is_valid_clip(detail: dict, inferred_group: str = "") -> bool:
       1) title/tags contain '切り抜き' OR (VSPO group and description has permission marker)
       2) title/tags contain at least one search-keyword stem
          (derived from SEARCH_KEYWORDS by removing '切り抜き')
-      3) title/tags/description does NOT look like livestream metadata
-         (e.g. "90,511回視聴 ... にライブ配信", "9万回視聴 ... に配信済み")
+      3) not a livestream archive:
+         - strong: liveStreamingDetails.actualStartTime / actualEndTime exists
+         - assist: liveBroadcastContent is live/upcoming
+         - fallback: text has "にライブ配信" / "に配信済み" or "ライブ配信"
     """
     text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
     description = str(detail.get("description", ""))
@@ -375,7 +377,14 @@ def _is_valid_clip(detail: dict, inferred_group: str = "") -> bool:
     if not has_clip_keyword and not (is_vspo_group and has_vspo_permission):
         return False
 
-    if "回視聴" in combined_text and ("にライブ配信" in combined_text or "に配信済み" in combined_text):
+    if detail.get("live_actual_start_time") or detail.get("live_actual_end_time"):
+        return False
+
+    live_broadcast_content = str(detail.get("live_broadcast_content", "")).lower()
+    if live_broadcast_content in {"live", "upcoming"}:
+        return False
+
+    if "にライブ配信" in combined_text or "に配信済み" in combined_text:
         return False
 
     description_lower = description.lower()
@@ -582,6 +591,7 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_collector()
+
 
 
 

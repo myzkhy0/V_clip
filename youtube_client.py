@@ -356,6 +356,9 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
             "tags_text": str,
             "channel_icon_url": str,
             "description": str,
+            "live_broadcast_content": str,
+            "live_actual_start_time": datetime | None,
+            "live_actual_end_time": datetime | None,
         }
 
     Handles batching in chunks of VIDEO_BATCH_SIZE (max 50).
@@ -366,7 +369,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
     for i in range(0, len(video_ids), VIDEO_BATCH_SIZE):
         batch = video_ids[i : i + VIDEO_BATCH_SIZE]
         request = youtube.videos().list(
-            part="snippet,contentDetails,statistics",
+            part="snippet,contentDetails,statistics,liveStreamingDetails",
             id=",".join(batch),
         )
         response = _execute_request(request, "videos.list:details")
@@ -380,6 +383,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
         snippet = item.get("snippet", {})
         content = item.get("contentDetails", {})
         stats = item.get("statistics", {})
+        live_details = item.get("liveStreamingDetails", {})
         tags = snippet.get("tags", [])
         channel_id = snippet.get("channelId", "")
 
@@ -399,6 +403,9 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
                 "tags_text": " ".join(tags),
                 "channel_icon_url": icon_map.get(channel_id, ""),
                 "description": snippet.get("description", ""),
+                "live_broadcast_content": snippet.get("liveBroadcastContent", ""),
+                "live_actual_start_time": _parse_datetime(live_details.get("actualStartTime", "")),
+                "live_actual_end_time": _parse_datetime(live_details.get("actualEndTime", "")),
             }
         )
 
@@ -424,4 +431,5 @@ if __name__ == "__main__":
                 f"  {d['video_id']}  {d['duration_seconds']:>4}s  "
                 f"{d['view_count']:>8} views  {d['title'][:60]}"
             )
+
 
