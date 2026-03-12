@@ -1381,6 +1381,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .topbar {{ padding:10px 14px;border-radius:12px; }}
       .topbar-brand {{ gap:8px;font-size:0.9rem; }}
       .topbar-logo {{ padding:5px 10px;font-size:0.8rem;border-radius:8px; }}
+      .topbar-title {{ font-size:0.8rem;line-height:1.2; }}
       .hero {{ margin-top:12px;gap:12px; }}
       .glass-panel {{ border-radius:14px; }}
       .hero-main {{ padding:22px 16px; }}
@@ -1429,7 +1430,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     @media (max-width:400px) {{
       .topbar-brand {{ align-items:flex-start; }}
-      .topbar-title {{ display:inline-block;font-size:0.76rem;line-height:1.2;white-space:normal; }}
+      .topbar-title {{ display:inline-block;font-size:0.72rem;line-height:1.2;white-space:normal; }}
       .topbar-logo {{ padding:4px 8px;font-size:0.72rem; }}
       .hero-heading {{ font-size:1.15rem; }}
       .hero-stats {{ gap:12px; }}
