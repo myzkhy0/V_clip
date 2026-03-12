@@ -1428,7 +1428,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .player-frame {{ max-height:calc(100dvh - 130px); }}
     }}
     @media (max-width:400px) {{
-      .topbar-brand span {{ display:none; }}
+      .topbar-brand {{ align-items:flex-start; }}
+      .topbar-title {{ display:inline-block;font-size:0.76rem;line-height:1.2;white-space:normal; }}
+      .topbar-logo {{ padding:4px 8px;font-size:0.72rem; }}
       .hero-heading {{ font-size:1.15rem; }}
       .hero-stats {{ gap:12px; }}
       .stat-value {{ font-size:1rem; }}
@@ -1443,7 +1445,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     <nav class="topbar animate-in">
       <div class="topbar-brand">
         <div class="topbar-logo">VCLIP</div>
-        <span>VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></span>
+        <span class="topbar-title">VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></span>
       </div>
 
     </nav>
