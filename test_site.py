@@ -494,11 +494,8 @@ def _render_cards(
         title_plain = " ".join(title_raw.split())
         share_title = _truncate_text(title_plain, 56)
         share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
-        share_text = f"{share_prefix}  {share_title}"
-        share_url = (
-            "https://twitter.com/intent/tweet?text="
-            f"{quote(share_text, safe='')}&url={quote(video_url, safe='')}"
-        )
+        share_text = f"{share_prefix}  {share_title} {video_url} https://vclipranking.com/"
+        share_url = "https://twitter.com/intent/tweet?text=" + quote(share_text, safe="")
         content_type = html.escape((row.get("content_type") or "").lower())
         published_label = ""
         published_at = row.get("published_at")
