@@ -42,6 +42,7 @@ from youtube_client import (
 )
 
 logger = logging.getLogger(__name__)
+VSPO_PERMISSION_MARKER = "ぶいすぽっ！許諾番号"
 
 
 # ── Seed channels (first-run helper) ────────────────────────────────
@@ -356,20 +357,24 @@ def discover_videos(
 
 
 # ── Filter & store ──────────────────────────────────────────────────
-def _is_valid_clip(detail: dict) -> bool:
+def _is_valid_clip(detail: dict, inferred_group: str = "") -> bool:
     """
     Return True only when:
-      1) title/tags contain '切り抜き'
+      1) title/tags contain '切り抜き' OR (VSPO group and description has permission marker)
       2) title/tags contain at least one search-keyword stem
          (derived from SEARCH_KEYWORDS by removing '切り抜き')
       3) description does NOT contain 'ライブ配信'
     """
     text = " ".join([detail.get("title", ""), detail.get("tags_text", "")]).lower()
-    if "切り抜き" not in text:
+    description = str(detail.get("description", ""))
+    is_vspo_group = (inferred_group or "").strip().lower() == "vspo"
+    has_vspo_permission = VSPO_PERMISSION_MARKER in description
+    has_clip_keyword = "切り抜き" in text
+    if not has_clip_keyword and not (is_vspo_group and has_vspo_permission):
         return False
 
-    description = str(detail.get("description", "")).lower()
-    if "ライブ配信" in description:
+    description_lower = description.lower()
+    if "ライブ配信" in description_lower:
         return False
 
     normalized = text.replace(" ", "").replace("　", "")
@@ -474,8 +479,8 @@ def store_new_videos(details: list[dict]) -> int:
     query = """
         INSERT INTO videos
             (video_id, title, channel_id, channel_name, group_name,
-             published_at, duration_seconds, tags_text, channel_icon_url, content_type)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             published_at, duration_seconds, tags_text, description_text, channel_icon_url, content_type)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (video_id) DO UPDATE SET
             title = EXCLUDED.title,
             channel_id = EXCLUDED.channel_id,
@@ -484,6 +489,7 @@ def store_new_videos(details: list[dict]) -> int:
             published_at = EXCLUDED.published_at,
             duration_seconds = EXCLUDED.duration_seconds,
             tags_text = EXCLUDED.tags_text,
+            description_text = EXCLUDED.description_text,
             channel_icon_url = EXCLUDED.channel_icon_url,
             content_type = EXCLUDED.content_type
     """
@@ -501,6 +507,7 @@ def store_new_videos(details: list[dict]) -> int:
                 d["published_at"],
                 d["duration_seconds"],
                 d.get("tags_text", ""),
+                d.get("description", ""),
                 d.get("channel_icon_url", ""),
                 content_type,
             )
@@ -544,9 +551,20 @@ def run_collector(
     # Fetch details in batches
     details = get_video_details(video_ids)
 
-    # Filter by clip keyword
-    valid = [d for d in details if _is_valid_clip(d)]
-    logger.info("Clip filter: %d / %d passed (requires '切り抜き' + SEARCH_KEYWORDS stem match)", len(valid), len(details))
+    channels = load_channels()
+    group_map = _channel_group_map(channels)
+
+    # Filter by clip keyword or VSPO permission marker
+    valid = [
+        d
+        for d in details
+        if _is_valid_clip(d, _infer_group_name(d, group_map))
+    ]
+    logger.info(
+        "Clip filter: %d / %d passed (requires '切り抜き' + SEARCH_KEYWORDS stem, or VSPO permission marker in description)",
+        len(valid),
+        len(details),
+    )
 
     # Store
     store_new_videos(valid)

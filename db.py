@@ -62,6 +62,12 @@ def init_db():
             cur.execute(
                 """
                 ALTER TABLE videos
+                ADD COLUMN IF NOT EXISTS description_text TEXT NOT NULL DEFAULT ''
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE videos
                 ADD COLUMN IF NOT EXISTS channel_icon_url TEXT NOT NULL DEFAULT ''
                 """
             )

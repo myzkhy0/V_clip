@@ -42,6 +42,8 @@ RANKING_TABLES: dict[str, dict[str, str]] = {
 }
 
 CLIP_KEYWORD_PATTERN = "%切り抜き%"
+VSPO_GROUP_NAME = "VSPO"
+VSPO_PERMISSION_PATTERN = "%ぶいすぽっ！許諾番号%"
 
 
 def _load_excluded_channel_ids() -> list[str]:
@@ -111,7 +113,11 @@ def _build_ranking_sql(table: str, exclude_clause: str, growth_expr: str) -> str
                         LEFT JOIN old_stats o ON l.video_id = o.video_id
                         LEFT JOIN first_stats f ON l.video_id = f.video_id
                         JOIN videos v ON v.video_id = l.video_id
-                        WHERE (v.title LIKE %s OR v.tags_text LIKE %s)
+                        WHERE (
+                              v.title LIKE %s
+                           OR v.tags_text LIKE %s
+                           OR (COALESCE(v.group_name, '') = %s AND COALESCE(v.description_text, '') LIKE %s)
+                          )
                           AND v.content_type = %s
                           {exclude_clause}
                     ),
@@ -140,7 +146,13 @@ def _build_ranking_params(
     params: list[object] = [period_start]
     if is_strict_daily:
         params.append(now_utc)
-    params.extend([CLIP_KEYWORD_PATTERN, CLIP_KEYWORD_PATTERN, content_type])
+    params.extend([
+        CLIP_KEYWORD_PATTERN,
+        CLIP_KEYWORD_PATTERN,
+        VSPO_GROUP_NAME,
+        VSPO_PERMISSION_PATTERN,
+        content_type,
+    ])
     params.extend(excluded_params)
     params.append(now_utc)
     return tuple(params)
@@ -217,3 +229,4 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     run_rankings()
+

@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS videos (
     published_at     TIMESTAMP    NOT NULL,
     duration_seconds INTEGER      NOT NULL,
     tags_text        TEXT         NOT NULL DEFAULT '',
+    description_text TEXT         NOT NULL DEFAULT '',
     channel_icon_url TEXT         NOT NULL DEFAULT '',
     content_type     VARCHAR(16)  NOT NULL DEFAULT 'video',
     added_at         TIMESTAMP    NOT NULL DEFAULT NOW()
