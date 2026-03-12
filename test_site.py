@@ -533,7 +533,7 @@ def _render_cards(
 
         cards.append(
             f"""
-            <article class="card video-card{rank_class}">
+            <article class="card video-card{rank_class}" data-video-id="{video_id}">
               <a class="thumb" href="{video_url}" target="_blank" rel="noreferrer"
                  data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
@@ -542,7 +542,8 @@ def _render_cards(
                 {duration_html}
               </a>
               <div class="card-meta">
-                <a class="card-title" href="{video_url}" target="_blank" rel="noreferrer">{title}</a>
+                <a class="card-title" href="{video_url}" target="_blank" rel="noreferrer"
+                   data-video-id="{video_id}" data-content-type="{content_type}">{title}</a>
                 <div class="card-info card-info-top">
                   <a class="card-channel channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
                     {icon_html}
@@ -1230,6 +1231,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       background:rgba(255,255,255,0.03);transition:transform 0.2s,box-shadow 0.2s;
     }}
     .card:hover {{ transform:translateY(-3px);box-shadow:0 14px 34px rgba(0,0,0,0.3); }}
+    .card-focus {{ box-shadow:0 0 0 2px rgba(99,208,255,0.85), 0 14px 34px rgba(0,0,0,0.35); }}
     .card-rank-1 {{ border-color:var(--rank-gold);box-shadow:0 0 20px rgba(255,215,0,0.15); }}
     .card-rank-2 {{ border-color:var(--rank-silver);box-shadow:0 0 18px rgba(192,192,192,0.12); }}
     .card-rank-3 {{ border-color:var(--rank-bronze);box-shadow:0 0 18px rgba(205,127,50,0.12); }}
@@ -1664,6 +1666,34 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         <div class="stat-item"><span class="stat-value">${{fresh.toLocaleString("ja-JP")}}</span><span class="stat-label">新着（24h）</span></div>
       `;
     }}
+    function jumpToVideoCard(videoId, contentType = "shorts", period = "daily") {{
+      if (!videoId) return;
+
+      if (activePeriod !== period || activeContentType !== contentType) {{
+        activePeriod = period;
+        activeContentType = contentType;
+        rankingIcon.textContent = typeConfig[contentType]?.icon || typeConfig.shorts.icon;
+        rankingLabel.textContent = typeConfig[contentType]?.label || typeConfig.shorts.label;
+        render();
+      }}
+
+      const selector = `.period-panel[data-period="${{period}}"] .content-panel[data-content-panel="${{contentType}}"] .card[data-video-id="${{videoId}}"]`;
+      const target = periodRoot.querySelector(selector);
+      if (!target) return;
+
+      const cards = getCurrentCards();
+      const targetIndex = cards.indexOf(target);
+      if (targetIndex >= 0 && window.innerWidth <= MOBILE_BREAKPOINT) {{
+        const page = Math.floor(targetIndex / PAGE_SIZE) + 1;
+        pageState[paginationKey()] = page;
+        applyPagination();
+      }}
+
+      target.scrollIntoView({{ behavior: "smooth", block: "center" }});
+      target.classList.add("card-focus");
+      setTimeout(() => target.classList.remove("card-focus"), 1200);
+    }}
+
     /* ── Build NEW picks from payload ── */
     function buildNewPicks() {{
       const listEl = document.getElementById("new-list");
@@ -1679,13 +1709,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       cards.forEach((card) => {{
         const titleEl = card.querySelector(".card-title");
         const rankEl = card.querySelector(".rank-badge");
-        if (!titleEl) return;
-        const href = titleEl.href || "#";
-        if (dedup.has(href)) return;
-        dedup.set(href, {{
+        const thumbEl = card.querySelector(".thumb");
+        if (!titleEl || !thumbEl) return;
+        const videoId = thumbEl.dataset.videoId || "";
+        if (!videoId || dedup.has(videoId)) return;
+        dedup.set(videoId, {{
           rank: rankEl ? "#" + rankEl.textContent.trim() : "",
           text: titleEl.textContent.trim(),
-          href,
+          videoId,
+          contentType: (thumbEl.dataset.contentType || "shorts").toLowerCase(),
         }});
       }});
 
@@ -1704,11 +1736,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const item = document.createElement("a");
         item.className = "new-item animate-in";
         item.style.animationDelay = `${{0.3 + i * 0.1}}s`;
-        item.href = pick.href;
-        item.target = "_blank";
-        item.rel = "noreferrer";
+        item.href = "#";
+        item.dataset.videoId = pick.videoId;
+        item.dataset.contentType = pick.contentType === "video" ? "video" : "shorts";
+        item.dataset.period = "daily";
         item.innerHTML = `<span class="new-badge">NEW ${{pick.rank}}</span><p class="new-text"></p>`;
         item.querySelector(".new-text").textContent = pick.text;
+        item.addEventListener("click", (event) => {{
+          event.preventDefault();
+          jumpToVideoCard(item.dataset.videoId, item.dataset.contentType, item.dataset.period);
+        }});
         listEl.appendChild(item);
       }});
     }}
