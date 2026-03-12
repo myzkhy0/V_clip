@@ -72,7 +72,7 @@ GROUP_LABELS = {
     "other": "その他",
 }
 
-SITE_TITLE = "VCLIP — VTuber切り抜きランキング"
+SITE_TITLE = "VCLIP | VTuber切り抜きランキング"
 SITE_DESCRIPTION = (
     "VTuber切り抜きの再生数ランキング。24時間・7日・30日ごとの注目クリップを確認できます。"
 )
@@ -265,11 +265,10 @@ def _load_excluded_channel_ids() -> list[str]:
 
 
 def _fetch_daily_provisional_rows(content_type: str) -> list[dict]:
-    """
-    Provisional daily lane:
-    - videos without a snapshot older than 24h
-    - growth = latest - first snapshot (same-day provisional)
-    """
+    # Provisional daily lane:
+    # - videos without a snapshot older than 24h
+    # - growth = latest - first snapshot (same-day provisional)
+
     cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     excluded_channel_ids = _load_excluded_channel_ids()
     exclude_clause = ""
@@ -552,7 +551,7 @@ def _render_cards(
                   {group_pill_html}
                 </div>
                 <div class="card-info card-info-bottom">
-                  <span class="card-views">再生数+{row['view_growth']:,}</span>
+                  <span class="card-views"><em class="arrow">↑</em>+{row['view_growth']:,}</span>
                   <span class="card-date">{html.escape(published_label)}</span>
                 </div>
                 <div class="card-actions">
@@ -595,7 +594,6 @@ def _render_group_content(
     if not display_shorts_rows and not display_video_rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
-    default_tab = "shorts" if display_shorts_rows else "video"
     shorts_html = (
         _render_rank_sections(display_shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
         if display_shorts_rows
@@ -607,16 +605,9 @@ def _render_group_content(
         else '<div class="empty">動画に該当する動画はありません。</div>'
     )
 
-    shorts_active = " active" if default_tab == "shorts" else ""
-    video_active = " active" if default_tab == "video" else ""
-
     return f"""
-    <div class="content-tabs">
-      <button class="tab-button content-tab-button{shorts_active}" type="button" data-content-target="shorts">Shorts</button>
-      <button class="tab-button content-tab-button{video_active}" type="button" data-content-target="video">動画</button>
-    </div>
-    <div class="content-panel{shorts_active}" data-content-panel="shorts">{shorts_html}</div>
-    <div class="content-panel{video_active}" data-content-panel="video">{video_html}</div>
+    <div class="content-panel" data-content-panel="shorts">{shorts_html}</div>
+    <div class="content-panel" data-content-panel="video">{video_html}</div>
     """
 def _build_period_payload(is_admin: bool = False) -> list[dict]:
     payload = []
@@ -1087,7 +1078,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .shell {{
       position:relative;
       z-index:1;
-      width:min(1200px,calc(100% - 32px));
+      width:min(1260px,calc(100% - 32px));
       margin:0 auto;
       padding:20px 0 60px;
     }}
@@ -1144,7 +1135,19 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .hero-desc {{ color:var(--text-dim);font-size:0.92rem;line-height:1.7;margin-top:12px; }}
     .hero-stats {{ display:flex;gap:28px;margin-top:22px; }}
     .stat-item {{ display:flex;flex-direction:column;gap:2px; }}
-    .stat-value {{ font-size:1.35rem;font-weight:800;letter-spacing:-0.01em; }}
+    .stat-value {{
+      font-size:1.35rem;font-weight:900;letter-spacing:-0.01em;
+      background:var(--accent-gradient);-webkit-background-clip:text;
+      -webkit-text-fill-color:transparent;background-clip:text;
+    }}
+    .stat-item:nth-child(2) .stat-value {{
+      background:linear-gradient(135deg,#34d399,#2dd4bf);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    }}
+    .stat-item:nth-child(3) .stat-value {{
+      background:linear-gradient(135deg,#fbbf24,#fb7185);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    }}
     .stat-label {{ font-size:0.72rem;color:var(--text-dim);letter-spacing:0.03em; }}
     /* ── Sidebar NEW picks ── */
     .hero-side {{ padding:22px 18px; }}
@@ -1163,9 +1166,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .new-item:hover {{ background:rgba(255,255,255,0.07); }}
     .new-badge {{
-      padding:3px 10px;border-radius:999px;
+      padding:4px 12px;border-radius:999px;
       background:linear-gradient(135deg,#f472b6,#a78bfa);
-      font-size:0.7rem;font-weight:800;color:#fff;white-space:nowrap;
+      font-size:0.74rem;font-weight:800;color:#fff;white-space:nowrap;
     }}
     .new-text {{ font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }}
     /* ── Content area ── */
@@ -1221,7 +1224,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       background:linear-gradient(180deg,rgba(251,191,36,0.08),rgba(255,255,255,0.02));
     }}
     /* ── Cards grid ── */
-    .cards {{ display:grid;grid-template-columns:repeat(3,1fr);gap:16px; }}
+    .cards {{ display:grid;grid-template-columns:repeat(3,1fr);gap:14px; }}
     .card {{
       border:1px solid var(--glass-border);border-radius:18px;overflow:hidden;
       background:rgba(255,255,255,0.03);transition:transform 0.2s,box-shadow 0.2s;
@@ -1254,10 +1257,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       background:rgba(10,15,30,0.82);color:#fff;
       font-size:0.74rem;font-weight:800;line-height:1;
     }}
-    .card-meta {{ padding:14px 16px; }}
+    .card-meta {{ padding:15px 17px; }}
     .card-title {{
       display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
-      overflow:hidden;font-size:0.92rem;font-weight:700;line-height:1.45;
+      overflow:hidden;font-size:0.95rem;font-weight:700;line-height:1.45;
       min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-dim); }}
@@ -1279,8 +1282,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .channel-name {{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0; }}
     .channel-avatar {{ width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#f472b6,#a78bfa);flex:0 0 18px; }}
-    .card-views {{ white-space:nowrap;color:#d8f2ff;font-weight:700;font-size:0.82rem; }}
-    .arrow {{ font-style:normal;margin-right:2px; }}
+    .card-views {{
+      white-space:nowrap;font-weight:700;font-size:0.84rem;
+      color:var(--accent-purple);display:flex;align-items:center;gap:4px;
+    }}
+    .arrow {{ font-style:normal;color:#34d399; }}
     .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim); }}
     .empty {{ padding:20px;border:1px dashed var(--glass-border);color:var(--text-dim);background:rgba(255,255,255,0.03); }}
     /* ── Pagination tabs ── */
@@ -1387,7 +1393,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .side-title {{ font-size:0.95rem; }}
       .new-list {{ gap:8px; }}
       .new-item {{ padding:10px 12px;border-radius:10px;gap:8px; }}
-      .new-badge {{ padding:2px 8px;font-size:0.65rem; }}
+      .new-badge {{ padding:3px 9px;font-size:0.68rem; }}
       .new-text {{ font-size:0.82rem; }}
       .content {{ padding:16px 14px; }}
       .content-head {{ flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:16px; }}
@@ -1436,10 +1442,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         <div class="topbar-logo">VCLIP</div>
         <span>VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></span>
       </div>
-      <div class="topbar-nav">
-        <a href="/" class="active">\u30e9\u30f3\u30ad\u30f3\u30b0</a>
-        <a href="/policy">\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc</a>
-      </div>
+
     </nav>
 
     <!-- ── Hero + Sidebar ── -->
@@ -1447,7 +1450,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       <section class="glass-panel hero-main animate-in delay-1">
         <div class="hero-eyebrow">
           <span class="dot"></span>
-          <span>LIVE \u2014 \u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0\u4e2d</span>
+          <span>LIVE \u30fb \u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0\u4e2d</span>
         </div>
         <h1 class="hero-heading">
           VTuber\u5207\u308a\u629c\u304d\u306e<br>
@@ -1500,7 +1503,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         <a href="#">\u5229\u7528\u898f\u7d04</a>
         <a href="#">\u304a\u554f\u3044\u5408\u308f\u305b</a>
       </div>
-      <span>VCLIP \u2014 VTuber\u5207\u308a\u629c\u304d\u30e9\u30f3\u30ad\u30f3\u30b0 &copy; 2026</span>
+      <span>VCLIP | VTuber\u5207\u308a\u629c\u304d\u30e9\u30f3\u30ad\u30f3\u30b0 &copy; 2026</span>
     </footer>
   </main>
   <div id="player-modal" class="player-modal" aria-hidden="true">
@@ -1781,28 +1784,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         periodRoot.appendChild(panel);
       }});
 
-      // Content tab switching within each group panel
-      periodRoot.querySelectorAll(".content-tab-button").forEach(btn => {{
-        btn.addEventListener("click", () => {{
-          const groupPanel = btn.closest(".group-panel");
-          if (!groupPanel) return;
-          groupPanel.querySelectorAll(".content-tab-button").forEach(b => b.classList.remove("active"));
-          groupPanel.querySelectorAll(".content-panel").forEach(p => p.classList.remove("active"));
-          btn.classList.add("active");
-          const target = btn.dataset.contentTarget;
-          const targetPanel = groupPanel.querySelector(`.content-panel[data-content-panel="${{target}}"]`);
-          if (targetPanel) targetPanel.classList.add("active");
-          applyPagination();
-        }});
-      }});
-
       // Show correct content type panels
       periodRoot.querySelectorAll(".content-panel").forEach(panel => {{
         panel.classList.toggle("active", panel.dataset.contentPanel === activeContentType);
       }});
-      periodRoot.querySelectorAll(".content-tab-button").forEach(btn => {{
-        btn.classList.toggle("active", btn.dataset.contentTarget === activeContentType);
-      }});
+
 
       applyPagination();
     }}
@@ -2077,5 +2063,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 
