@@ -41,6 +41,8 @@ RANKING_TABLES: dict[str, dict[str, str]] = {
     },
 }
 
+CLIP_KEYWORD_PATTERN = "%切り抜き%"
+
 
 def _load_excluded_channel_ids() -> list[str]:
     """Load manually excluded channel IDs from a text file."""
@@ -59,6 +61,97 @@ def _load_excluded_channel_ids() -> list[str]:
     return list(dict.fromkeys(channel_ids))
 
 
+def _build_exclude_filter(excluded_channel_ids: list[str]) -> tuple[str, tuple]:
+    if not excluded_channel_ids:
+        return "", ()
+    return " AND NOT (v.channel_id = ANY(%s))", (excluded_channel_ids,)
+
+
+def _growth_expression(is_strict_daily: bool) -> str:
+    if is_strict_daily:
+        return """
+                            CASE
+                                WHEN (v.published_at + interval '9 hours')::date = ((%s AT TIME ZONE 'Asia/Tokyo')::date)
+                                    THEN l.view_count - COALESCE(f.view_count, l.view_count)
+                                ELSE l.view_count - o.view_count
+                            END
+        """
+    return "l.view_count - COALESCE(o.view_count, f.view_count, l.view_count)"
+
+
+def _build_ranking_sql(table: str, exclude_clause: str, growth_expr: str) -> str:
+    return f"""
+                    WITH latest_stats AS (
+                        SELECT DISTINCT ON (video_id)
+                            video_id,
+                            view_count
+                        FROM video_stats
+                        ORDER BY video_id, timestamp DESC
+                    ),
+                    old_stats AS (
+                        SELECT DISTINCT ON (video_id)
+                            video_id,
+                            view_count
+                        FROM video_stats
+                        WHERE timestamp <= %s
+                        ORDER BY video_id, timestamp DESC
+                    ),
+                    first_stats AS (
+                        SELECT DISTINCT ON (video_id)
+                            video_id,
+                            view_count
+                        FROM video_stats
+                        ORDER BY video_id, timestamp ASC
+                    ),
+                    growth AS (
+                        SELECT
+                            l.video_id,
+                            {growth_expr} AS view_growth
+                        FROM latest_stats l
+                        LEFT JOIN old_stats o ON l.video_id = o.video_id
+                        LEFT JOIN first_stats f ON l.video_id = f.video_id
+                        JOIN videos v ON v.video_id = l.video_id
+                        WHERE (v.title LIKE %s OR v.tags_text LIKE %s)
+                          AND v.content_type = %s
+                          {exclude_clause}
+                    ),
+                    ranked AS (
+                        SELECT
+                            video_id,
+                            view_growth,
+                            ROW_NUMBER() OVER (ORDER BY view_growth DESC) AS rank
+                        FROM growth
+                        WHERE view_growth > 0
+                    )
+                    INSERT INTO {table} (video_id, view_growth, rank, calculated_at)
+                    SELECT video_id, view_growth, rank, %s
+                    FROM ranked
+                """
+
+
+def _build_ranking_params(
+    *,
+    period_start: datetime,
+    now_utc: datetime,
+    content_type: str,
+    excluded_params: tuple,
+    is_strict_daily: bool,
+) -> tuple:
+    params: list[object] = [period_start]
+    if is_strict_daily:
+        params.append(now_utc)
+    params.extend([CLIP_KEYWORD_PATTERN, CLIP_KEYWORD_PATTERN, content_type])
+    params.extend(excluded_params)
+    params.append(now_utc)
+    return tuple(params)
+
+
+def _iter_ranking_tasks():
+    for period_name, period_hours in PERIODS.items():
+        for content_type, table in RANKING_TABLES[period_name].items():
+            yield period_name, period_hours, content_type, table
+
+
 def _calculate_ranking(period_name: str, period_hours: int, content_type: str, table: str) -> None:
     """
     Compute view-growth ranking for one period and one content type.
@@ -75,138 +168,21 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
     is_strict_daily = period_name == "daily" and DAILY_STRICT_24H_DIFF
 
     excluded_channel_ids = _load_excluded_channel_ids()
-    exclude_clause = ""
-    excluded_params: tuple = ()
-    if excluded_channel_ids:
-        exclude_clause = " AND NOT (v.channel_id = ANY(%s))"
-        excluded_params = (excluded_channel_ids,)
+    exclude_clause, excluded_params = _build_exclude_filter(excluded_channel_ids)
+    growth_expr = _growth_expression(is_strict_daily)
+    sql = _build_ranking_sql(table, exclude_clause, growth_expr)
+    params = _build_ranking_params(
+        period_start=period_start,
+        now_utc=now_utc,
+        content_type=content_type,
+        excluded_params=excluded_params,
+        is_strict_daily=is_strict_daily,
+    )
 
     conn = get_connection()
     try:
         with conn.cursor() as cur:
             cur.execute(f"DELETE FROM {table}")
-
-            if is_strict_daily:
-                sql = f"""
-                    WITH latest_stats AS (
-                        SELECT DISTINCT ON (video_id)
-                            video_id,
-                            view_count,
-                            timestamp AS latest_ts
-                        FROM video_stats
-                        ORDER BY video_id, timestamp DESC
-                    ),
-                    old_stats AS (
-                        SELECT DISTINCT ON (video_id)
-                            video_id,
-                            view_count,
-                            timestamp AS old_ts
-                        FROM video_stats
-                        WHERE timestamp <= %s
-                        ORDER BY video_id, timestamp DESC
-                    ),
-                    first_stats AS (
-                        SELECT DISTINCT ON (video_id)
-                            video_id,
-                            view_count,
-                            timestamp AS first_ts
-                        FROM video_stats
-                        ORDER BY video_id, timestamp ASC
-                    ),
-                    growth AS (
-                        SELECT
-                            l.video_id,
-                            CASE
-                                WHEN (v.published_at + interval '9 hours')::date = ((%s AT TIME ZONE 'Asia/Tokyo')::date)
-                                    THEN l.view_count - COALESCE(f.view_count, l.view_count)
-                                ELSE l.view_count - o.view_count
-                            END AS view_growth
-                        FROM latest_stats l
-                        JOIN videos v ON v.video_id = l.video_id
-                        LEFT JOIN old_stats o ON l.video_id = o.video_id
-                        LEFT JOIN first_stats f ON l.video_id = f.video_id
-                        WHERE (v.title LIKE %s OR v.tags_text LIKE %s)
-                          AND v.content_type = %s
-                          {exclude_clause}
-                    ),
-                    ranked AS (
-                        SELECT
-                            video_id,
-                            view_growth,
-                            ROW_NUMBER() OVER (ORDER BY view_growth DESC) AS rank
-                        FROM growth
-                        WHERE view_growth > 0
-                    )
-                    INSERT INTO {table} (video_id, view_growth, rank, calculated_at)
-                    SELECT video_id, view_growth, rank, %s
-                    FROM ranked
-                """
-                params = (
-                    period_start,
-                    now_utc,
-                    "%切り抜き%",
-                    "%切り抜き%",
-                    content_type,
-                    *excluded_params,
-                    now_utc,
-                )
-            else:
-                sql = f"""
-                    WITH latest_stats AS (
-                        SELECT DISTINCT ON (video_id)
-                            video_id,
-                            view_count
-                        FROM video_stats
-                        ORDER BY video_id, timestamp DESC
-                    ),
-                    old_stats AS (
-                        SELECT DISTINCT ON (video_id)
-                            video_id,
-                            view_count
-                        FROM video_stats
-                        WHERE timestamp <= %s
-                        ORDER BY video_id, timestamp DESC
-                    ),
-                    first_stats AS (
-                        SELECT DISTINCT ON (video_id)
-                            video_id,
-                            view_count
-                        FROM video_stats
-                        ORDER BY video_id, timestamp ASC
-                    ),
-                    growth AS (
-                        SELECT
-                            l.video_id,
-                            l.view_count - COALESCE(o.view_count, f.view_count, l.view_count) AS view_growth
-                        FROM latest_stats l
-                        LEFT JOIN old_stats o ON l.video_id = o.video_id
-                        LEFT JOIN first_stats f ON l.video_id = f.video_id
-                        JOIN videos v ON v.video_id = l.video_id
-                        WHERE (v.title LIKE %s OR v.tags_text LIKE %s)
-                          AND v.content_type = %s
-                          {exclude_clause}
-                    ),
-                    ranked AS (
-                        SELECT
-                            video_id,
-                            view_growth,
-                            ROW_NUMBER() OVER (ORDER BY view_growth DESC) AS rank
-                        FROM growth
-                        WHERE view_growth > 0
-                    )
-                    INSERT INTO {table} (video_id, view_growth, rank, calculated_at)
-                    SELECT video_id, view_growth, rank, %s
-                    FROM ranked
-                """
-                params = (
-                    period_start,
-                    "%切り抜き%",
-                    "%切り抜き%",
-                    content_type,
-                    *excluded_params,
-                    now_utc,
-                )
-
             cur.execute(sql, params)
             row_count = cur.rowcount
 
@@ -227,13 +203,11 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
 def run_rankings() -> None:
     """Calculate all ranking periods for shorts and video separately."""
     logger.info("=== Ranking calculation started ===")
-    for period_name, period_hours in PERIODS.items():
-        for content_type in ("shorts", "video"):
-            table = RANKING_TABLES[period_name][content_type]
-            try:
-                _calculate_ranking(period_name, period_hours, content_type, table)
-            except Exception:
-                logger.exception("Error computing %s/%s ranking", period_name, content_type)
+    for period_name, period_hours, content_type, table in _iter_ranking_tasks():
+        try:
+            _calculate_ranking(period_name, period_hours, content_type, table)
+        except Exception:
+            logger.exception("Error computing %s/%s ranking", period_name, content_type)
     logger.info("=== Ranking calculation finished ===")
 
 
