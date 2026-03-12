@@ -551,7 +551,7 @@ def _render_cards(
                   {group_pill_html}
                 </div>
                 <div class="card-info card-info-bottom">
-                  <span class="card-views"><em class="arrow">↑</em>+{row['view_growth']:,}</span>
+                  <span class="card-views"><em class="arrow">↑</em><span class="view-growth">+{row['view_growth']:,}</span></span>
                   <span class="card-date">{html.escape(published_label)}</span>
                 </div>
                 <div class="card-actions">
@@ -1260,12 +1260,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .card-meta {{ padding:15px 17px; }}
     .card-title {{
       display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
-      overflow:hidden;font-size:0.95rem;font-weight:700;line-height:1.45;
+      overflow:hidden;font-size:1.01rem;font-weight:700;line-height:1.5;
       min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
     }}
-    .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-dim); }}
+    .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
     .card-info-top {{ margin-bottom:6px; }}
-    .card-info-bottom {{ justify-content:space-between;margin-bottom:8px;font-size:0.8rem; }}
+    .card-info-bottom {{ justify-content:space-between;margin-bottom:8px;font-size:0.84rem; }}
     .card-date {{ color:var(--text-dim);white-space:nowrap; }}
     .card-actions {{ display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:0.82rem; }}
     .card-action-link {{ color:#8ad7ff;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px; }}
@@ -1280,11 +1280,14 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       width:20px;height:20px;border-radius:50%;border:1px solid var(--glass-border);
       color:var(--text-dim);font-size:0.6rem;align-items:center;justify-content:center;flex:0 0 20px;
     }}
-    .channel-name {{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0; }}
+    .channel-name {{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:0.9rem; }}
     .channel-avatar {{ width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#f472b6,#a78bfa);flex:0 0 18px; }}
     .card-views {{
-      white-space:nowrap;font-weight:700;font-size:0.84rem;
-      color:var(--accent-purple);display:flex;align-items:center;gap:4px;
+      white-space:nowrap;font-weight:700;font-size:0.9rem;
+      display:flex;align-items:center;gap:4px;
+    }}
+    .card-views .view-growth {{
+      color:var(--accent-purple);
     }}
     .arrow {{ font-style:normal;color:#34d399; }}
     .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim); }}
@@ -1412,8 +1415,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .cards {{ grid-template-columns:1fr;gap:12px; }}
       .card {{ border-radius:14px; }}
       .card-meta {{ padding:12px 14px; }}
-      .card-title {{ font-size:0.88rem;margin-bottom:8px; }}
-      .card-info {{ font-size:0.75rem; }}
+      .card-title {{ font-size:0.94rem;margin-bottom:8px; }}
+      .card-info {{ font-size:0.8rem; }}
       .rank-badge {{ width:28px;height:28px;font-size:0.78rem;border-radius:8px;top:8px;left:8px; }}
       .back-to-top {{ margin-top:20px; }}
       .back-to-top a {{ padding:10px 24px;font-size:0.82rem;border-radius:10px; }}
@@ -1479,7 +1482,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     <section class="glass-panel content animate-in delay-3" id="ranking-section">
       <div class="content-head">
         <h2 class="content-title">
-          <em class="section-icon" id="ranking-icon">\ud83c\udfac</em><span id="ranking-label">Shorts \u30e9\u30f3\u30ad\u30f3\u30b0</span>
+          <em class="section-icon" id="ranking-icon">▶</em><span id="ranking-label">Shorts \u30e9\u30f3\u30ad\u30f3\u30b0</span>
         </h2>
         <div class="filter-row">
           <div class="type-tabs" id="type-tabs"></div>
@@ -1547,8 +1550,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const MOBILE_BREAKPOINT = 760;
     const pageState = {{}};
     const typeConfig = {{
-      shorts: {{ icon: "\ud83c\udfac", label: "Shorts \u30e9\u30f3\u30ad\u30f3\u30b0" }},
-      video:  {{ icon: "\ud83c\udfa5", label: "\u52d5\u753b\u30e9\u30f3\u30ad\u30f3\u30b0" }}
+      shorts: {{ icon: "▶", label: "Shorts \u30e9\u30f3\u30ad\u30f3\u30b0" }},
+      video:  {{ icon: "▦", label: "\u52d5\u753b\u30e9\u30f3\u30ad\u30f3\u30b0" }}
     }};
 
     function setPlayerLayout(layout) {{
