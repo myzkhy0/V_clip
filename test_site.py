@@ -1293,8 +1293,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim); }}
     .empty {{ padding:20px;border:1px dashed var(--glass-border);color:var(--text-dim);background:rgba(255,255,255,0.03); }}
     /* ── Pagination tabs ── */
-    .page-tabs {{ display:none;gap:4px;flex-wrap:wrap;margin-top:12px; }}
-    .page-tabs.bottom {{ margin-top:16px;justify-content:center; }}
+    .page-tabs {{ display:none;gap:4px;flex-wrap:wrap;margin-top:12px;margin-bottom:10px; }}
+    .page-tabs.bottom {{ margin-top:16px;margin-bottom:0;justify-content:center; }}
     .page-tab {{
       border:1px solid rgba(100,160,240,0.12);background:rgba(255,255,255,0.03);
       color:var(--text-dim);border-radius:8px;padding:6px 14px;font-size:0.82rem;
@@ -1410,7 +1410,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .tab-button {{ padding:7px 14px;font-size:0.82rem;border-radius:9px; }}
       .lane-block {{ margin-top:10px;padding:10px;border-radius:12px; }}
       .lane-block h3 {{ margin-bottom:8px;font-size:0.86rem; }}
-      .page-tabs {{ display:flex;gap:3px; }}
+      .page-tabs {{ display:flex;gap:3px;margin-bottom:12px; }}
       .page-tab {{ padding:5px 10px;font-size:0.75rem;border-radius:6px; }}
       .cards {{ grid-template-columns:1fr;gap:12px; }}
       .card {{ border-radius:14px; }}
