@@ -8,6 +8,8 @@ retrieve video details (duration, view count, like count).
 import json
 import logging
 import re
+import ssl
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -25,6 +27,10 @@ from config import (
 )
 
 logger = logging.getLogger(__name__)
+_TRANSIENT_HTTP_STATUSES = {429, 500, 502, 503, 504}
+_REQUEST_RETRY_MAX_ATTEMPTS = 4
+_REQUEST_RETRY_BASE_SECONDS = 1.0
+_REQUEST_RETRY_MAX_SECONDS = 8.0
 
 
 class QuotaExceededError(RuntimeError):
@@ -54,16 +60,70 @@ def _is_quota_exceeded_http_error(exc: HttpError) -> bool:
     return "quota" in text and "exceeded" in text
 
 
+def _is_transient_request_error(exc: Exception) -> bool:
+    """Return True for transient transport errors worth retrying."""
+    if isinstance(exc, ssl.SSLError):
+        return True
+    text = str(exc).lower()
+    transient_markers = (
+        "timed out",
+        "timeout",
+        "temporarily unavailable",
+        "connection reset",
+        "connection aborted",
+        "connection refused",
+        "server not found",
+        "wrong version number",
+        "decryption failed or bad record mac",
+        "tls",
+        "ssl",
+    )
+    return any(marker in text for marker in transient_markers)
+
+
+def _retry_sleep_seconds(attempt: int) -> float:
+    """Exponential backoff in seconds for request retries."""
+    return min(_REQUEST_RETRY_MAX_SECONDS, _REQUEST_RETRY_BASE_SECONDS * (2 ** (attempt - 1)))
+
+
 def _execute_request(request, context: str):
-    """Execute a googleapiclient request with normalized quota errors."""
-    try:
-        return request.execute()
-    except HttpError as exc:
-        if _is_quota_exceeded_http_error(exc):
-            raise QuotaExceededError(
-                f"YouTube API quota exceeded during {context}."
-            ) from exc
-        raise
+    """Execute a googleapiclient request with normalized quota errors and retries."""
+    for attempt in range(1, _REQUEST_RETRY_MAX_ATTEMPTS + 1):
+        try:
+            return request.execute()
+        except HttpError as exc:
+            if _is_quota_exceeded_http_error(exc):
+                raise QuotaExceededError(
+                    f"YouTube API quota exceeded during {context}."
+                ) from exc
+            status = getattr(getattr(exc, "resp", None), "status", None)
+            if status in _TRANSIENT_HTTP_STATUSES and attempt < _REQUEST_RETRY_MAX_ATTEMPTS:
+                sleep_s = _retry_sleep_seconds(attempt)
+                logger.warning(
+                    "Transient HttpError during %s (status=%s, attempt %d/%d). Retrying in %.1fs.",
+                    context,
+                    status,
+                    attempt,
+                    _REQUEST_RETRY_MAX_ATTEMPTS,
+                    sleep_s,
+                )
+                time.sleep(sleep_s)
+                continue
+            raise
+        except Exception as exc:
+            if _is_transient_request_error(exc) and attempt < _REQUEST_RETRY_MAX_ATTEMPTS:
+                sleep_s = _retry_sleep_seconds(attempt)
+                logger.warning(
+                    "Transient API transport error during %s (%s, attempt %d/%d). Retrying in %.1fs.",
+                    context,
+                    exc.__class__.__name__,
+                    attempt,
+                    _REQUEST_RETRY_MAX_ATTEMPTS,
+                    sleep_s,
+                )
+                time.sleep(sleep_s)
+                continue
+            raise
 
 
 def _quota_state_path() -> Path:
