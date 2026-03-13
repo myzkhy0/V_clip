@@ -438,7 +438,11 @@ def _format_duration_label(duration_seconds: object) -> str:
     return f"{minutes}:{seconds:02d}"
 
 
-def _merge_daily_rows(strict_rows: list[dict], provisional_rows: list[dict]) -> list[dict]:
+def _merge_daily_rows(
+    strict_rows: list[dict],
+    provisional_rows: list[dict],
+    top_n: int = 100,
+) -> list[dict]:
     merged: dict[str, dict] = {}
 
     def _row_growth(row: dict) -> int:
@@ -461,11 +465,12 @@ def _merge_daily_rows(strict_rows: list[dict], provisional_rows: list[dict]) -> 
             elif row.get("is_new"):
                 current["is_new"] = True
 
+    limit = max(1, int(top_n))
     sorted_rows = sorted(
         merged.values(),
         key=lambda r: (_row_growth(r), r.get("video_id") or ""),
         reverse=True,
-    )[:100]
+    )[:limit]
     for idx, row in enumerate(sorted_rows, start=1):
         row["rank"] = idx
     return sorted_rows
@@ -580,13 +585,18 @@ def _render_group_content(
     period_key: str = "daily",
     provisional_shorts_rows: list[dict] | None = None,
     provisional_video_rows: list[dict] | None = None,
+    top_n: int = 100,
 ) -> str:
     provisional_shorts_rows = provisional_shorts_rows or []
     provisional_video_rows = provisional_video_rows or []
 
     if period_key == "daily":
-        display_shorts_rows = _merge_daily_rows(shorts_rows, provisional_shorts_rows)
-        display_video_rows = _merge_daily_rows(video_rows, provisional_video_rows)
+        display_shorts_rows = _merge_daily_rows(
+            shorts_rows, provisional_shorts_rows, top_n=top_n
+        )
+        display_video_rows = _merge_daily_rows(
+            video_rows, provisional_video_rows, top_n=top_n
+        )
     else:
         display_shorts_rows = shorts_rows
         display_video_rows = video_rows
@@ -670,6 +680,7 @@ def _build_period_payload(is_admin: bool = False) -> list[dict]:
                         period_key=period_key,
                         provisional_shorts_rows=grouped_provisional_shorts.get(group_name, []),
                         provisional_video_rows=grouped_provisional_video.get(group_name, []),
+                        top_n=top_n,
                     )
                     for group_name in available_groups
                 },
