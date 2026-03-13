@@ -169,7 +169,7 @@ def _build_robots_txt(base_url: str) -> str:
     if normalized:
         lines.append(f"Sitemap: {normalized}/sitemap.xml")
     return "\n".join(lines) + "\n"
-def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
+def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | None, list[dict]]:
     try:
         latest_row = fetchall(
             f"""
@@ -211,6 +211,7 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
         )
         previous_ids = {row["video_id"] for row in prev_rows}
 
+    limit = max(1, int(top_n))
     rows = fetchall(
         f"""
         SELECT
@@ -231,9 +232,9 @@ def _fetch_latest_rankings(table: str) -> tuple[datetime | None, list[dict]]:
         JOIN videos v ON v.video_id = r.video_id
         WHERE r.calculated_at = %s
         ORDER BY r.rank
-        LIMIT 100
+        LIMIT %s
         """,
-        (calculated_at,),
+        (calculated_at, limit),
     )
 
     now_utc = datetime.now(timezone.utc)
@@ -264,7 +265,7 @@ def _load_excluded_channel_ids() -> list[str]:
     return list(dict.fromkeys(channel_ids))
 
 
-def _fetch_daily_provisional_rows(content_type: str) -> list[dict]:
+def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[dict]:
     # Provisional daily lane:
     # - videos without a snapshot older than 24h
     # - growth = latest - first snapshot (same-day provisional)
@@ -277,6 +278,7 @@ def _fetch_daily_provisional_rows(content_type: str) -> list[dict]:
         exclude_clause = " AND NOT (v.channel_id = ANY(%s))"
         params.append(excluded_channel_ids)
 
+    limit = max(1, int(top_n))
     rows = fetchall(
         f"""
         WITH latest_stats AS (
@@ -346,9 +348,9 @@ def _fetch_daily_provisional_rows(content_type: str) -> list[dict]:
         SELECT *
         FROM ranked
         ORDER BY rank
-        LIMIT 100
+        LIMIT %s
         """,
-        tuple(params),
+        (*tuple(params), limit),
     )
 
     now_utc = datetime.now(timezone.utc)
@@ -609,15 +611,16 @@ def _render_group_content(
     """
 def _build_period_payload(is_admin: bool = False) -> list[dict]:
     payload = []
+    top_n = 200 if is_admin else 100
     for period_key, label, shorts_table, video_table in PERIODS:
-        shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table)
-        video_calculated_at, video_rows = _fetch_latest_rankings(video_table)
+        shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table, top_n=top_n)
+        video_calculated_at, video_rows = _fetch_latest_rankings(video_table, top_n=top_n)
 
         provisional_shorts_rows: list[dict] = []
         provisional_video_rows: list[dict] = []
         if period_key == "daily":
-            provisional_shorts_rows = _fetch_daily_provisional_rows("shorts")
-            provisional_video_rows = _fetch_daily_provisional_rows("video")
+            provisional_shorts_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
+            provisional_video_rows = _fetch_daily_provisional_rows("video", top_n=top_n)
 
         grouped_shorts: dict[str, list[dict]] = defaultdict(list)
         grouped_video: dict[str, list[dict]] = defaultdict(list)
