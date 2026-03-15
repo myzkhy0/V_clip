@@ -81,7 +81,24 @@ def _growth_expression(is_strict_daily: bool) -> str:
     return "l.view_count - COALESCE(o.view_count, f.view_count, l.view_count)"
 
 
-def _build_ranking_sql(table: str, exclude_clause: str, growth_expr: str) -> str:
+def _build_ranking_sql(
+    table: str,
+    exclude_clause: str,
+    growth_expr: str,
+    is_strict_daily: bool,
+) -> str:
+    if is_strict_daily:
+        is_today_expr = (
+            "(v.published_at + interval '9 hours')::date = "
+            "((NOW() AT TIME ZONE 'Asia/Tokyo')::date)"
+        )
+        ranked_where = "WHERE view_growth > 0 OR is_today_jst"
+        ranked_order = "ORDER BY view_growth DESC, latest_view_count DESC"
+    else:
+        is_today_expr = "FALSE"
+        ranked_where = "WHERE view_growth > 0"
+        ranked_order = "ORDER BY view_growth DESC"
+
     return f"""
                     WITH latest_stats AS (
                         SELECT DISTINCT ON (video_id)
@@ -108,7 +125,9 @@ def _build_ranking_sql(table: str, exclude_clause: str, growth_expr: str) -> str
                     growth AS (
                         SELECT
                             l.video_id,
-                            {growth_expr} AS view_growth
+                            {growth_expr} AS view_growth,
+                            l.view_count AS latest_view_count,
+                            {is_today_expr} AS is_today_jst
                         FROM latest_stats l
                         LEFT JOIN old_stats o ON l.video_id = o.video_id
                         LEFT JOIN first_stats f ON l.video_id = f.video_id
@@ -125,9 +144,9 @@ def _build_ranking_sql(table: str, exclude_clause: str, growth_expr: str) -> str
                         SELECT
                             video_id,
                             view_growth,
-                            ROW_NUMBER() OVER (ORDER BY view_growth DESC) AS rank
+                            ROW_NUMBER() OVER ({ranked_order}) AS rank
                         FROM growth
-                        WHERE view_growth > 0
+                        {ranked_where}
                     )
                     INSERT INTO {table} (video_id, view_growth, rank, calculated_at)
                     SELECT video_id, view_growth, rank, %s
@@ -182,7 +201,7 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
     excluded_channel_ids = _load_excluded_channel_ids()
     exclude_clause, excluded_params = _build_exclude_filter(excluded_channel_ids)
     growth_expr = _growth_expression(is_strict_daily)
-    sql = _build_ranking_sql(table, exclude_clause, growth_expr)
+    sql = _build_ranking_sql(table, exclude_clause, growth_expr, is_strict_daily)
     params = _build_ranking_params(
         period_start=period_start,
         now_utc=now_utc,
