@@ -27,6 +27,7 @@ FAVICON_FILE = os.getenv(
     "TEST_SITE_FAVICON_FILE",
     str(Path(__file__).resolve().parent / "assets" / "ueno-icon.jpg"),
 ).strip()
+DEFAULT_OG_IMAGE_FILE = str(Path(__file__).resolve().parent / "assets" / "site-logo.jpg")
 ADMIN_TOKEN = os.getenv("TEST_SITE_ADMIN_TOKEN", "")
 GA_MEASUREMENT_ID = os.getenv("GA_MEASUREMENT_ID", "").strip()
 SITE_BASE_URL = os.getenv("TEST_SITE_BASE_URL", "").strip()
@@ -93,7 +94,14 @@ def _normalize_base_url(raw: str) -> str:
 def _build_head_meta(base_url: str, is_admin: bool) -> str:
     canonical_url = f"{base_url}/" if base_url else ""
     robots = "noindex, nofollow" if is_admin else "index, follow"
-    og_image_url = f"{base_url}/assets/site-logo.png" if base_url and LOGO_FILE else ""
+    og_image_url = ""
+    if base_url:
+        if LOGO_FILE and Path(LOGO_FILE).exists():
+            og_image_url = f"{base_url}/assets/site-logo.png"
+        elif Path(DEFAULT_OG_IMAGE_FILE).exists():
+            og_image_url = f"{base_url}/assets/site-logo.jpg"
+        elif FAVICON_FILE and Path(FAVICON_FILE).exists():
+            og_image_url = f"{base_url}/assets/ueno-icon.jpg"
 
     tags = [
         f'<meta name="description" content="{html.escape(SITE_DESCRIPTION, quote=True)}">',
@@ -111,20 +119,16 @@ def _build_head_meta(base_url: str, is_admin: bool) -> str:
             f'<meta property="og:title" content="{html.escape(SITE_TITLE, quote=True)}">',
             f'<meta property="og:description" content="{html.escape(SITE_DESCRIPTION, quote=True)}">',
             f'<meta property="og:locale" content="{SITE_OG_LOCALE}">',
-            f'<meta name="twitter:card" content="summary_large_image">',
-            f'<meta name="twitter:title" content="{html.escape(SITE_TITLE, quote=True)}">',
-            f'<meta name="twitter:description" content="{html.escape(SITE_DESCRIPTION, quote=True)}">',
         ]
     )
     if canonical_url:
         escaped_canonical = html.escape(canonical_url, quote=True)
         tags.append(f'<meta property="og:url" content="{escaped_canonical}">')
-        tags.append(f'<meta name="twitter:url" content="{escaped_canonical}">')
 
     if og_image_url:
         escaped_og_image = html.escape(og_image_url, quote=True)
         tags.append(f'<meta property="og:image" content="{escaped_og_image}">')
-        tags.append(f'<meta name="twitter:image" content="{escaped_og_image}">')
+        tags.append(f'<meta property="og:image:alt" content="{html.escape(SITE_TITLE, quote=True)}">')
 
     website_structured_data = {
         "@context": "https://schema.org",
@@ -729,6 +733,7 @@ def _fetch_admin_board_data() -> dict:
         "daily_shorts_rows": 0,
         "daily_video_rows": 0,
         "excluded_count": 0,
+        "ranking_last_updated": None,
     }
     try:
         rows = fetchall(
@@ -785,6 +790,30 @@ def _fetch_admin_board_data() -> dict:
             data["daily_video_rows"] = int(rows[0].get("video_rows") or 0)
     except Exception:
         logger.exception("Failed to fetch daily ranking rows for admin board")
+
+    try:
+        rows = fetchall(
+            """
+            SELECT MAX(ts) AS ranking_last_updated
+            FROM (
+                SELECT MAX(calculated_at) AS ts FROM daily_ranking_shorts
+                UNION ALL
+                SELECT MAX(calculated_at) AS ts FROM daily_ranking_video
+                UNION ALL
+                SELECT MAX(calculated_at) AS ts FROM weekly_ranking_shorts
+                UNION ALL
+                SELECT MAX(calculated_at) AS ts FROM weekly_ranking_video
+                UNION ALL
+                SELECT MAX(calculated_at) AS ts FROM monthly_ranking_shorts
+                UNION ALL
+                SELECT MAX(calculated_at) AS ts FROM monthly_ranking_video
+            ) r
+            """
+        )
+        if rows:
+            data["ranking_last_updated"] = rows[0].get("ranking_last_updated")
+    except Exception:
+        logger.exception("Failed to fetch ranking_last_updated for admin board")
 
     try:
         data["excluded_count"] = len(_load_excluded_channel_ids())
@@ -1029,6 +1058,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
             <article class="admin-metric-card"><span>最新 daily / shorts 行数</span><strong>{board['daily_shorts_rows']:,}</strong></article>
             <article class="admin-metric-card"><span>最新 daily / video 行数</span><strong>{board['daily_video_rows']:,}</strong></article>
             <article class="admin-metric-card"><span>除外チャンネル数</span><strong>{board['excluded_count']:,}</strong></article>
+            <article class="admin-metric-card"><span>最終ランキング更新（JST）</span><strong>{_fmt_datetime(board.get('ranking_last_updated'))}</strong></article>
           </div>
         </section>
         """
@@ -1936,6 +1966,15 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=3600")
             self.end_headers()
             return
+        if path_only == "/assets/site-logo.jpg":
+            if not Path(DEFAULT_OG_IMAGE_FILE).exists():
+                self.send_error(404, "Logo not found")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            return
 
         if path_only == "/robots.txt":
             body = _build_robots_txt(self._request_base_url()).encode("utf-8")
@@ -2030,6 +2069,20 @@ class TestSiteHandler(BaseHTTPRequestHandler):
                 return
             self.send_response(200)
             self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path_only == "/assets/site-logo.jpg":
+            try:
+                with open(DEFAULT_OG_IMAGE_FILE, "rb") as logo_file:
+                    body = logo_file.read()
+            except OSError:
+                self.send_error(404, "Logo not found")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "public, max-age=3600")
             self.end_headers()
