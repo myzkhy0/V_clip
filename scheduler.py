@@ -13,6 +13,8 @@ Usage:
 
 import logging
 import sys
+import time
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -30,6 +32,8 @@ from stats_collector import run_stats_collector
 
 logger = logging.getLogger(__name__)
 JST = ZoneInfo("Asia/Tokyo")
+_scheduler: BlockingScheduler | None = None
+_STATS_RETRY_JOB_ID = "vclip_stats_ranking_retry_once"
 
 
 def _parse_primary_search_hour(value: str) -> int:
@@ -70,18 +74,55 @@ def _exclude_hour(hours_csv: str, target_hour: int) -> str:
     return ",".join(kept)
 
 
+def _schedule_stats_ranking_retry(trigger_name: str) -> None:
+    """Schedule one fallback stats/ranking retry 10 minutes later."""
+    if _scheduler is None:
+        logger.warning("Scheduler not initialized; cannot schedule fallback retry.")
+        return
+    run_at = datetime.now(JST) + timedelta(minutes=10)
+    _scheduler.add_job(
+        stats_ranking_pipeline,
+        "date",
+        run_date=run_at,
+        id=_STATS_RETRY_JOB_ID,
+        replace_existing=True,
+        kwargs={"trigger_label": f"{trigger_name} fallback+10m"},
+    )
+    logger.warning(
+        "Scheduled fallback stats/ranking retry at %s (JST).",
+        run_at.strftime("%Y-%m-%d %H:%M:%S"),
+    )
+
+
 def _run_stats_and_rankings(trigger_name: str) -> None:
     """Run stats collection and ranking calculation in sequence."""
     logger.info("---- Triggering stats/ranking after %s ----", trigger_name)
+    stats_ok = False
     try:
         run_stats_collector()
+        stats_ok = True
     except Exception:
         logger.exception("Stats collector failed")
+        # 1) immediate in-job retry once
+        try:
+            logger.warning("Retrying stats collector immediately once after failure.")
+            time.sleep(2)
+            run_stats_collector()
+            stats_ok = True
+            logger.info("Stats collector immediate retry succeeded.")
+        except Exception:
+            logger.exception("Stats collector immediate retry failed")
+            # 6) schedule one fallback retry +10 minutes
+            _schedule_stats_ranking_retry(trigger_name)
 
     try:
         run_rankings()
     except Exception:
         logger.exception("Ranking calculation failed")
+    if not stats_ok:
+        logger.warning(
+            "Ranking ran without fresh stats snapshot (stats collector failed twice)."
+        )
 
 
 def search_pipeline() -> None:
@@ -105,10 +146,10 @@ def channel_update_pipeline() -> None:
     logger.info("======== Channel update pipeline end ========")
 
 
-def stats_ranking_pipeline() -> None:
+def stats_ranking_pipeline(trigger_label: str = "stats/ranking schedule") -> None:
     """Execute stats/ranking pipeline only."""
     logger.info("======== Stats/Ranking pipeline start ========")
-    _run_stats_and_rankings("stats/ranking schedule")
+    _run_stats_and_rankings(trigger_label)
     logger.info("======== Stats/Ranking pipeline end ========")
 
 
@@ -148,6 +189,8 @@ def main() -> None:
     )
 
     scheduler = BlockingScheduler(timezone=JST)
+    global _scheduler
+    _scheduler = scheduler
     scheduler.add_job(
         search_pipeline,
         "cron",
