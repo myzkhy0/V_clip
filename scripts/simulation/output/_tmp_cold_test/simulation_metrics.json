@@ -1,0 +1,19 @@
+{
+  "total_channels": 381,
+  "hot_channels": 0,
+  "warm_channels": 0,
+  "cold_channels": 0,
+  "active_channels": 381,
+  "strategy_mode": "cold_only",
+  "applied_hot_threshold": 80,
+  "applied_warm_threshold": 30,
+  "applied_cold_growth_7d_max": 5000,
+  "applied_cold_min_inactive_days": 21,
+  "estimated_daily_refresh_jobs": 2286.0,
+  "estimated_weekly_refresh_jobs": 16002.0,
+  "estimated_daily_api_cost": 2286.0,
+  "estimated_weekly_api_cost": 16002.0,
+  "current_strategy_daily_api_cost": 2286.0,
+  "current_strategy_weekly_api_cost": 16002.0,
+  "estimated_savings_ratio": 0.0
+}

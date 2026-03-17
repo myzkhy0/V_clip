@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ja" id="top">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VCLIP - 固定ヘッダー導線サンプル</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Noto+Sans+JP:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #050e1a;
+      --bg-panel: rgba(12, 28, 50, 0.72);
+      --glass-border: rgba(100, 160, 240, 0.14);
+      --text: #e8f0fb;
+      --text-dim: #8ba7c8;
+      --accent-gradient: linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #fb923c 100%);
+      --cta-gradient: linear-gradient(135deg, #7dd3fc, #22d3ee);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      color: var(--text);
+      background: var(--bg-deep);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 900px 500px at 15% 10%, rgba(167, 139, 250, 0.15), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 85% 5%, rgba(244, 114, 182, 0.12), transparent 55%),
+        radial-gradient(ellipse 600px 400px at 50% 80%, rgba(34, 211, 238, 0.06), transparent 50%);
+    }
+
+    .glass-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .fixed-header-wrap {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(1200px, calc(100% - 20px));
+      z-index: 50;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 14px;
+      box-shadow: 0 8px 28px rgba(4, 10, 24, 0.5);
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+      font-size: clamp(1rem, 1.8vw, 1.3rem);
+    }
+
+    .topbar-logo {
+      padding: 6px 12px;
+      border-radius: 10px;
+      background: var(--accent-gradient);
+      color: #fff;
+      letter-spacing: 0.05em;
+      font-size: 0.85rem;
+      font-weight: 900;
+    }
+
+    .topbar-nav { display: flex; align-items: center; gap: 8px; }
+
+    .topbar-nav a {
+      text-decoration: none;
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 0.86rem;
+      padding: 7px 12px;
+      border-radius: 9px;
+    }
+
+    .topbar-nav a.active,
+    .topbar-nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+
+    .support-btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 13px;
+      font-weight: 800;
+      font-size: 0.82rem;
+      color: #111827;
+      background: var(--cta-gradient);
+      cursor: pointer;
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 110px 0 56px;
+    }
+
+    .hero {
+      padding: 30px;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 {
+      font-size: clamp(1.25rem, 2.7vw, 2rem);
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+
+    .hero .gradient-text {
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      color: var(--text-dim);
+      line-height: 1.7;
+      font-size: 0.95rem;
+    }
+
+    .content-box {
+      padding: 22px;
+      margin-bottom: 16px;
+    }
+
+    .content-box h2 {
+      font-size: 1.04rem;
+      margin-bottom: 10px;
+    }
+
+    .content-box p {
+      color: var(--text-dim);
+      line-height: 1.7;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+    }
+
+    .mock-rows { display: grid; gap: 10px; }
+
+    .mock-row {
+      height: 54px;
+      border-radius: 12px;
+      border: 1px solid rgba(120, 170, 220, 0.2);
+      background: rgba(9, 21, 39, 0.64);
+    }
+
+    .footer {
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .footer p {
+      color: var(--text-dim);
+      font-size: 0.82rem;
+    }
+
+    @media (max-width: 720px) {
+      .topbar { flex-wrap: wrap; }
+      .topbar-brand { width: 100%; }
+      .topbar-nav { width: 100%; justify-content: space-between; }
+      .shell { padding-top: 145px; }
+      .hero { padding: 22px; }
+      .footer { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-canvas"></div>
+
+  <header class="fixed-header-wrap">
+    <nav class="topbar glass-panel">
+      <div class="topbar-brand">
+        <div class="topbar-logo">VCLIP</div>
+        <span>VTuber切り抜きランキング</span>
+      </div>
+      <div class="topbar-nav">
+        <a href="#" class="active">ランキング</a>
+        <a href="#">About</a>
+        <button class="support-btn" type="button">支援する</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="hero glass-panel">
+      <h1>固定ヘッダー + <span class="gradient-text">支援導線</span> の仮定サンプル</h1>
+      <p>
+        既存レイアウト準拠で、導線はヘッダーとフッターのみに配置したパターンです。<br>
+        本文は従来どおりランキング閲覧を優先する前提にしています。
+      </p>
+    </section>
+
+    <section class="content-box glass-panel">
+      <h2>既存コンテンツ領域（想定）</h2>
+      <p>ここには通常のランキング一覧や注目動画カードが入ります。支援導線は周辺UIとして配置し、本文の体験を崩さない設計です。</p>
+      <div class="mock-rows">
+        <div class="mock-row"></div>
+        <div class="mock-row"></div>
+        <div class="mock-row"></div>
+        <div class="mock-row"></div>
+      </div>
+    </section>
+
+    <footer class="footer glass-panel">
+      <p>VCLIP - VTuber切り抜きランキング</p>
+      <button class="support-btn" type="button">支援する</button>
+    </footer>
+  </main>
+</body>
+</html>

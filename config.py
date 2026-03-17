@@ -51,12 +51,12 @@ SEARCH_KEYWORDS: list[str] = [
 ]
 
 KEYWORD_MAX_RESULTS_OVERRIDE: dict[str, int] = {
-    "ホロライブ 切り抜き": 100,
-    "にじさんじ 切り抜き": 100,
-    "ぶいすぽ 切り抜き": 100,
+    "ホロライブ 切り抜き": 50,
+    "にじさんじ 切り抜き": 50,
+    "ぶいすぽ 切り抜き": 50,
 }
 KEYWORD_SEARCH_BATCH_SIZE: int = int(
-    os.getenv("KEYWORD_SEARCH_BATCH_SIZE", str(len(SEARCH_KEYWORDS)))
+    os.getenv("KEYWORD_SEARCH_BATCH_SIZE", "5")
 )
 KEYWORD_ROTATION_STATE_FILE: str = os.getenv(
     "KEYWORD_ROTATION_STATE_FILE",
