@@ -1153,10 +1153,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font-weight:900;font-size:clamp(1.15rem,2vw,1.55rem);letter-spacing:-0.01em;
     }}
     .topbar-logo {{
-      display:flex;align-items:center;justify-content:center;
-      padding:0;background:transparent;border:none;line-height:1;flex:0 0 auto;
+      display:flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:1;
+      padding:6px 12px;border-radius:10px;
+      background:linear-gradient(135deg,#cf7de8,#8b8dff);
+      border:1px solid rgba(255,255,255,0.18);
+      font-size:0.88rem;font-weight:900;letter-spacing:0.04em;color:#fff;
+      box-shadow:0 6px 16px rgba(113,87,196,0.22);
     }}
-    .topbar-logo img {{ display:block;height:1.45em;width:auto;max-width:none;object-fit:contain; }}
     .topbar-title {{ color:var(--text);text-decoration:none; }}
     .topbar-accent {{
       background:var(--accent-gradient);-webkit-background-clip:text;
@@ -1441,7 +1444,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .topbar {{ padding:10px 14px;border-radius:12px; }}
       .topbar-brand {{ gap:8px;font-size:0.9rem; }}
       .topbar-title {{ font-size:0.8rem;font-weight:900;line-height:1.2; }}
-      .topbar-logo img {{ height:1.38em; }}
+      .topbar-logo {{
+        padding:4px 9px;border-radius:8px;font-size:0.72rem;font-weight:800;letter-spacing:0.03em;
+        background:linear-gradient(135deg,#c37dde,#8a8ef8);
+        border-color:rgba(255,255,255,0.14);box-shadow:none;
+      }}
       .hero {{ margin-top:12px;gap:12px; }}
       .glass-panel {{ border-radius:14px; }}
       .hero-main {{ padding:22px 16px; }}
@@ -1491,7 +1498,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     @media (max-width:400px) {{
       .topbar-brand {{ align-items:center; }}
       .topbar-title {{ display:inline-block;white-space:nowrap; }}
-      .topbar-title {{ font-size:0.72rem;font-weight:900;line-height:1.2; }}
+      .topbar-title {{ font-size:0.7rem;font-weight:900;line-height:1.2; }}
       .hero-heading {{ font-size:1.15rem; }}
       .hero-stats {{ gap:12px; }}
       .stat-value {{ font-size:1rem; }}
@@ -1505,7 +1512,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     <!-- ── Topbar ── -->
     <nav class="topbar animate-in">
       <div class="topbar-brand">
-        <div class="topbar-logo"><img src="/assets/site-logo.jpg" alt="VCLIP logo"></div>
+        <div class="topbar-logo">VCLIP</div>
         <a class="topbar-title" href="/">VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></a>
       </div>
 
@@ -2259,10 +2266,13 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     }}
     .topbar-brand {{ display:flex;align-items:center;gap:10px;font-weight:900;font-size:clamp(1.15rem,2vw,1.55rem);letter-spacing:-0.01em; }}
     .topbar-logo {{
-      display:flex;align-items:center;justify-content:center;
-      padding:0;background:transparent;border:none;line-height:1;flex:0 0 auto;
+      display:flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:1;
+      padding:6px 12px;border-radius:10px;
+      background:linear-gradient(135deg,#cf7de8,#8b8dff);
+      border:1px solid rgba(255,255,255,0.18);
+      font-size:0.88rem;font-weight:900;letter-spacing:0.04em;color:#fff;
+      box-shadow:0 6px 16px rgba(113,87,196,0.22);
     }}
-    .topbar-logo img {{ display:block;height:1.45em;width:auto;max-width:none;object-fit:contain; }}
     .topbar-title {{ color:var(--text);text-decoration:none; }}
     .topbar-accent {{ background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }}
     .title {{ margin:0;font-size:clamp(1.05rem,2vw,1.35rem);line-height:1.4; }}
@@ -2313,7 +2323,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     @media (max-width:760px) {{
       .shell{{width:calc(100% - 16px);}} .panel{{padding:12px;border-radius:14px;}}
       .topbar{{padding:10px 14px;border-radius:12px;}} .topbar-brand{{gap:8px;font-size:.9rem;}}
-      .topbar-logo img{{height:1.38em;}}
+      .topbar-logo{{padding:4px 9px;border-radius:8px;font-size:.72rem;font-weight:800;letter-spacing:.03em;border-color:rgba(255,255,255,.14);box-shadow:none;}}
     }}
     @media (max-width:560px) {{ .cards{{grid-template-columns:1fr;}} .related-list{{grid-template-columns:1fr;}} .card-value{{font-size:1.14rem;}} }}
   </style>
@@ -2322,7 +2332,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
   <main class="shell">
     <nav class="topbar">
       <div class="topbar-brand">
-        <div class="topbar-logo"><img src="/assets/site-logo.jpg" alt="VCLIP logo"></div>
+        <div class="topbar-logo">VCLIP</div>
         <a class="topbar-title" href="/">VTuber切り抜き<span class="topbar-accent">ランキング</span></a>
       </div>
     </nav>
