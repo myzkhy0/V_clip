@@ -1017,10 +1017,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     body_class = "admin-mode" if is_admin else ""
     logo_html = ""
     analytics_html = ""
-    if LOGO_FILE and Path(LOGO_FILE).exists():
+    if Path(DEFAULT_OG_IMAGE_FILE).exists() or (LOGO_FILE and Path(LOGO_FILE).exists()):
         logo_html = """
           <div class="hero-logo-wrap">
-            <img class="hero-logo" src="/assets/site-logo.png" alt="ぶいくりっぷ ロゴ" loading="eager">
+            <img class="hero-logo" src="/assets/site-logo.jpg" alt="ぶいくりっぷ ロゴ" loading="eager">
           </div>
         """
     if GA_MEASUREMENT_ID:
