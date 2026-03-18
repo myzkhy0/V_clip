@@ -1598,7 +1598,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const playerModeLandscape = document.getElementById("player-mode-landscape");
     let activePeriod = "{first_period}";
     let activeContentType = "shorts";
-    const PAGE_SIZE = 20;
+    const PAGE_SIZE_MOBILE = 20;
     const MOBILE_BREAKPOINT = 760;
     const pageState = {{}};
     const typeConfig = {{
@@ -1650,39 +1650,45 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       if (!contentPanel) return [];
       return Array.from(contentPanel.querySelectorAll(".card"));
     }}
+    function buildDesktopPageRanges(totalItems) {{
+      if (totalItems <= 0) return [[0, 0]];
+      if (totalItems <= 51) return [[0, totalItems]];
+      return [[0, 51], [51, totalItems]];
+    }}
+    function buildMobilePageRanges(totalItems) {{
+      const ranges = [];
+      for (let start = 0; start < totalItems; start += PAGE_SIZE_MOBILE) {{
+        ranges.push([start, Math.min(start + PAGE_SIZE_MOBILE, totalItems)]);
+      }}
+      return ranges.length ? ranges : [[0, 0]];
+    }}
     function applyPagination() {{
       const cards = getCurrentCards();
       const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
-      if (!isMobile) {{
-        cards.forEach(card => {{ card.style.display = ""; }});
-        [pageTabsTop, pageTabsBottom].forEach(container => {{
-          container.innerHTML = "";
-          container.style.display = "none";
-        }});
-        return;
-      }}
-
-      const totalPages = Math.max(1, Math.ceil(cards.length / PAGE_SIZE));
+      const ranges = isMobile ? buildMobilePageRanges(cards.length) : buildDesktopPageRanges(cards.length);
+      const totalPages = Math.max(1, ranges.length);
       const key = paginationKey();
       let currentPage = pageState[key] || 1;
       if (currentPage > totalPages) currentPage = totalPages;
       if (currentPage < 1) currentPage = 1;
       pageState[key] = currentPage;
-      const start = (currentPage - 1) * PAGE_SIZE;
-      const end = start + PAGE_SIZE;
+      const currentRange = ranges[currentPage - 1];
+      const start = currentRange[0];
+      const end = currentRange[1];
       cards.forEach((card, i) => {{
         card.style.display = (i >= start && i < end) ? "" : "none";
       }});
-      renderPageTabs(totalPages, currentPage, cards.length);
+      renderPageTabs(ranges, currentPage, isMobile);
     }}
-    function renderPageTabs(totalPages, currentPage, totalItems) {{
+    function renderPageTabs(ranges, currentPage, isMobile) {{
       [pageTabsTop, pageTabsBottom].forEach(container => {{
         container.innerHTML = "";
         container.style.display = "flex";
-        if (totalPages <= 1) return;
-        for (let p = 1; p <= totalPages; p++) {{
-          const s = (p - 1) * PAGE_SIZE + 1;
-          const e = Math.min(p * PAGE_SIZE, totalItems);
+        if (ranges.length <= 1) return;
+        for (let p = 1; p <= ranges.length; p++) {{
+          const range = ranges[p - 1];
+          const s = range[0] + 1;
+          const e = range[1];
           const btn = document.createElement("button");
           btn.className = "page-tab" + (p === currentPage ? " active" : "");
           btn.textContent = `${{s}}\u4f4d-${{e}}\u4f4d`;
@@ -1729,8 +1735,17 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 
       const cards = getCurrentCards();
       const targetIndex = cards.indexOf(target);
-      if (targetIndex >= 0 && window.innerWidth <= MOBILE_BREAKPOINT) {{
-        const page = Math.floor(targetIndex / PAGE_SIZE) + 1;
+      if (targetIndex >= 0) {{
+        const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+        const ranges = isMobile ? buildMobilePageRanges(cards.length) : buildDesktopPageRanges(cards.length);
+        let page = 1;
+        for (let p = 0; p < ranges.length; p++) {{
+          const [start, end] = ranges[p];
+          if (targetIndex >= start && targetIndex < end) {{
+            page = p + 1;
+            break;
+          }}
+        }}
         pageState[paginationKey()] = page;
         applyPagination();
       }}
