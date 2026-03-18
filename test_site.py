@@ -501,6 +501,7 @@ def _render_cards(
         channel_icon_url = html.escape(_sanitize_text(row.get("channel_icon_url") or ""))
         group_name = html.escape(_infer_group(row))
         video_url = f"https://www.youtube.com/watch?v={video_id}"
+        detail_url = f"/video/{video_id}"
         channel_url = f"https://www.youtube.com/channel/{channel_id}"
         title_plain = " ".join(title_raw.split())
         share_title = _truncate_text(title_plain, 56)
@@ -564,6 +565,7 @@ def _render_cards(
                   <span class="card-date">{html.escape(published_label)}</span>
                 </div>
                 <div class="card-actions">
+                  <a class="card-action-link" href="{detail_url}">詳細を見る</a>
                   <a class="card-action-link" href="{video_url}" target="_blank" rel="noreferrer">YouTubeで開く</a>
                   <a class="card-action-link card-share-link" href="{share_url}" target="_blank" rel="noreferrer">SNSでシェア</a>
                 </div>
@@ -1931,6 +1933,452 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 """
 
 
+def _normalize_video_id(raw: str) -> str:
+    if not raw:
+        return ""
+    filtered = "".join(ch for ch in str(raw).strip() if ch.isalnum() or ch in {"-", "_"})
+    if len(filtered) < 6:
+        return ""
+    return filtered
+
+
+def _ranking_table_for_content(content_type: str) -> str:
+    normalized = (content_type or "").strip().lower()
+    return "daily_ranking_shorts" if normalized == "shorts" else "daily_ranking_video"
+
+
+def _to_jst_date(value: datetime | None) -> str:
+    if value is None:
+        return "-"
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(JST).strftime("%Y-%m-%d")
+
+
+def _fetch_video_detail_payload(video_id: str) -> dict | None:
+    video_rows = fetchall(
+        """
+        SELECT
+            video_id,
+            title,
+            channel_id,
+            channel_name,
+            content_type,
+            published_at
+        FROM videos
+        WHERE video_id = %s
+        LIMIT 1
+        """,
+        (video_id,),
+    )
+    if not video_rows:
+        return None
+
+    video = dict(video_rows[0])
+    ranking_table = _ranking_table_for_content(video.get("content_type") or "")
+
+    first_ranked_rows = fetchall(
+        f"""
+        SELECT calculated_at
+        FROM {ranking_table}
+        WHERE video_id = %s
+        ORDER BY calculated_at ASC
+        LIMIT 1
+        """,
+        (video_id,),
+    )
+    best_rank_rows = fetchall(
+        f"""
+        SELECT rank, calculated_at
+        FROM {ranking_table}
+        WHERE video_id = %s
+        ORDER BY rank ASC, calculated_at ASC
+        LIMIT 1
+        """,
+        (video_id,),
+    )
+    current_rank_rows = fetchall(
+        f"""
+        SELECT rank, calculated_at
+        FROM {ranking_table}
+        WHERE video_id = %s
+        ORDER BY calculated_at DESC
+        LIMIT 1
+        """,
+        (video_id,),
+    )
+
+    delta_rows = fetchall(
+        """
+        WITH latest AS (
+            SELECT view_count
+            FROM video_stats
+            WHERE video_id = %s
+            ORDER BY timestamp DESC
+            LIMIT 1
+        ),
+        old AS (
+            SELECT view_count
+            FROM video_stats
+            WHERE video_id = %s
+              AND timestamp <= (NOW() - INTERVAL '24 hours')
+            ORDER BY timestamp DESC
+            LIMIT 1
+        ),
+        first_stat AS (
+            SELECT view_count
+            FROM video_stats
+            WHERE video_id = %s
+            ORDER BY timestamp ASC
+            LIMIT 1
+        )
+        SELECT
+            COALESCE((SELECT view_count FROM latest), 0) AS latest_view,
+            COALESCE((SELECT view_count FROM old), (SELECT view_count FROM first_stat), 0) AS base_view
+        """,
+        (video_id, video_id, video_id),
+    )
+    latest_view = int((delta_rows[0].get("latest_view") if delta_rows else 0) or 0)
+    base_view = int((delta_rows[0].get("base_view") if delta_rows else 0) or 0)
+    views_delta_24h = max(0, latest_view - base_view)
+
+    trend_rows = fetchall(
+        """
+        SELECT
+            DATE_TRUNC('day', timestamp) AS day_ts,
+            MAX(view_count) AS views
+        FROM video_stats
+        WHERE video_id = %s
+          AND timestamp >= (NOW() - INTERVAL '30 days')
+        GROUP BY DATE_TRUNC('day', timestamp)
+        ORDER BY day_ts
+        """,
+        (video_id,),
+    )
+    trend_30 = [int(row.get("views") or 0) for row in trend_rows]
+    if not trend_30 and latest_view > 0:
+        trend_30 = [latest_view]
+    trend_7 = trend_30[-7:] if len(trend_30) > 7 else trend_30
+
+    related_rows = fetchall(
+        f"""
+        WITH related AS (
+            SELECT
+                r.video_id,
+                MIN(r.rank) AS best_rank,
+                MIN(r.calculated_at) AS first_ranked_at
+            FROM {ranking_table} r
+            JOIN videos v ON v.video_id = r.video_id
+            WHERE v.channel_id = %s
+              AND r.video_id <> %s
+            GROUP BY r.video_id
+        )
+        SELECT
+            rel.video_id,
+            rel.best_rank,
+            rel.first_ranked_at,
+            v.title
+        FROM related rel
+        JOIN videos v ON v.video_id = rel.video_id
+        ORDER BY rel.best_rank ASC, rel.first_ranked_at DESC
+        LIMIT 6
+        """,
+        (video.get("channel_id"), video_id),
+    )
+
+    first_ranked_at = first_ranked_rows[0].get("calculated_at") if first_ranked_rows else None
+    best_rank = best_rank_rows[0].get("rank") if best_rank_rows else None
+    best_rank_at = best_rank_rows[0].get("calculated_at") if best_rank_rows else None
+    current_rank = current_rank_rows[0].get("rank") if current_rank_rows else None
+    current_rank_at = current_rank_rows[0].get("calculated_at") if current_rank_rows else None
+
+    return {
+        "video_id": video_id,
+        "title": _sanitize_text(video.get("title") or ""),
+        "channel_name": _sanitize_text(video.get("channel_name") or ""),
+        "published_at": _to_jst_date(video.get("published_at")),
+        "content_type": _sanitize_text(video.get("content_type") or ""),
+        "first_ranked_at": _to_jst_date(first_ranked_at) if first_ranked_at else "-",
+        "best_rank": int(best_rank) if best_rank is not None else None,
+        "best_rank_at": _to_jst_date(best_rank_at) if best_rank_at else "-",
+        "current_rank": int(current_rank) if current_rank is not None else None,
+        "current_rank_at": _to_jst_date(current_rank_at) if current_rank_at else "-",
+        "views_delta_24h": int(views_delta_24h),
+        "trend_7": trend_7,
+        "trend_30": trend_30,
+        "related": [
+            {
+                "video_id": _sanitize_text(row.get("video_id") or ""),
+                "title": _sanitize_text(row.get("title") or ""),
+                "best_rank": int(row.get("best_rank") or 0),
+                "first_ranked_at": _to_jst_date(row.get("first_ranked_at")),
+            }
+            for row in related_rows
+        ],
+    }
+
+
+def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, str]:
+    payload = _fetch_video_detail_payload(video_id)
+    if payload is None:
+        escaped_id = html.escape(video_id)
+        return (
+            404,
+            f"""<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>動画が見つかりません | VCLIP</title>
+</head>
+<body style="background:#0b101a;color:#e8edf4;font-family:sans-serif;padding:24px;">
+  <h1>動画が見つかりません</h1>
+  <p>video_id: {escaped_id}</p>
+  <p><a href="/" style="color:#8ad7ff;">ランキングに戻る</a></p>
+</body>
+</html>""",
+        )
+
+    title_escaped = html.escape(payload["title"])
+    channel_escaped = html.escape(payload["channel_name"])
+    published_escaped = html.escape(payload["published_at"])
+    detail_title = f"{payload['title']} | VCLIP"
+    head_meta = _build_head_meta(base_url, is_admin=False)
+    video_id_escaped = html.escape(payload["video_id"])
+    yt_url = f"https://www.youtube.com/watch?v={video_id_escaped}"
+
+    best_rank_label = f"#{payload['best_rank']}" if payload.get("best_rank") else "-"
+    current_rank_label = f"#{payload['current_rank']}" if payload.get("current_rank") else "-"
+
+    related_html_parts: list[str] = []
+    for item in payload["related"]:
+        rid = html.escape(item["video_id"])
+        rtitle = html.escape(item["title"])
+        rbest = f"#{int(item['best_rank'])}" if int(item.get("best_rank") or 0) > 0 else "-"
+        rfirst = html.escape(item.get("first_ranked_at") or "-")
+        related_html_parts.append(
+            f"""
+            <a class="related-item" href="/video/{rid}">
+              <img src="{_thumbnail_url(rid)}" alt="{rtitle}" loading="lazy">
+              <div class="related-meta">
+                <div class="related-rank">最高順位 {rbest} ・ 初回 {rfirst}</div>
+                <div class="related-title">{rtitle}</div>
+              </div>
+            </a>
+            """
+        )
+    related_html = "".join(related_html_parts) or '<p class="empty-note">該当する過去ランクイン動画はありません。</p>'
+
+    payload_json = json.dumps(
+        {
+            "trend_7": payload["trend_7"],
+            "trend_30": payload["trend_30"],
+        },
+        ensure_ascii=False,
+    )
+
+    body = f"""
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{html.escape(detail_title)}</title>
+  {head_meta}
+  <style>
+    :root {{
+      --bg-base:#0b0f1a;--bg-panel:rgba(15,20,35,0.72);--glass-border:rgba(100,160,240,0.10);
+      --text:#e8edf4;--text-dim:rgba(232,237,244,0.62);--accent-gradient:linear-gradient(135deg,#a78bfa,#f472b6);
+      --accent-a:#63d0ff;--good:#34d399;--warn:#fbbf24;
+    }}
+    *,*::before,*::after {{ box-sizing:border-box; }}
+    body {{
+      margin:0;font-family:"Noto Sans JP Local","Hiragino Kaku Gothic ProN",sans-serif;color:var(--text);min-height:100vh;
+      background:
+        radial-gradient(ellipse 900px 500px at 15% 10%, rgba(167, 139, 250, 0.15), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 85% 5%, rgba(244, 114, 182, 0.12), transparent 55%),
+        radial-gradient(ellipse 600px 400px at 50% 80%, rgba(34, 211, 238, 0.06), transparent 50%),
+        var(--bg-base);
+    }}
+    .shell {{ width:min(1080px,calc(100% - 24px)); margin:0 auto; padding:20px 0 36px; display:grid; gap:12px; }}
+    .panel {{ border:1px solid var(--glass-border); border-radius:16px; background:var(--bg-panel); padding:14px; backdrop-filter:blur(14px); }}
+    .topbar {{
+      display:flex;align-items:center;justify-content:space-between;padding:14px 24px;
+      background:var(--bg-panel);border:1px solid var(--glass-border);border-radius:16px;
+    }}
+    .topbar-brand {{ display:flex;align-items:center;gap:10px;font-weight:900;font-size:clamp(1.15rem,2vw,1.55rem);letter-spacing:-0.01em; }}
+    .topbar-logo {{
+      padding:6px 14px;border-radius:10px;background:var(--accent-gradient);display:flex;align-items:center;justify-content:center;
+      font-size:0.95rem;font-weight:900;color:#fff;letter-spacing:0.06em;line-height:1;
+    }}
+    .topbar-accent {{ background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }}
+    .title {{ margin:0;font-size:clamp(1.05rem,2vw,1.35rem);line-height:1.4; }}
+    .meta {{ margin-top:6px;color:var(--text-dim);font-size:.84rem;display:flex;gap:10px;flex-wrap:wrap; }}
+    .player-wrap {{ border:1px solid var(--glass-border); border-radius:14px; overflow:hidden; background:#000; aspect-ratio:16/9; margin-top:10px; }}
+    .player-wrap iframe {{ width:100%;height:100%;border:0;display:block; }}
+    .player-note {{ margin-top:10px; }}
+    .yt-open-btn {{
+      display:inline-flex;align-items:center;justify-content:center;padding:9px 14px;border-radius:10px;border:1px solid var(--glass-border);
+      background:rgba(255,255,255,.04);color:var(--text);text-decoration:none;font-size:.82rem;font-weight:700;
+    }}
+    .cards {{ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }}
+    .card {{ border:1px solid var(--glass-border);border-radius:12px;background:rgba(255,255,255,.03);padding:12px;min-height:88px; }}
+    .card-label {{ margin:0;color:var(--text-dim);font-size:.75rem; }}
+    .card-value {{ margin:8px 0 0;font-size:1.24rem;font-weight:900;line-height:1.1; }}
+    .card-sub {{ margin:6px 0 0;color:var(--text-dim);font-size:.74rem; }}
+    .a {{ color:var(--accent-a); }} .g {{ color:var(--good); }} .w {{ color:var(--warn); }}
+    .head {{ display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px; }}
+    .tabs {{ display:inline-flex;border:1px solid var(--glass-border);border-radius:10px;overflow:hidden; }}
+    .tab {{ border:0;background:transparent;color:var(--text-dim);padding:6px 10px;font-size:.76rem;font-weight:700;cursor:pointer; }}
+    .tab.active {{ color:#fff;background:linear-gradient(135deg, rgba(99,208,255,.24), rgba(139,92,246,.24)); }}
+    .chart-box {{ border:1px solid var(--glass-border);border-radius:10px;background:rgba(255,255,255,.02);padding:7px; }}
+    .legend {{ display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--text-dim);font-size:.74rem;margin-top:6px; }}
+    .related-list {{ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }}
+    .related-item {{ display:block;text-decoration:none;color:var(--text);border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03); }}
+    .related-item img {{ width:100%;aspect-ratio:16/9;object-fit:cover;display:block; }}
+    .related-meta {{ padding:9px 10px; }}
+    .related-rank {{ font-size:.72rem;color:var(--accent-a);font-weight:700; }}
+    .related-title {{ margin-top:4px;font-size:.84rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }}
+    .empty-note {{ margin:0;color:var(--text-dim);font-size:.84rem; }}
+    .back-wrap {{ text-align:center; }}
+    .back-btn {{
+      display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:12px;border:1px solid var(--glass-border);
+      background:rgba(255,255,255,.04);color:var(--text);text-decoration:none;font-weight:700;
+    }}
+    .footer {{
+      text-align:center;color:var(--text-dim);font-size:.78rem;letter-spacing:.02em;margin-top:8px;opacity:.8;padding-bottom:14px;
+      display:flex;flex-direction:column;gap:6px;align-items:center;
+    }}
+    .footer-links {{ display:flex;gap:16px; }}
+    .footer a {{ color:var(--text-dim);text-decoration:none; }}
+    @media (max-width:900px) {{ .cards{{grid-template-columns:repeat(2,minmax(0,1fr));}} .related-list{{grid-template-columns:repeat(2,minmax(0,1fr));}} }}
+    @media (max-width:760px) {{
+      .shell{{width:calc(100% - 16px);}} .panel{{padding:12px;border-radius:14px;}}
+      .topbar{{padding:10px 14px;border-radius:12px;}} .topbar-brand{{gap:8px;font-size:.9rem;}}
+      .topbar-logo{{padding:5px 10px;border-radius:8px;font-size:.8rem;line-height:1.2;}}
+    }}
+    @media (max-width:560px) {{ .cards{{grid-template-columns:1fr;}} .related-list{{grid-template-columns:1fr;}} .card-value{{font-size:1.14rem;}} }}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="topbar">
+      <div class="topbar-brand">
+        <div class="topbar-logo">VCLIP</div>
+        <span class="topbar-title">VTuber切り抜き<span class="topbar-accent">ランキング</span></span>
+      </div>
+    </nav>
+
+    <section class="panel">
+      <h1 class="title">{title_escaped}｜動画詳細</h1>
+      <div class="meta">
+        <span>チャンネル: {channel_escaped}</span>
+        <span>公開日: {published_escaped}</span>
+        <span>video_id: {video_id_escaped}</span>
+      </div>
+      <div class="player-wrap">
+        <iframe src="https://www.youtube-nocookie.com/embed/{video_id_escaped}?rel=0&playsinline=1" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+      </div>
+      <div class="player-note">
+        <a id="yt-link" class="yt-open-btn" href="{yt_url}" target="_blank" rel="noopener noreferrer">YouTubeで開く</a>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="cards">
+        <article class="card"><p class="card-label">初回ランクイン日</p><p class="card-value">{html.escape(payload["first_ranked_at"])}</p></article>
+        <article class="card"><p class="card-label">最高順位</p><p class="card-value a">{html.escape(best_rank_label)}</p><p class="card-sub">記録日: {html.escape(payload["best_rank_at"])}</p></article>
+        <article class="card"><p class="card-label">現在順位</p><p class="card-value g">{html.escape(current_rank_label)}</p><p class="card-sub">時点: {html.escape(payload["current_rank_at"])}</p></article>
+        <article class="card"><p class="card-label">24h 再生増加</p><p class="card-value w">+{payload["views_delta_24h"]:,}</p></article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="head">
+        <strong>再生推移（軽量）</strong>
+        <div class="tabs"><button class="tab active" data-range="7">7日</button><button class="tab" data-range="30">30日</button></div>
+      </div>
+      <div class="chart-box">
+        <svg viewBox="0 0 900 220" width="100%" height="220">
+          <defs><linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#63d0ff" /><stop offset="100%" stop-color="#8b5cf6" /></linearGradient></defs>
+          <g stroke="rgba(232,237,244,0.14)" stroke-width="1">
+            <line x1="30" y1="30" x2="30" y2="190" /><line x1="30" y1="190" x2="870" y2="190" /><line x1="30" y1="150" x2="870" y2="150" />
+            <line x1="30" y1="110" x2="870" y2="110" /><line x1="30" y1="70" x2="870" y2="70" />
+          </g>
+          <polyline id="line" fill="none" stroke="url(#lineGrad)" stroke-width="4" points="30,170 870,60" />
+          <g id="dots"></g>
+        </svg>
+      </div>
+      <div class="legend"><span id="legendL"></span><span id="legendR"></span></div>
+    </section>
+
+    <section class="panel">
+      <div class="head"><strong>同じチャンネルの過去ランクイン動画</strong></div>
+      <div class="related-list">
+        {related_html}
+      </div>
+    </section>
+
+    <section class="back-wrap">
+      <a class="back-btn" href="/#ranking-section">← ランキングに戻る</a>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-links">
+        <a href="/policy">プライバシーポリシー</a>
+        <a href="https://x.com/Vcliprank" target="_blank" rel="noopener noreferrer">お問い合わせ</a>
+      </div>
+      <span>VCLIP | VTuber切り抜きランキング &copy; 2026</span>
+    </footer>
+  </main>
+  <script>
+    const trendPayload = {payload_json};
+    const tabs = Array.from(document.querySelectorAll(".tab"));
+    let activeRange = "7";
+    function mapPoints(values) {{
+      if (!values.length) return [];
+      const min = Math.min(...values), max = Math.max(...values), r = Math.max(1, max - min);
+      const left = 30, right = 870, top = 40, bottom = 190;
+      return values.map((v, i) => [left + i * (right - left) / Math.max(1, values.length - 1), bottom - ((v - min) / r) * (bottom - top)]);
+    }}
+    function renderTrend() {{
+      const values = activeRange === "30" ? (trendPayload.trend_30 || []) : (trendPayload.trend_7 || []);
+      const points = mapPoints(values);
+      const line = document.getElementById("line");
+      const dots = document.getElementById("dots");
+      const legendL = document.getElementById("legendL");
+      const legendR = document.getElementById("legendR");
+      if (!points.length) {{
+        line.setAttribute("points", "");
+        dots.innerHTML = "";
+        legendL.textContent = "データ不足";
+        legendR.textContent = "";
+        return;
+      }}
+      line.setAttribute("points", points.map(([x,y]) => `${{x.toFixed(1)}},${{y.toFixed(1)}}`).join(" "));
+      dots.innerHTML = "";
+      points.forEach(([x,y]) => {{
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); c.setAttribute("r", "3.5"); c.setAttribute("fill", "#63d0ff");
+        dots.appendChild(c);
+      }});
+      legendL.textContent = `期間: 直近${{activeRange}}日 / 点数: ${{values.length}}`;
+      legendR.textContent = `最終値: ${{(values[values.length - 1] || 0).toLocaleString("ja-JP")}} views`;
+    }}
+    tabs.forEach((btn) => btn.addEventListener("click", () => {{
+      tabs.forEach((t) => t.classList.remove("active"));
+      btn.classList.add("active");
+      activeRange = btn.dataset.range || "7";
+      renderTrend();
+    }}));
+    renderTrend();
+  </script>
+</body>
+</html>
+"""
+    return 200, body
+
+
 class TestSiteHandler(BaseHTTPRequestHandler):
     def _request_base_url(self) -> str:
         configured = _normalize_base_url(SITE_BASE_URL)
@@ -2012,6 +2460,12 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         if path_only == "/policy":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            return
+
+        if path_only.startswith("/video/"):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -2130,6 +2584,20 @@ class TestSiteHandler(BaseHTTPRequestHandler):
         if path_only == "/policy":
             body = render_policy_page(base_url=self._request_base_url()).encode("utf-8")
             self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if path_only.startswith("/video/"):
+            video_id = _normalize_video_id(path_only.rsplit("/", 1)[-1])
+            if not video_id:
+                self.send_error(404, "Not found")
+                return
+            status, html_body = render_video_detail_page(video_id, base_url=self._request_base_url())
+            body = html_body.encode("utf-8", errors="replace")
+            self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
