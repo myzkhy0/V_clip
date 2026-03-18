@@ -428,6 +428,20 @@ def _share_prefix_for_period(period_key: str, month_day: str, rank: int, content
     return f"#VTuber切り抜きランキング {rank}位の{content_label}です！"
 
 
+def _rank_label_for_detail(rank_value: int | None, top_n: int = 100) -> str:
+    if rank_value is None:
+        return "-"
+    try:
+        value = int(rank_value)
+    except (TypeError, ValueError):
+        return "-"
+    if value <= 0:
+        return "-"
+    if value > top_n:
+        return "Not ranked"
+    return f"#{value}"
+
+
 def _format_duration_label(duration_seconds: object) -> str:
     try:
         total = int(duration_seconds or 0)
@@ -506,7 +520,8 @@ def _render_cards(
         title_plain = " ".join(title_raw.split())
         share_title = _truncate_text(title_plain, 56)
         share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
-        share_text = f"{share_prefix}  {share_title} {video_url} https://vclipranking.com/"
+        share_detail_url = f"https://vclipranking.com/video/{video_id}"
+        share_text = f"{share_prefix}  {share_title} {video_url} {share_detail_url}"
         share_url = "https://twitter.com/intent/tweet?text=" + quote(share_text, safe="")
         content_type = html.escape((row.get("content_type") or "").lower())
         published_label = ""
@@ -565,9 +580,9 @@ def _render_cards(
                   <span class="card-date">{html.escape(published_label)}</span>
                 </div>
                 <div class="card-actions">
-                  <a class="card-action-link" href="{detail_url}">詳細を見る</a>
                   <a class="card-action-link" href="{video_url}" target="_blank" rel="noreferrer">YouTubeで開く</a>
-                  <a class="card-action-link card-share-link" href="{share_url}" target="_blank" rel="noreferrer">SNSでシェア</a>
+                  <a class="card-action-link" href="{share_url}" target="_blank" rel="noreferrer">SNSでシェア</a>
+                  <a class="card-action-link card-detail-link" href="{detail_url}">詳細を見る</a>
                 </div>
               </div>
             </article>
@@ -1319,10 +1334,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .card-info-top {{ margin-bottom:6px; }}
     .card-info-bottom {{ justify-content:space-between;margin-bottom:8px;font-size:0.84rem; }}
     .card-date {{ color:var(--text-dim);white-space:nowrap; }}
-    .card-actions {{ display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:0.82rem; }}
+    .card-actions {{ display:flex;justify-content:flex-start;align-items:center;gap:12px;font-size:0.82rem; }}
     .card-action-link {{ color:#8ad7ff;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px; }}
     .card-action-link:hover {{ color:#b8e9ff; }}
-    .card-share-link {{ margin-left:auto; }}
+    .card-detail-link {{ margin-left:auto; }}
     .channel-link {{ display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--text-dim);min-width:0;flex:1;max-width:calc(100% - 84px); }}
     .channel-icon {{
       width:20px;height:20px;border-radius:50%;object-fit:cover;flex:0 0 20px;
@@ -2080,8 +2095,9 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
             v.title
         FROM related rel
         JOIN videos v ON v.video_id = rel.video_id
-        ORDER BY rel.best_rank ASC, rel.first_ranked_at DESC
-        LIMIT 6
+        WHERE rel.best_rank <= 100
+        ORDER BY RANDOM()
+        LIMIT 3
         """,
         (video.get("channel_id"), video_id),
     )
@@ -2143,18 +2159,42 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     channel_escaped = html.escape(payload["channel_name"])
     published_escaped = html.escape(payload["published_at"])
     detail_title = f"{payload['title']} | VCLIP"
-    head_meta = _build_head_meta(base_url, is_admin=False)
+    normalized_base_url = _normalize_base_url(base_url)
+    detail_path = f"/video/{payload['video_id']}"
+    canonical_url = f"{normalized_base_url}{detail_path}" if normalized_base_url else detail_path
+    thumbnail_url = _thumbnail_url(payload["video_id"])
+    detail_description = (
+        f"{payload['title']} の詳細ページ。初回ランクイン日・最高順位・現在順位・再生推移を確認できます。"
+    )
+    head_meta = (
+        f'<meta name="description" content="{html.escape(detail_description, quote=True)}">\n'
+        f'  <link rel="icon" type="image/jpeg" href="/assets/ueno-icon.jpg">\n'
+        f'  <link rel="canonical" href="{html.escape(canonical_url, quote=True)}">\n'
+        f'  <meta property="og:type" content="website">\n'
+        f'  <meta property="og:site_name" content="{html.escape(SITE_TITLE, quote=True)}">\n'
+        f'  <meta property="og:title" content="{html.escape(detail_title, quote=True)}">\n'
+        f'  <meta property="og:description" content="{html.escape(detail_description, quote=True)}">\n'
+        f'  <meta property="og:url" content="{html.escape(canonical_url, quote=True)}">\n'
+        f'  <meta property="og:image" content="{html.escape(thumbnail_url, quote=True)}">\n'
+        f'  <meta property="og:image:alt" content="{html.escape(payload["title"], quote=True)}">\n'
+        f'  <meta name="twitter:card" content="summary_large_image">\n'
+        f'  <meta name="twitter:title" content="{html.escape(detail_title, quote=True)}">\n'
+        f'  <meta name="twitter:description" content="{html.escape(detail_description, quote=True)}">\n'
+        f'  <meta name="twitter:image" content="{html.escape(thumbnail_url, quote=True)}">'
+    )
     video_id_escaped = html.escape(payload["video_id"])
     yt_url = f"https://www.youtube.com/watch?v={video_id_escaped}"
 
-    best_rank_label = f"#{payload['best_rank']}" if payload.get("best_rank") else "-"
-    current_rank_label = f"#{payload['current_rank']}" if payload.get("current_rank") else "-"
+    best_rank_label = _rank_label_for_detail(payload.get("best_rank"))
+    current_rank_label = _rank_label_for_detail(payload.get("current_rank"))
+    best_rank_at_label = payload.get("best_rank_at") if best_rank_label != "Not ranked" else "-"
+    current_rank_at_label = payload.get("current_rank_at") if current_rank_label != "Not ranked" else "-"
 
     related_html_parts: list[str] = []
     for item in payload["related"]:
         rid = html.escape(item["video_id"])
         rtitle = html.escape(item["title"])
-        rbest = f"#{int(item['best_rank'])}" if int(item.get("best_rank") or 0) > 0 else "-"
+        rbest = _rank_label_for_detail(int(item.get("best_rank") or 0))
         rfirst = html.escape(item.get("first_ranked_at") or "-")
         related_html_parts.append(
             f"""
@@ -2287,8 +2327,8 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     <section class="panel">
       <div class="cards">
         <article class="card"><p class="card-label">初回ランクイン日</p><p class="card-value">{html.escape(payload["first_ranked_at"])}</p></article>
-        <article class="card"><p class="card-label">最高順位</p><p class="card-value a">{html.escape(best_rank_label)}</p><p class="card-sub">記録日: {html.escape(payload["best_rank_at"])}</p></article>
-        <article class="card"><p class="card-label">現在順位</p><p class="card-value g">{html.escape(current_rank_label)}</p><p class="card-sub">時点: {html.escape(payload["current_rank_at"])}</p></article>
+        <article class="card"><p class="card-label">最高順位</p><p class="card-value a">{html.escape(best_rank_label)}</p><p class="card-sub">記録日: {html.escape(best_rank_at_label or "-")}</p></article>
+        <article class="card"><p class="card-label">現在順位</p><p class="card-value g">{html.escape(current_rank_label)}</p><p class="card-sub">時点: {html.escape(current_rank_at_label or "-")}</p></article>
         <article class="card"><p class="card-label">24h 再生増加</p><p class="card-value w">+{payload["views_delta_24h"]:,}</p></article>
       </div>
     </section>
