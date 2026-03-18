@@ -1443,7 +1443,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .topbar-nav {{ display:none; }}
       .topbar {{ padding:10px 14px;border-radius:12px; }}
       .topbar-brand {{ gap:8px;font-size:0.9rem; }}
-      .topbar-title {{ font-size:0.86rem;font-weight:900;line-height:1.2; }}
+      .topbar-title {{ font-size:0.94rem;font-weight:900;line-height:1.2; }}
       .topbar-logo {{
         padding:4px 9px;border-radius:8px;font-size:0.72rem;font-weight:800;letter-spacing:0.03em;
         background:linear-gradient(135deg,#c37dde,#8a8ef8);
@@ -1498,7 +1498,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     @media (max-width:400px) {{
       .topbar-brand {{ align-items:center; }}
       .topbar-title {{ display:inline-block;white-space:nowrap; }}
-      .topbar-title {{ font-size:0.76rem;font-weight:900;line-height:1.2; }}
+      .topbar-title {{ font-size:0.84rem;font-weight:900;line-height:1.2; }}
       .hero-heading {{ font-size:1.15rem; }}
       .hero-stats {{ gap:12px; }}
       .stat-value {{ font-size:1rem; }}
@@ -2324,9 +2324,9 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
       .shell{{width:calc(100% - 16px);}} .panel{{padding:12px;border-radius:14px;}}
       .topbar{{padding:10px 14px;border-radius:12px;}} .topbar-brand{{gap:8px;font-size:.9rem;}}
       .topbar-logo{{padding:4px 9px;border-radius:8px;font-size:.72rem;font-weight:800;letter-spacing:.03em;border-color:rgba(255,255,255,.14);box-shadow:none;}}
-      .topbar-title{{font-size:.86rem;font-weight:900;line-height:1.2;}}
+      .topbar-title{{font-size:.94rem;font-weight:900;line-height:1.2;}}
     }}
-    @media (max-width:560px) {{ .topbar-title{{font-size:.76rem;font-weight:900;line-height:1.2;}} .cards{{grid-template-columns:1fr;}} .related-list{{grid-template-columns:1fr;}} .card-value{{font-size:1.14rem;}} }}
+    @media (max-width:560px) {{ .topbar-title{{font-size:.84rem;font-weight:900;line-height:1.2;}} .cards{{grid-template-columns:1fr;}} .related-list{{grid-template-columns:1fr;}} .card-value{{font-size:1.14rem;}} }}
   </style>
 </head>
 <body>
