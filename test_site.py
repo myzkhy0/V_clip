@@ -8,6 +8,7 @@ import html
 import json
 import logging
 import os
+import random
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -2108,11 +2109,13 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
         FROM related rel
         JOIN videos v ON v.video_id = rel.video_id
         WHERE rel.best_rank <= 100
-        ORDER BY RANDOM()
-        LIMIT 3
+        ORDER BY rel.best_rank ASC, rel.first_ranked_at DESC
+        LIMIT 50
         """,
         (video.get("channel_id"), video_id),
     )
+    if len(related_rows) > 3:
+        related_rows = random.sample(related_rows, 3)
 
     first_ranked_at = first_ranked_rows[0].get("calculated_at") if first_ranked_rows else None
     best_rank = best_rank_rows[0].get("rank") if best_rank_rows else None
