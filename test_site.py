@@ -1135,11 +1135,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       display:flex;align-items:center;gap:10px;
       font-weight:900;font-size:clamp(1.15rem,2vw,1.55rem);letter-spacing:-0.01em;
     }}
-    .topbar-logo {{
-      padding:6px 14px;border-radius:10px;background:var(--accent-gradient);
+    .topbar-logo-image {{
       display:flex;align-items:center;justify-content:center;
-      font-size:0.95rem;font-weight:900;color:#fff;letter-spacing:0.06em;
-      box-shadow:0 0 18px rgba(167,139,250,0.3);
+      padding:0;background:transparent;border:none;line-height:1;flex:0 0 auto;
+    }}
+    .topbar-logo-image img {{
+      display:block;height:1.45em;width:auto;max-width:none;object-fit:contain;
     }}
     .topbar-accent {{
       background:var(--accent-gradient);-webkit-background-clip:text;
@@ -1423,8 +1424,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .topbar-nav {{ display:none; }}
       .topbar {{ padding:10px 14px;border-radius:12px; }}
       .topbar-brand {{ gap:8px;font-size:0.9rem; }}
-      .topbar-logo {{ padding:5px 10px;border-radius:8px; }}
-      .topbar-logo, .topbar-title {{ font-size:0.8rem;font-weight:900;line-height:1.2; }}
+      .topbar-title {{ font-size:0.8rem;font-weight:900;line-height:1.2; }}
+      .topbar-logo-image img {{ height:1.38em; }}
       .hero {{ margin-top:12px;gap:12px; }}
       .glass-panel {{ border-radius:14px; }}
       .hero-main {{ padding:22px 16px; }}
@@ -1474,8 +1475,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     @media (max-width:400px) {{
       .topbar-brand {{ align-items:flex-start; }}
       .topbar-title {{ display:inline-block;white-space:normal; }}
-      .topbar-logo {{ padding:4px 8px; }}
-      .topbar-logo, .topbar-title {{ font-size:0.72rem;font-weight:900;line-height:1.2; }}
+      .topbar-title {{ font-size:0.72rem;font-weight:900;line-height:1.2; }}
       .hero-heading {{ font-size:1.15rem; }}
       .hero-stats {{ gap:12px; }}
       .stat-value {{ font-size:1rem; }}
@@ -1489,7 +1489,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     <!-- ── Topbar ── -->
     <nav class="topbar animate-in">
       <div class="topbar-brand">
-        <div class="topbar-logo">VCLIP</div>
+        <div class="topbar-logo-image"><img src="/assets/site-logo.jpg" alt="VCLIP logo"></div>
         <span class="topbar-title">VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></span>
       </div>
 
