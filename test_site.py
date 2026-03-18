@@ -1153,18 +1153,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font-weight:900;font-size:clamp(1.15rem,2vw,1.55rem);letter-spacing:-0.01em;
     }}
     .topbar-logo {{
-      padding:6px 14px;
-      border-radius:10px;
-      background:var(--accent-gradient);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:0.95rem;
-      font-weight:900;
-      color:#fff;
-      letter-spacing:0.06em;
-      box-shadow:0 0 18px rgba(167,139,250,0.3);
+      display:flex;align-items:center;justify-content:center;
+      padding:0;background:transparent;border:none;line-height:1;flex:0 0 auto;
     }}
+    .topbar-logo img {{ display:block;height:1.45em;width:auto;max-width:none;object-fit:contain; }}
     .topbar-title {{ color:var(--text);text-decoration:none; }}
     .topbar-accent {{
       background:var(--accent-gradient);-webkit-background-clip:text;
@@ -1449,7 +1441,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .topbar {{ padding:10px 14px;border-radius:12px; }}
       .topbar-brand {{ gap:8px;font-size:0.9rem; }}
       .topbar-title {{ font-size:0.8rem;font-weight:900;line-height:1.2; }}
-      .topbar-logo {{ padding:5px 10px;font-size:0.76rem; }}
+      .topbar-logo img {{ height:1.38em; }}
       .hero {{ margin-top:12px;gap:12px; }}
       .glass-panel {{ border-radius:14px; }}
       .hero-main {{ padding:22px 16px; }}
@@ -1497,8 +1489,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .player-frame {{ max-height:calc(100dvh - 130px); }}
     }}
     @media (max-width:400px) {{
-      .topbar-brand {{ align-items:flex-start; }}
-      .topbar-title {{ display:inline-block;white-space:normal; }}
+      .topbar-brand {{ align-items:center; }}
+      .topbar-title {{ display:inline-block;white-space:nowrap; }}
       .topbar-title {{ font-size:0.72rem;font-weight:900;line-height:1.2; }}
       .hero-heading {{ font-size:1.15rem; }}
       .hero-stats {{ gap:12px; }}
@@ -1513,7 +1505,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     <!-- ── Topbar ── -->
     <nav class="topbar animate-in">
       <div class="topbar-brand">
-        <div class="topbar-logo">VCLIP</div>
+        <div class="topbar-logo"><img src="/assets/site-logo.jpg" alt="VCLIP logo"></div>
         <a class="topbar-title" href="/">VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></a>
       </div>
 
@@ -1979,6 +1971,7 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
             title,
             channel_id,
             channel_name,
+            channel_icon_url,
             content_type,
             published_at
         FROM videos
@@ -2124,6 +2117,7 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
         "video_id": video_id,
         "title": _sanitize_text(video.get("title") or ""),
         "channel_name": _sanitize_text(video.get("channel_name") or ""),
+        "channel_icon_url": _sanitize_text(video.get("channel_icon_url") or ""),
         "published_at": _to_jst_date(video.get("published_at")),
         "content_type": _sanitize_text(video.get("content_type") or ""),
         "first_ranked_at": _to_jst_date(first_ranked_at) if first_ranked_at else "-",
@@ -2171,6 +2165,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
 
     title_escaped = html.escape(payload["title"])
     channel_escaped = html.escape(payload["channel_name"])
+    channel_icon_escaped = html.escape(payload.get("channel_icon_url") or "")
     published_escaped = html.escape(payload["published_at"])
     detail_title = f"{payload['title']} | VCLIP"
     normalized_base_url = _normalize_base_url(base_url)
@@ -2264,13 +2259,19 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     }}
     .topbar-brand {{ display:flex;align-items:center;gap:10px;font-weight:900;font-size:clamp(1.15rem,2vw,1.55rem);letter-spacing:-0.01em; }}
     .topbar-logo {{
-      padding:6px 14px;border-radius:10px;background:var(--accent-gradient);display:flex;align-items:center;justify-content:center;
-      font-size:0.95rem;font-weight:900;color:#fff;letter-spacing:0.06em;line-height:1;
+      display:flex;align-items:center;justify-content:center;
+      padding:0;background:transparent;border:none;line-height:1;flex:0 0 auto;
     }}
+    .topbar-logo img {{ display:block;height:1.45em;width:auto;max-width:none;object-fit:contain; }}
     .topbar-title {{ color:var(--text);text-decoration:none; }}
     .topbar-accent {{ background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }}
     .title {{ margin:0;font-size:clamp(1.05rem,2vw,1.35rem);line-height:1.4; }}
     .meta {{ margin-top:6px;color:var(--text-dim);font-size:.84rem;display:flex;gap:10px;flex-wrap:wrap; }}
+    .channel-meta {{ display:inline-flex;align-items:center;gap:8px; }}
+    .channel-meta-icon {{
+      width:18px;height:18px;border-radius:50%;object-fit:cover;flex:0 0 18px;
+      border:1px solid var(--glass-border);background:rgba(255,255,255,0.08);
+    }}
     .player-wrap {{ border:1px solid var(--glass-border); border-radius:14px; overflow:hidden; background:#000; aspect-ratio:16/9; margin-top:10px; }}
     .player-wrap iframe {{ width:100%;height:100%;border:0;display:block; }}
     .player-note {{ margin-top:10px; }}
@@ -2312,7 +2313,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     @media (max-width:760px) {{
       .shell{{width:calc(100% - 16px);}} .panel{{padding:12px;border-radius:14px;}}
       .topbar{{padding:10px 14px;border-radius:12px;}} .topbar-brand{{gap:8px;font-size:.9rem;}}
-      .topbar-logo{{padding:5px 10px;border-radius:8px;font-size:.8rem;line-height:1.2;}}
+      .topbar-logo img{{height:1.38em;}}
     }}
     @media (max-width:560px) {{ .cards{{grid-template-columns:1fr;}} .related-list{{grid-template-columns:1fr;}} .card-value{{font-size:1.14rem;}} }}
   </style>
@@ -2321,7 +2322,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
   <main class="shell">
     <nav class="topbar">
       <div class="topbar-brand">
-        <div class="topbar-logo">VCLIP</div>
+        <div class="topbar-logo"><img src="/assets/site-logo.jpg" alt="VCLIP logo"></div>
         <a class="topbar-title" href="/">VTuber切り抜き<span class="topbar-accent">ランキング</span></a>
       </div>
     </nav>
@@ -2329,7 +2330,10 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     <section class="panel">
       <h1 class="title">{title_escaped}｜動画詳細（試験運用中…）</h1>
       <div class="meta">
-        <span>チャンネル: {channel_escaped}</span>
+        <span class="channel-meta">チャンネル:
+          {'<img class="channel-meta-icon" src="' + channel_icon_escaped + '" alt="" loading="lazy" referrerpolicy="no-referrer">' if channel_icon_escaped else ''}
+          <span>{channel_escaped}</span>
+        </span>
         <span>公開日: {published_escaped}</span>
         <span>video_id: {video_id_escaped}</span>
       </div>
