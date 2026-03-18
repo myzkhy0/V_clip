@@ -1165,6 +1165,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       letter-spacing:0.06em;
       box-shadow:0 0 18px rgba(167,139,250,0.3);
     }}
+    .topbar-title {{ color:var(--text);text-decoration:none; }}
     .topbar-accent {{
       background:var(--accent-gradient);-webkit-background-clip:text;
       -webkit-text-fill-color:transparent;background-clip:text;
@@ -1513,7 +1514,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     <nav class="topbar animate-in">
       <div class="topbar-brand">
         <div class="topbar-logo">VCLIP</div>
-        <span class="topbar-title">VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></span>
+        <a class="topbar-title" href="/">VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></a>
       </div>
 
     </nav>
@@ -2071,9 +2072,20 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
         (video_id,),
     )
     trend_30 = [int(row.get("views") or 0) for row in trend_rows]
+    trend_30_dates = []
+    for row in trend_rows:
+        day_ts = row.get("day_ts")
+        if isinstance(day_ts, datetime):
+            if day_ts.tzinfo is None:
+                day_ts = day_ts.replace(tzinfo=timezone.utc)
+            trend_30_dates.append(day_ts.astimezone(JST).strftime("%m/%d"))
+        else:
+            trend_30_dates.append("-")
     if not trend_30 and latest_view > 0:
         trend_30 = [latest_view]
+        trend_30_dates = [datetime.now(JST).strftime("%m/%d")]
     trend_7 = trend_30[-7:] if len(trend_30) > 7 else trend_30
+    trend_7_dates = trend_30_dates[-7:] if len(trend_30_dates) > 7 else trend_30_dates
 
     related_rows = fetchall(
         f"""
@@ -2121,7 +2133,9 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
         "current_rank_at": _to_jst_date(current_rank_at) if current_rank_at else "-",
         "views_delta_24h": int(views_delta_24h),
         "trend_7": trend_7,
+        "trend_7_dates": trend_7_dates,
         "trend_30": trend_30,
+        "trend_30_dates": trend_30_dates,
         "related": [
             {
                 "video_id": _sanitize_text(row.get("video_id") or ""),
@@ -2212,7 +2226,9 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     payload_json = json.dumps(
         {
             "trend_7": payload["trend_7"],
+            "trend_7_dates": payload["trend_7_dates"],
             "trend_30": payload["trend_30"],
+            "trend_30_dates": payload["trend_30_dates"],
         },
         ensure_ascii=False,
     )
@@ -2251,6 +2267,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
       padding:6px 14px;border-radius:10px;background:var(--accent-gradient);display:flex;align-items:center;justify-content:center;
       font-size:0.95rem;font-weight:900;color:#fff;letter-spacing:0.06em;line-height:1;
     }}
+    .topbar-title {{ color:var(--text);text-decoration:none; }}
     .topbar-accent {{ background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }}
     .title {{ margin:0;font-size:clamp(1.05rem,2vw,1.35rem);line-height:1.4; }}
     .meta {{ margin-top:6px;color:var(--text-dim);font-size:.84rem;display:flex;gap:10px;flex-wrap:wrap; }}
@@ -2305,12 +2322,12 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     <nav class="topbar">
       <div class="topbar-brand">
         <div class="topbar-logo">VCLIP</div>
-        <span class="topbar-title">VTuber切り抜き<span class="topbar-accent">ランキング</span></span>
+        <a class="topbar-title" href="/">VTuber切り抜き<span class="topbar-accent">ランキング</span></a>
       </div>
     </nav>
 
     <section class="panel">
-      <h1 class="title">{title_escaped}｜動画詳細</h1>
+      <h1 class="title">{title_escaped}｜動画詳細（試験運用中…）</h1>
       <div class="meta">
         <span>チャンネル: {channel_escaped}</span>
         <span>公開日: {published_escaped}</span>
@@ -2346,6 +2363,8 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
             <line x1="30" y1="110" x2="870" y2="110" /><line x1="30" y1="70" x2="870" y2="70" />
           </g>
           <polyline id="line" fill="none" stroke="url(#lineGrad)" stroke-width="4" points="30,170 870,60" />
+          <g id="y-axis-labels"></g>
+          <g id="x-axis-labels"></g>
           <g id="dots"></g>
         </svg>
       </div>
@@ -2383,14 +2402,19 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     }}
     function renderTrend() {{
       const values = activeRange === "30" ? (trendPayload.trend_30 || []) : (trendPayload.trend_7 || []);
+      const dates = activeRange === "30" ? (trendPayload.trend_30_dates || []) : (trendPayload.trend_7_dates || []);
       const points = mapPoints(values);
       const line = document.getElementById("line");
       const dots = document.getElementById("dots");
+      const yLabels = document.getElementById("y-axis-labels");
+      const xLabels = document.getElementById("x-axis-labels");
       const legendL = document.getElementById("legendL");
       const legendR = document.getElementById("legendR");
       if (!points.length) {{
         line.setAttribute("points", "");
         dots.innerHTML = "";
+        yLabels.innerHTML = "";
+        xLabels.innerHTML = "";
         legendL.textContent = "データ不足";
         legendR.textContent = "";
         return;
@@ -2402,6 +2426,51 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
         c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); c.setAttribute("r", "3.5"); c.setAttribute("fill", "#63d0ff");
         dots.appendChild(c);
       }});
+
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const mid = Math.round((min + max) / 2);
+      const yTicks = [
+        {{ y: 190, v: min }},
+        {{ y: 110, v: mid }},
+        {{ y: 40, v: max }},
+      ];
+      yLabels.innerHTML = "";
+      yTicks.forEach((tick) => {{
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", "24");
+        t.setAttribute("y", String(tick.y));
+        t.setAttribute("text-anchor", "end");
+        t.setAttribute("dominant-baseline", "middle");
+        t.setAttribute("fill", "rgba(232,237,244,0.62)");
+        t.setAttribute("font-size", "10");
+        t.textContent = Number(tick.v || 0).toLocaleString("ja-JP");
+        yLabels.appendChild(t);
+      }});
+
+      xLabels.innerHTML = "";
+      const xTickIndexes = [];
+      if (values.length <= 7) {{
+        for (let i = 0; i < values.length; i++) xTickIndexes.push(i);
+      }} else {{
+        [0, 4, 9, 14, 19, 24, values.length - 1].forEach((idx) => {{
+          if (idx >= 0 && idx < values.length && !xTickIndexes.includes(idx)) xTickIndexes.push(idx);
+        }});
+      }}
+      xTickIndexes.forEach((idx) => {{
+        const point = points[idx];
+        if (!point) return;
+        const d = dates[idx] || "";
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", point[0].toFixed(1));
+        t.setAttribute("y", "206");
+        t.setAttribute("text-anchor", "middle");
+        t.setAttribute("fill", "rgba(232,237,244,0.62)");
+        t.setAttribute("font-size", "10");
+        t.textContent = d;
+        xLabels.appendChild(t);
+      }});
+
       legendL.textContent = `期間: 直近${{activeRange}}日 / 点数: ${{values.length}}`;
       legendR.textContent = `最終値: ${{(values[values.length - 1] || 0).toLocaleString("ja-JP")}} views`;
     }}
