@@ -1550,7 +1550,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     <footer class="footer animate-in">
       <div class="footer-links">
         <a href="/policy">\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc</a>
-        <a href="#">\u5229\u7528\u898f\u7d04\uff08\u975e\u5e38\u6642\uff09</a>
         <a href="https://x.com/Vcliprank" target="_blank" rel="noopener noreferrer">\u304a\u554f\u3044\u5408\u308f\u305b</a>
       </div>
       <span>VCLIP | VTuber\u5207\u308a\u629c\u304d\u30e9\u30f3\u30ad\u30f3\u30b0 &copy; 2026</span>
@@ -2171,4 +2170,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
