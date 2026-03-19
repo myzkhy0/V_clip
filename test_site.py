@@ -1624,6 +1624,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const PAGE_SIZE_MOBILE = 20;
     const MOBILE_BREAKPOINT = 760;
     const pageState = {{}};
+    let cachedNewPickPool = null;
     const typeConfig = {{
       shorts: {{ icon: "▶", label: "Shorts \u30e9\u30f3\u30ad\u30f3\u30b0" }},
       video:  {{ icon: "▦", label: "\u52d5\u753b\u30e9\u30f3\u30ad\u30f3\u30b0" }}
@@ -1779,13 +1780,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
 
     /* ── Build NEW picks from payload ── */
-    function buildNewPicks() {{
-      const listEl = document.getElementById("new-list");
-      if (!listEl || !payload.length) return;
+    function getNewPickPool() {{
+      if (Array.isArray(cachedNewPickPool)) return cachedNewPickPool;
+      if (!payload.length) return [];
       const daily = payload.find(p => p.table === "daily");
-      if (!daily || !daily.groups || !daily.groups["all"]) return;
-      const maxPickCount = window.innerWidth <= MOBILE_BREAKPOINT ? 1 : 4;
-
+      if (!daily || !daily.groups || !daily.groups["all"]) return [];
       const tmpDiv = document.createElement("div");
       tmpDiv.innerHTML = daily.groups["all"];
       const cards = Array.from(tmpDiv.querySelectorAll(".card")).filter((card) => card.querySelector(".new-badge"));
@@ -1804,6 +1803,14 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }}
+      cachedNewPickPool = pool;
+      return pool;
+    }}
+    function buildNewPicks() {{
+      const listEl = document.getElementById("new-list");
+      if (!listEl) return;
+      const maxPickCount = window.innerWidth <= MOBILE_BREAKPOINT ? 1 : 4;
+      const pool = getNewPickPool();
       const picks = pool.slice(0, maxPickCount);
       if (!picks.length) {{
         listEl.innerHTML = '<div class="empty">新着動画はまだありません</div>';
