@@ -521,8 +521,7 @@ def _render_cards(
         title_plain = " ".join(title_raw.split())
         share_title = _truncate_text(title_plain, 56)
         share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
-        share_detail_url = f"https://vclipranking.com/video/{video_id}"
-        share_text = f"{share_prefix}  {share_title} {video_url} {share_detail_url}"
+        share_text = f"{share_prefix}  {share_title} {video_url} @YouTubeより https://vclipranking.com/"
         share_url = "https://twitter.com/intent/tweet?text=" + quote(share_text, safe="")
         content_type = html.escape((row.get("content_type") or "").lower())
         published_label = ""
@@ -2187,7 +2186,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
 <body style="background:#0b101a;color:#e8edf4;font-family:sans-serif;padding:24px;">
   <h1>動画が見つかりません</h1>
   <p>video_id: {escaped_id}</p>
-  <p><a href="/" style="color:#8ad7ff;">ランキングに戻る</a></p>
+  <p><a href="https://vclipranking.com/" style="color:#8ad7ff;">ランキングに戻る</a></p>
 </body>
 </html>""",
         )
@@ -2465,7 +2464,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     </section>
 
     <section class="back-wrap">
-      <a class="back-btn" href="/#ranking-section">← ランキングに戻る</a>
+      <a class="back-btn" href="https://vclipranking.com/">← ランキングに戻る</a>
     </section>
 
     <footer class="footer">
