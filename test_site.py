@@ -2382,6 +2382,13 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
       .topbar{{padding:10px 14px;border-radius:12px;}} .topbar-brand{{gap:8px;font-size:.9rem;}}
       .topbar-logo{{padding:4px 9px;border-radius:8px;font-size:.72rem;font-weight:800;letter-spacing:.03em;border-color:rgba(255,255,255,.14);box-shadow:none;}}
       .topbar-title{{font-size:.94rem;font-weight:900;line-height:1.2;}}
+      .top3-list{{grid-template-columns:1fr;gap:8px;}}
+      .top3-item{{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:start;}}
+      .top3-item img{{width:96px;height:54px;aspect-ratio:auto;}}
+      .top3-meta{{padding:7px 8px;}}
+      .top3-title{{font-size:.8rem;line-height:1.3;-webkit-line-clamp:2;}}
+      .top3-channel{{font-size:.7rem;}}
+      .top3-kicker{{font-size:.68rem;}}
     }}
     @media (max-width:560px) {{ .topbar-title{{font-size:.84rem;font-weight:900;line-height:1.2;}} .cards{{grid-template-columns:1fr;}} .top3-list{{grid-template-columns:1fr;}} .related-list{{grid-template-columns:1fr;}} .card-value{{font-size:1.14rem;}} }}
   </style>
