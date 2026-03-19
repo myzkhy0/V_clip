@@ -2383,8 +2383,8 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
       .topbar-logo{{padding:4px 9px;border-radius:8px;font-size:.72rem;font-weight:800;letter-spacing:.03em;border-color:rgba(255,255,255,.14);box-shadow:none;}}
       .topbar-title{{font-size:.94rem;font-weight:900;line-height:1.2;}}
       .top3-list{{grid-template-columns:1fr;gap:8px;}}
-      .top3-item{{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:start;}}
-      .top3-item img{{width:96px;height:54px;aspect-ratio:auto;}}
+      .top3-item{{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:stretch;}}
+      .top3-item img{{width:96px;height:100%;min-height:64px;aspect-ratio:auto;object-fit:cover;object-position:center;}}
       .top3-meta{{padding:7px 8px;}}
       .top3-title{{font-size:.8rem;line-height:1.3;-webkit-line-clamp:2;}}
       .top3-channel{{font-size:.7rem;}}
