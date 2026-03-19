@@ -1625,6 +1625,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const MOBILE_BREAKPOINT = 760;
     const pageState = {{}};
     let cachedNewPickPool = null;
+    let newPickLayoutMode = window.innerWidth <= MOBILE_BREAKPOINT ? "mobile" : "desktop";
     const typeConfig = {{
       shorts: {{ icon: "▶", label: "Shorts \u30e9\u30f3\u30ad\u30f3\u30b0" }},
       video:  {{ icon: "▦", label: "\u52d5\u753b\u30e9\u30f3\u30ad\u30f3\u30b0" }}
@@ -1938,7 +1939,14 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     document.addEventListener("keydown", (event) => {{
       if (event.key === "Escape" && playerModal.classList.contains("open")) closePlayer();
     }});
-    window.addEventListener("resize", () => {{ applyPagination(); buildNewPicks(); }});
+    window.addEventListener("resize", () => {{
+      applyPagination();
+      const nextMode = window.innerWidth <= MOBILE_BREAKPOINT ? "mobile" : "desktop";
+      if (nextMode !== newPickLayoutMode) {{
+        newPickLayoutMode = nextMode;
+        buildNewPicks();
+      }}
+    }});
 
     buildHeroStats();
     buildNewPicks();
