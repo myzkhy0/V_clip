@@ -1174,7 +1174,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .topbar-nav a:hover {{ color:var(--text);background:rgba(255,255,255,0.06); }}
     .topbar-nav a.active {{ color:#fff;background:rgba(167,139,250,0.18); }}
     /* ── Hero ── */
-    .hero {{ margin-top:18px;display:grid;grid-template-columns:1.5fr 0.9fr;gap:16px; }}
+    .hero {{ margin-top:14px;display:grid;grid-template-columns:1fr;gap:16px; }}
     .glass-panel {{
       background:var(--bg-panel);border:1px solid var(--glass-border);
       border-radius:18px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
@@ -1212,8 +1212,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
     }}
     .stat-label {{ font-size:0.72rem;color:var(--text-dim);letter-spacing:0.03em; }}
-    /* ── Sidebar NEW picks ── */
-    .hero-side {{ padding:22px 18px; }}
+    /* ── NEW picks ── */
+    .pickup-panel {{ margin-top:14px;padding:18px 16px; }}
     .side-header {{ display:flex;align-items:center;gap:10px;margin-bottom:16px; }}
     .side-header-icon {{
       width:28px;height:28px;border-radius:8px;
@@ -1221,7 +1221,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       display:flex;align-items:center;justify-content:center;font-size:0.85rem;
     }}
     .side-title {{ font-size:1.05rem;font-weight:800;margin:0; }}
-    .new-list {{ display:flex;flex-direction:column;gap:10px; }}
+    .new-list {{ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }}
     .new-item {{
       padding:12px 14px;border-radius:12px;border:1px solid var(--glass-border);
       background:rgba(255,255,255,0.03);display:flex;align-items:center;gap:10px;
@@ -1436,6 +1436,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     /* ── Responsive ── */
     @media (max-width:1024px) {{
       .hero {{ grid-template-columns:1fr; }}
+      .new-list {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
       .cards {{ grid-template-columns:repeat(2,1fr); }}
       .admin-metric-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
     }}
@@ -1459,11 +1460,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .hero-stats {{ flex-wrap:wrap;gap:16px;margin-top:16px; }}
       .stat-value {{ font-size:1.15rem; }}
       .stat-label {{ font-size:0.68rem; }}
-      .hero-side {{ padding:18px 14px; }}
+      .pickup-panel {{ margin-top:10px;padding:14px 12px; }}
       .side-header {{ margin-bottom:12px; }}
       .side-header-icon {{ width:24px;height:24px;font-size:0.75rem; }}
       .side-title {{ font-size:0.95rem; }}
-      .new-list {{ gap:8px; }}
+      .new-list {{ gap:8px;grid-template-columns:1fr; }}
       .new-item {{ padding:10px 12px;border-radius:10px;gap:8px; }}
       .new-badge {{ padding:3px 9px;font-size:0.68rem; }}
       .new-text {{ font-size:0.82rem; }}
@@ -1519,9 +1520,17 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 
     </nav>
 
-    <!-- ── Hero + Sidebar ── -->
+    <section class="glass-panel pickup-panel animate-in delay-1">
+      <div class="side-header">
+        <div class="side-header-icon">\u2728</div>
+        <h2 class="side-title">\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
+      </div>
+      <div id="new-list" class="new-list"></div>
+    </section>
+
+    <!-- ── Hero ── -->
     <section class="hero">
-      <section class="glass-panel hero-main animate-in delay-1">
+      <section class="glass-panel hero-main animate-in delay-2">
         <div class="hero-eyebrow">
           <span class="dot"></span>
           <span>LIVE \u30fb \u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0\u4e2d</span>
@@ -1538,13 +1547,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         {admin_html}
       </section>
 
-      <aside class="glass-panel hero-side animate-in delay-2">
-        <div class="side-header">
-          <div class="side-header-icon">\u2728</div>
-          <h2 class="side-title">\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
-        </div>
-        <div id="new-list" class="new-list"></div>
-      </aside>
     </section>
 
     {admin_board_html}
@@ -1805,7 +1807,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }}
-      const picks = pool.slice(0, 4);
+      const picks = pool.slice(0, 3);
       if (!picks.length) {{
         listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">新着動画はまだありません</div>';
         return;
