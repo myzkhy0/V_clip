@@ -1712,11 +1712,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         if (ranges.length <= 1) return;
         for (let p = 1; p <= ranges.length; p++) {{
           const range = ranges[p - 1];
-          const s = range[0] + 1;
-          const e = range[1];
           const btn = document.createElement("button");
           btn.className = "page-tab" + (p === currentPage ? " active" : "");
-          btn.textContent = `${{s}}\u4f4d-${{e}}\u4f4d`;
+          btn.textContent = String(p);
           btn.type = "button";
           const page = p;
           btn.addEventListener("click", () => {{
