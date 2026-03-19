@@ -2299,8 +2299,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     best_rank_at_label = payload.get("best_rank_at") if best_rank_label != "Not ranked" else "-"
     current_rank_at_label = payload.get("current_rank_at") if current_rank_label != "Not ranked" else "-"
     content_type = (payload.get("content_type") or "").strip().lower()
-    period_label = {"daily": "本日", "weekly": "直近7日", "monthly": "直近30日"}.get(normalized_period, "本日")
-    top3_heading = f"{period_label}のShortsランキング TOP3" if content_type == "shorts" else f"{period_label}の動画ランキング TOP3"
+    top3_heading = "本日のShortsランキング TOP3" if content_type == "shorts" else "本日の動画ランキング TOP3"
     detail_query_suffix = "" if normalized_period == "daily" else f"?period={normalized_period}"
 
     top3_html_parts: list[str] = []
