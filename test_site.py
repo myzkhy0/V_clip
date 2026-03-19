@@ -1824,91 +1824,120 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         listEl.appendChild(clone);
       }});
     }}
-    /* ── Main render ── */
-    function render() {{
-      // Type tabs (Shorts / 動画)
+    const periodMap = new Map(payload.map((p) => [p.table, p]));
+    const builtPeriodPanels = new Set();
+    function ensureTypeTabs() {{
+      if (typeTabs.dataset.ready === "1") {{
+        typeTabs.querySelectorAll(".type-tab").forEach((btn) => {{
+          btn.classList.toggle("active", btn.dataset.type === activeContentType);
+        }});
+        return;
+      }}
       typeTabs.innerHTML = "";
-      ["shorts", "video"].forEach(type => {{
+      ["shorts", "video"].forEach((type) => {{
         const btn = document.createElement("button");
         btn.className = "type-tab" + (type === activeContentType ? " active" : "");
         btn.textContent = type === "shorts" ? "Shorts" : "\u52d5\u753b";
         btn.type = "button";
+        btn.dataset.type = type;
         btn.addEventListener("click", () => {{
           activeContentType = type;
-          rankingIcon.textContent = typeConfig[type].icon;
-          rankingLabel.textContent = typeConfig[type].label;
           render();
         }});
         typeTabs.appendChild(btn);
       }});
-
-      // Period tabs (24h / 7d / 30d)
+      typeTabs.dataset.ready = "1";
+    }}
+    function ensurePeriodTabs() {{
+      if (periodTabs.dataset.ready === "1") {{
+        periodTabs.querySelectorAll(".period-tab").forEach((btn) => {{
+          btn.classList.toggle("active", btn.dataset.period === activePeriod);
+        }});
+        return;
+      }}
       periodTabs.innerHTML = "";
-      periodRoot.innerHTML = "";
-      payload.forEach(period => {{
+      payload.forEach((period) => {{
         const btn = document.createElement("button");
         btn.className = "period-tab" + (period.table === activePeriod ? " active" : "");
         btn.textContent = period.label;
         btn.type = "button";
+        btn.dataset.period = period.table;
         btn.addEventListener("click", () => {{
           activePeriod = period.table;
           render();
         }});
         periodTabs.appendChild(btn);
+      }});
+      periodTabs.dataset.ready = "1";
+    }}
+    function ensurePeriodPanel(periodTable) {{
+      if (builtPeriodPanels.has(periodTable)) return;
+      const period = periodMap.get(periodTable);
+      if (!period) return;
+      const panel = document.createElement("section");
+      panel.className = "period-panel";
+      panel.dataset.period = period.table;
 
-        const panel = document.createElement("section");
-        panel.className = "period-panel" + (period.table === activePeriod ? " active" : "");
-        panel.dataset.period = period.table;
+      const groupsForRender = showAdminMeta ? period.available_groups : ["all"];
+      const defaultGroup = groupsForRender[0];
 
-        const groupsForRender = showAdminMeta ? period.available_groups : ["all"];
-        const defaultGroup = groupsForRender[0];
+      let groupTabsHtml = "";
+      if (showAdminMeta && groupsForRender.length > 1) {{
+        groupTabsHtml = '<div class="type-tabs" style="margin-bottom:12px;" id="group-tabs-' + period.table + '"></div>';
+      }}
 
-        let groupTabsHtml = "";
-        if (showAdminMeta && groupsForRender.length > 1) {{
-          groupTabsHtml = '<div class="type-tabs" style="margin-bottom:12px;" id="group-tabs-' + period.table + '"></div>';
-        }}
+      panel.innerHTML = groupTabsHtml + '<div class="group-root"></div>';
+      const groupRoot = panel.querySelector(".group-root");
 
-        panel.innerHTML = groupTabsHtml + '<div class="group-root"></div>';
-        const groupRoot = panel.querySelector(".group-root");
-
-        groupsForRender.forEach(groupName => {{
-          const groupPanel = document.createElement("div");
-          groupPanel.className = "group-panel" + (groupName === defaultGroup ? " active" : "");
-          groupPanel.dataset.group = groupName;
-          groupPanel.innerHTML = period.groups[groupName];
-          groupRoot.appendChild(groupPanel);
-        }});
-
-        // Group tabs event
-        if (showAdminMeta && groupsForRender.length > 1) {{
-          const gTabs = panel.querySelector("#group-tabs-" + period.table);
-          if (gTabs) {{
-            groupsForRender.forEach(groupName => {{
-              const gBtn = document.createElement("button");
-              gBtn.className = "type-tab" + (groupName === defaultGroup ? " active" : "");
-              gBtn.textContent = groupLabels[groupName] || groupName;
-              gBtn.type = "button";
-              gBtn.addEventListener("click", () => {{
-                gTabs.querySelectorAll(".type-tab").forEach(b => b.classList.remove("active"));
-                groupRoot.querySelectorAll(".group-panel").forEach(p => p.classList.remove("active"));
-                gBtn.classList.add("active");
-                groupRoot.querySelector(`[data-group="${{groupName}}"]`).classList.add("active");
-                applyPagination();
-              }});
-              gTabs.appendChild(gBtn);
-            }});
-          }}
-        }}
-
-        periodRoot.appendChild(panel);
+      groupsForRender.forEach((groupName) => {{
+        const groupPanel = document.createElement("div");
+        groupPanel.className = "group-panel" + (groupName === defaultGroup ? " active" : "");
+        groupPanel.dataset.group = groupName;
+        groupPanel.innerHTML = period.groups[groupName];
+        groupRoot.appendChild(groupPanel);
       }});
 
-      // Show correct content type panels
-      periodRoot.querySelectorAll(".content-panel").forEach(panel => {{
+      if (showAdminMeta && groupsForRender.length > 1) {{
+        const gTabs = panel.querySelector("#group-tabs-" + period.table);
+        if (gTabs) {{
+          groupsForRender.forEach((groupName) => {{
+            const gBtn = document.createElement("button");
+            gBtn.className = "type-tab" + (groupName === defaultGroup ? " active" : "");
+            gBtn.textContent = groupLabels[groupName] || groupName;
+            gBtn.type = "button";
+            gBtn.addEventListener("click", () => {{
+              gTabs.querySelectorAll(".type-tab").forEach((b) => b.classList.remove("active"));
+              groupRoot.querySelectorAll(".group-panel").forEach((p) => p.classList.remove("active"));
+              gBtn.classList.add("active");
+              groupRoot.querySelector(`[data-group="${{groupName}}"]`).classList.add("active");
+              applyPagination();
+            }});
+            gTabs.appendChild(gBtn);
+          }});
+        }}
+      }}
+
+      periodRoot.appendChild(panel);
+      builtPeriodPanels.add(periodTable);
+    }}
+    /* ── Main render ── */
+    function render() {{
+      if (!periodMap.has(activePeriod) && payload.length) {{
+        activePeriod = payload[0].table;
+      }}
+      ensureTypeTabs();
+      ensurePeriodTabs();
+      ensurePeriodPanel(activePeriod);
+
+      rankingIcon.textContent = typeConfig[activeContentType]?.icon || typeConfig.shorts.icon;
+      rankingLabel.textContent = typeConfig[activeContentType]?.label || typeConfig.shorts.label;
+
+      periodRoot.querySelectorAll(".period-panel").forEach((panel) => {{
+        panel.classList.toggle("active", panel.dataset.period === activePeriod);
+      }});
+      periodRoot.querySelectorAll(".content-panel").forEach((panel) => {{
         panel.classList.toggle("active", panel.dataset.contentPanel === activeContentType);
       }});
-
-
       applyPagination();
     }}
 
