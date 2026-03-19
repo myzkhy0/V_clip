@@ -443,6 +443,11 @@ def _rank_label_for_detail(rank_value: int | None, top_n: int = 100) -> str:
     return f"#{value}"
 
 
+def _normalize_period_key(period_key: str | None) -> str:
+    normalized = (period_key or "").strip().lower()
+    return normalized if normalized in {"daily", "weekly", "monthly"} else "daily"
+
+
 def _format_duration_label(duration_seconds: object) -> str:
     try:
         total = int(duration_seconds or 0)
@@ -516,7 +521,7 @@ def _render_cards(
         channel_icon_url = html.escape(_sanitize_text(row.get("channel_icon_url") or ""))
         group_name = html.escape(_infer_group(row))
         video_url = f"https://www.youtube.com/watch?v={video_id}"
-        detail_url = f"/video/{video_id}"
+        detail_url = f"/video/{video_id}?period={period_key}"
         channel_url = f"https://www.youtube.com/channel/{channel_id}"
         title_plain = " ".join(title_raw.split())
         share_title = _truncate_text(title_plain, 56)
@@ -1946,9 +1951,14 @@ def _normalize_video_id(raw: str) -> str:
     return filtered
 
 
-def _ranking_table_for_content(content_type: str) -> str:
-    normalized = (content_type or "").strip().lower()
-    return "daily_ranking_shorts" if normalized == "shorts" else "daily_ranking_video"
+def _ranking_table_for_content(content_type: str, period_key: str = "daily") -> str:
+    normalized_content = (content_type or "").strip().lower()
+    normalized_period = _normalize_period_key(period_key)
+    if normalized_period == "weekly":
+        return "weekly_ranking_shorts" if normalized_content == "shorts" else "weekly_ranking_video"
+    if normalized_period == "monthly":
+        return "monthly_ranking_shorts" if normalized_content == "shorts" else "monthly_ranking_video"
+    return "daily_ranking_shorts" if normalized_content == "shorts" else "daily_ranking_video"
 
 
 def _to_jst_date(value: datetime | None) -> str:
@@ -1959,7 +1969,7 @@ def _to_jst_date(value: datetime | None) -> str:
     return value.astimezone(JST).strftime("%Y-%m-%d")
 
 
-def _fetch_video_detail_payload(video_id: str) -> dict | None:
+def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dict | None:
     video_rows = fetchall(
         """
         SELECT
@@ -1980,7 +1990,8 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
         return None
 
     video = dict(video_rows[0])
-    ranking_table = _ranking_table_for_content(video.get("content_type") or "")
+    normalized_period = _normalize_period_key(period_key)
+    ranking_table = _ranking_table_for_content(video.get("content_type") or "", normalized_period)
 
     first_ranked_rows = fetchall(
         f"""
@@ -2133,6 +2144,7 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
 
     return {
         "video_id": video_id,
+        "period_key": normalized_period,
         "title": _sanitize_text(video.get("title") or ""),
         "channel_name": _sanitize_text(video.get("channel_name") or ""),
         "channel_icon_url": _sanitize_text(video.get("channel_icon_url") or ""),
@@ -2170,8 +2182,9 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
     }
 
 
-def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, str]:
-    payload = _fetch_video_detail_payload(video_id)
+def render_video_detail_page(video_id: str, base_url: str = "", period_key: str = "daily") -> tuple[int, str]:
+    normalized_period = _normalize_period_key(period_key)
+    payload = _fetch_video_detail_payload(video_id, period_key=normalized_period)
     if payload is None:
         escaped_id = html.escape(video_id)
         return (
@@ -2198,6 +2211,8 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     detail_title = f"{payload['title']} | VCLIP"
     normalized_base_url = _normalize_base_url(base_url)
     detail_path = f"/video/{payload['video_id']}"
+    if normalized_period != "daily":
+        detail_path += f"?period={normalized_period}"
     canonical_url = f"{normalized_base_url}{detail_path}" if normalized_base_url else detail_path
     thumbnail_url = _thumbnail_url(payload["video_id"])
     detail_description = (
@@ -2227,7 +2242,9 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     best_rank_at_label = payload.get("best_rank_at") if best_rank_label != "Not ranked" else "-"
     current_rank_at_label = payload.get("current_rank_at") if current_rank_label != "Not ranked" else "-"
     content_type = (payload.get("content_type") or "").strip().lower()
-    top3_heading = "本日のShortsランキング TOP3" if content_type == "shorts" else "本日の動画ランキング TOP3"
+    period_label = {"daily": "本日", "weekly": "直近7日", "monthly": "直近30日"}.get(normalized_period, "本日")
+    top3_heading = f"{period_label}のShortsランキング TOP3" if content_type == "shorts" else f"{period_label}の動画ランキング TOP3"
+    detail_query_suffix = "" if normalized_period == "daily" else f"?period={normalized_period}"
 
     top3_html_parts: list[str] = []
     for item in payload.get("top3_cards", []):
@@ -2239,7 +2256,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
         top3_day = html.escape(item.get("calculated_at") or "-")
         top3_html_parts.append(
             f"""
-            <a class="top3-item" href="/video/{top3_id}">
+            <a class="top3-item" href="/video/{top3_id}{detail_query_suffix}">
               <img src="{_thumbnail_url(top3_id)}" alt="{top3_title}" loading="lazy">
               <div class="top3-meta">
                 <div class="top3-kicker">{rank_label} ・ {top3_day}</div>
@@ -2259,7 +2276,7 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
         rfirst = html.escape(item.get("first_ranked_at") or "-")
         related_html_parts.append(
             f"""
-            <a class="related-item" href="/video/{rid}">
+            <a class="related-item" href="/video/{rid}{detail_query_suffix}">
               <img src="{_thumbnail_url(rid)}" alt="{rtitle}" loading="lazy">
               <div class="related-meta">
                 <div class="related-rank">最高順位 {rbest} ・ 初回 {rfirst}</div>
@@ -2789,7 +2806,12 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             if not video_id:
                 self.send_error(404, "Not found")
                 return
-            status, html_body = render_video_detail_page(video_id, base_url=self._request_base_url())
+            period_key = (query.get("period") or ["daily"])[0]
+            status, html_body = render_video_detail_page(
+                video_id,
+                base_url=self._request_base_url(),
+                period_key=period_key,
+            )
             body = html_body.encode("utf-8", errors="replace")
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
