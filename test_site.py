@@ -1221,7 +1221,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       display:flex;align-items:center;justify-content:center;font-size:0.85rem;
     }}
     .side-title {{ font-size:1.05rem;font-weight:800;margin:0; }}
-    .new-list {{ margin:0;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }}
+    .new-list {{ margin:0; }}
     .new-list .card {{ border-radius:14px; }}
     .new-list .card-meta {{ padding:10px 11px; }}
     .new-list .card-title {{ font-size:0.9rem;min-height:2.4em;margin-bottom:7px; }}
@@ -1288,6 +1288,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     /* ── Cards grid ── */
     .cards {{ display:grid;grid-template-columns:repeat(3,1fr);gap:14px; }}
+    .cards.new-list {{ grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }}
     .card {{
       border:1px solid var(--glass-border);border-radius:18px;overflow:hidden;
       background:rgba(255,255,255,0.03);transition:transform 0.2s,box-shadow 0.2s;
@@ -1437,7 +1438,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     @media (max-width:1024px) {{
       .hero {{ grid-template-columns:1fr; }}
       .cards {{ grid-template-columns:repeat(2,1fr); }}
-      .new-list {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
+      .cards.new-list {{ grid-template-columns:repeat(4,minmax(0,1fr)); }}
       .admin-metric-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
     }}
     @media (max-width:760px) {{
@@ -1464,7 +1465,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .side-header {{ margin-bottom:12px; }}
       .side-header-icon {{ width:24px;height:24px;font-size:0.75rem; }}
       .side-title {{ font-size:0.95rem; }}
-      .new-list {{ gap:8px;grid-template-columns:1fr; }}
+      .cards.new-list {{ gap:8px;grid-template-columns:1fr; }}
       .new-badge {{ padding:3px 9px;font-size:0.68rem; }}
       .content {{ padding:16px 14px; }}
       .content-head {{ flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:16px; }}
