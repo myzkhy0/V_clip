@@ -2117,6 +2117,26 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
     if len(related_rows) > 3:
         related_rows = random.sample(related_rows, 3)
 
+    top3_rows = fetchall(
+        f"""
+        WITH latest AS (
+            SELECT MAX(calculated_at) AS calculated_at
+            FROM {ranking_table}
+        )
+        SELECT
+            r.rank,
+            r.video_id,
+            r.calculated_at,
+            v.title,
+            v.channel_name
+        FROM {ranking_table} r
+        JOIN latest l ON l.calculated_at = r.calculated_at
+        JOIN videos v ON v.video_id = r.video_id
+        ORDER BY r.rank ASC
+        LIMIT 3
+        """
+    )
+
     first_ranked_at = first_ranked_rows[0].get("calculated_at") if first_ranked_rows else None
     best_rank = best_rank_rows[0].get("rank") if best_rank_rows else None
     best_rank_at = best_rank_rows[0].get("calculated_at") if best_rank_rows else None
@@ -2140,6 +2160,16 @@ def _fetch_video_detail_payload(video_id: str) -> dict | None:
         "trend_7_dates": trend_7_dates,
         "trend_30": trend_30,
         "trend_30_dates": trend_30_dates,
+        "top3_cards": [
+            {
+                "rank": int(row.get("rank") or 0),
+                "video_id": _sanitize_text(row.get("video_id") or ""),
+                "title": _sanitize_text(row.get("title") or ""),
+                "channel_name": _sanitize_text(row.get("channel_name") or ""),
+                "calculated_at": _to_jst_date(row.get("calculated_at")),
+            }
+            for row in top3_rows
+        ],
         "related": [
             {
                 "video_id": _sanitize_text(row.get("video_id") or ""),
@@ -2208,6 +2238,30 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     current_rank_label = _rank_label_for_detail(payload.get("current_rank"))
     best_rank_at_label = payload.get("best_rank_at") if best_rank_label != "Not ranked" else "-"
     current_rank_at_label = payload.get("current_rank_at") if current_rank_label != "Not ranked" else "-"
+    content_type = (payload.get("content_type") or "").strip().lower()
+    top3_heading = "本日のShortsランキング TOP3" if content_type == "shorts" else "本日の動画ランキング TOP3"
+
+    top3_html_parts: list[str] = []
+    for item in payload.get("top3_cards", []):
+        rank_value = int(item.get("rank") or 0)
+        rank_label = "Not ranked" if rank_value <= 0 or rank_value > 100 else f"#{rank_value}"
+        top3_id = html.escape(item.get("video_id") or "")
+        top3_title = html.escape(item.get("title") or "")
+        top3_channel = html.escape(item.get("channel_name") or "-")
+        top3_day = html.escape(item.get("calculated_at") or "-")
+        top3_html_parts.append(
+            f"""
+            <a class="top3-item" href="/video/{top3_id}">
+              <img src="{_thumbnail_url(top3_id)}" alt="{top3_title}" loading="lazy">
+              <div class="top3-meta">
+                <div class="top3-kicker">{rank_label} ・ {top3_day}</div>
+                <div class="top3-title">{top3_title}</div>
+                <div class="top3-channel">{top3_channel}</div>
+              </div>
+            </a>
+            """
+        )
+    top3_html = "".join(top3_html_parts) or '<p class="empty-note">本日のランキングデータがまだありません。</p>'
 
     related_html_parts: list[str] = []
     for item in payload["related"]:
@@ -2304,6 +2358,13 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     .tab.active {{ color:#fff;background:linear-gradient(135deg, rgba(99,208,255,.24), rgba(139,92,246,.24)); }}
     .chart-box {{ border:1px solid var(--glass-border);border-radius:10px;background:rgba(255,255,255,.02);padding:7px; }}
     .legend {{ display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--text-dim);font-size:.74rem;margin-top:6px; }}
+    .top3-list {{ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }}
+    .top3-item {{ display:block;text-decoration:none;color:var(--text);border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03); }}
+    .top3-item img {{ width:100%;aspect-ratio:16/9;object-fit:cover;display:block; }}
+    .top3-meta {{ padding:9px 10px; }}
+    .top3-kicker {{ font-size:.72rem;color:var(--accent-a);font-weight:700; }}
+    .top3-title {{ margin-top:4px;font-size:.84rem;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }}
+    .top3-channel {{ margin-top:4px;font-size:.74rem;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }}
     .related-list {{ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }}
     .related-item {{ display:block;text-decoration:none;color:var(--text);border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03); }}
     .related-item img {{ width:100%;aspect-ratio:16/9;object-fit:cover;display:block; }}
@@ -2322,14 +2383,18 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
     }}
     .footer-links {{ display:flex;gap:16px; }}
     .footer a {{ color:var(--text-dim);text-decoration:none; }}
-    @media (max-width:900px) {{ .cards{{grid-template-columns:repeat(2,minmax(0,1fr));}} .related-list{{grid-template-columns:repeat(2,minmax(0,1fr));}} }}
+    @media (max-width:900px) {{
+      .cards{{grid-template-columns:repeat(2,minmax(0,1fr));}}
+      .top3-list{{grid-template-columns:repeat(2,minmax(0,1fr));}}
+      .related-list{{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    }}
     @media (max-width:760px) {{
       .shell{{width:calc(100% - 16px);}} .panel{{padding:12px;border-radius:14px;}}
       .topbar{{padding:10px 14px;border-radius:12px;}} .topbar-brand{{gap:8px;font-size:.9rem;}}
       .topbar-logo{{padding:4px 9px;border-radius:8px;font-size:.72rem;font-weight:800;letter-spacing:.03em;border-color:rgba(255,255,255,.14);box-shadow:none;}}
       .topbar-title{{font-size:.94rem;font-weight:900;line-height:1.2;}}
     }}
-    @media (max-width:560px) {{ .topbar-title{{font-size:.84rem;font-weight:900;line-height:1.2;}} .cards{{grid-template-columns:1fr;}} .related-list{{grid-template-columns:1fr;}} .card-value{{font-size:1.14rem;}} }}
+    @media (max-width:560px) {{ .topbar-title{{font-size:.84rem;font-weight:900;line-height:1.2;}} .cards{{grid-template-columns:1fr;}} .top3-list{{grid-template-columns:1fr;}} .related-list{{grid-template-columns:1fr;}} .card-value{{font-size:1.14rem;}} }}
   </style>
 </head>
 <body>
@@ -2340,6 +2405,13 @@ def render_video_detail_page(video_id: str, base_url: str = "") -> tuple[int, st
         <a class="topbar-title" href="/">VTuber切り抜き<span class="topbar-accent">ランキング</span></a>
       </div>
     </nav>
+
+    <section class="panel">
+      <div class="head"><strong>{html.escape(top3_heading)}</strong></div>
+      <div class="top3-list">
+        {top3_html}
+      </div>
+    </section>
 
     <section class="panel">
       <h1 class="title">{title_escaped}｜動画詳細（試験運用中…）</h1>
