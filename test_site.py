@@ -1519,17 +1519,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 
     </nav>
 
-    <section class="glass-panel pickup-panel animate-in delay-1">
-      <div class="side-header">
-        <div class="side-header-icon">\u2728</div>
-        <h2 class="side-title">\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
-      </div>
-      <div id="new-list" class="cards new-list"></div>
-    </section>
-
     <!-- ── Hero ── -->
     <section class="hero">
-      <section class="glass-panel hero-main animate-in delay-2">
+      <section class="glass-panel hero-main animate-in delay-1">
         <div class="hero-eyebrow">
           <span class="dot"></span>
           <span>LIVE \u30fb \u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0\u4e2d</span>
@@ -1546,6 +1538,14 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         {admin_html}
       </section>
 
+    </section>
+
+    <section class="glass-panel pickup-panel animate-in delay-2">
+      <div class="side-header">
+        <div class="side-header-icon">\u2728</div>
+        <h2 class="side-title">\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
+      </div>
+      <div id="new-list" class="cards new-list"></div>
     </section>
 
     {admin_board_html}
@@ -1780,6 +1780,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       if (!listEl || !payload.length) return;
       const daily = payload.find(p => p.table === "daily");
       if (!daily || !daily.groups || !daily.groups["all"]) return;
+      const maxPickCount = window.innerWidth <= MOBILE_BREAKPOINT ? 1 : 4;
 
       const tmpDiv = document.createElement("div");
       tmpDiv.innerHTML = daily.groups["all"];
@@ -1799,7 +1800,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }}
-      const picks = pool.slice(0, 4);
+      const picks = pool.slice(0, maxPickCount);
       if (!picks.length) {{
         listEl.innerHTML = '<div class="empty">新着動画はまだありません</div>';
         return;
@@ -1926,7 +1927,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     document.addEventListener("keydown", (event) => {{
       if (event.key === "Escape" && playerModal.classList.contains("open")) closePlayer();
     }});
-    window.addEventListener("resize", () => {{ applyPagination(); }});
+    window.addEventListener("resize", () => {{ applyPagination(); buildNewPicks(); }});
 
     buildHeroStats();
     buildNewPicks();
