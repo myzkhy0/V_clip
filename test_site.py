@@ -1333,14 +1333,14 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
-    .card-info-top {{ margin-bottom:6px; }}
+    .card-info-top {{ margin-bottom:6px;justify-content:space-between; }}
     .card-info-bottom {{ justify-content:space-between;margin-bottom:8px;font-size:0.84rem; }}
     .card-date {{ color:var(--text-dim);white-space:nowrap; }}
     .card-actions {{ display:flex;justify-content:flex-start;align-items:center;gap:12px;font-size:0.82rem; }}
     .card-action-link {{ color:#8ad7ff;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px; }}
     .card-action-link:hover {{ color:#b8e9ff; }}
     .card-detail-link {{ margin-left:auto; }}
-    .channel-link {{ display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--text-dim);min-width:0;flex:1;max-width:calc(100% - 84px); }}
+    .channel-link {{ display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--text-dim);min-width:0;flex:1; }}
     .channel-icon {{
       width:20px;height:20px;border-radius:50%;object-fit:cover;flex:0 0 20px;
       border:1px solid var(--glass-border);background:rgba(255,255,255,0.08);
@@ -1359,7 +1359,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       color:var(--accent-purple);
     }}
     .arrow {{ font-style:normal;color:#34d399; }}
-    .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim); }}
+    .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim);margin-left:auto;flex:0 0 auto; }}
     .empty {{ padding:20px;border:1px dashed var(--glass-border);color:var(--text-dim);background:rgba(255,255,255,0.03); }}
     /* ── Pagination tabs ── */
     .page-tabs {{ display:none;gap:4px;flex-wrap:wrap;margin-top:12px;margin-bottom:10px; }}
