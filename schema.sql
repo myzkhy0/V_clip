@@ -123,3 +123,64 @@ CREATE TABLE IF NOT EXISTS monthly_ranking_video (
     PRIMARY KEY (video_id, calculated_at)
 );
 
+-- Ranking history tables (save only top 100 snapshots per run)
+CREATE TABLE IF NOT EXISTS daily_ranking_shorts_history (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_ranking_shorts_history_rank_calculated
+    ON daily_ranking_shorts_history (rank, calculated_at);
+
+CREATE TABLE IF NOT EXISTS weekly_ranking_shorts_history (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+CREATE INDEX IF NOT EXISTS idx_weekly_ranking_shorts_history_rank_calculated
+    ON weekly_ranking_shorts_history (rank, calculated_at);
+
+CREATE TABLE IF NOT EXISTS monthly_ranking_shorts_history (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+CREATE INDEX IF NOT EXISTS idx_monthly_ranking_shorts_history_rank_calculated
+    ON monthly_ranking_shorts_history (rank, calculated_at);
+
+CREATE TABLE IF NOT EXISTS daily_ranking_video_history (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_ranking_video_history_rank_calculated
+    ON daily_ranking_video_history (rank, calculated_at);
+
+CREATE TABLE IF NOT EXISTS weekly_ranking_video_history (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+CREATE INDEX IF NOT EXISTS idx_weekly_ranking_video_history_rank_calculated
+    ON weekly_ranking_video_history (rank, calculated_at);
+
+CREATE TABLE IF NOT EXISTS monthly_ranking_video_history (
+    video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+    view_growth   BIGINT      NOT NULL DEFAULT 0,
+    rank          INTEGER     NOT NULL,
+    calculated_at TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (video_id, calculated_at)
+);
+CREATE INDEX IF NOT EXISTS idx_monthly_ranking_video_history_rank_calculated
+    ON monthly_ranking_video_history (rank, calculated_at);
+

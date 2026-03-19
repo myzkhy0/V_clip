@@ -41,6 +41,9 @@ RANKING_TABLES: dict[str, dict[str, str]] = {
     },
 }
 
+HISTORY_TABLE_SUFFIX = "_history"
+HISTORY_RANK_LIMIT = 100
+
 CLIP_KEYWORD_PATTERN = "%切り抜き%"
 VSPO_GROUP_NAME = "VSPO"
 VSPO_PERMISSION_PATTERN = "%ぶいすぽっ！許諾番号%"
@@ -180,10 +183,37 @@ def _build_ranking_params(
 def _iter_ranking_tasks():
     for period_name, period_hours in PERIODS.items():
         for content_type, table in RANKING_TABLES[period_name].items():
-            yield period_name, period_hours, content_type, table
+            history_table = f"{table}{HISTORY_TABLE_SUFFIX}"
+            yield period_name, period_hours, content_type, table, history_table
 
 
-def _calculate_ranking(period_name: str, period_hours: int, content_type: str, table: str) -> None:
+def _ensure_history_table(cur, history_table: str) -> None:
+    cur.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {history_table} (
+            video_id      VARCHAR(32) NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
+            view_growth   BIGINT      NOT NULL DEFAULT 0,
+            rank          INTEGER     NOT NULL,
+            calculated_at TIMESTAMP   NOT NULL,
+            PRIMARY KEY (video_id, calculated_at)
+        )
+        """
+    )
+    cur.execute(
+        f"""
+        CREATE INDEX IF NOT EXISTS idx_{history_table}_rank_calculated
+            ON {history_table} (rank, calculated_at)
+        """
+    )
+
+
+def _calculate_ranking(
+    period_name: str,
+    period_hours: int,
+    content_type: str,
+    table: str,
+    history_table: str,
+) -> None:
     """
     Compute view-growth ranking for one period and one content type.
 
@@ -213,19 +243,37 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
     conn = get_connection()
     try:
         with conn.cursor() as cur:
+            _ensure_history_table(cur, history_table)
             cur.execute(f"DELETE FROM {table}")
             cur.execute(sql, params)
             row_count = cur.rowcount
+            cur.execute(
+                f"""
+                INSERT INTO {history_table} (video_id, view_growth, rank, calculated_at)
+                SELECT video_id, view_growth, rank, calculated_at
+                FROM {table}
+                WHERE rank <= %s
+                ON CONFLICT (video_id, calculated_at) DO UPDATE
+                SET
+                    view_growth = EXCLUDED.view_growth,
+                    rank = EXCLUDED.rank
+                """,
+                (HISTORY_RANK_LIMIT,),
+            )
+            history_row_count = cur.rowcount
 
         conn.commit()
         strict_suffix = " (strict24h+today-provisional)" if is_strict_daily else ""
         logger.info(
-            "%s/%s ranking%s: inserted %d row(s) into %s",
+            "%s/%s ranking%s: inserted %d row(s) into %s, upserted %d history row(s) into %s (top %d)",
             period_name,
             content_type,
             strict_suffix,
             row_count,
             table,
+            history_row_count,
+            history_table,
+            HISTORY_RANK_LIMIT,
         )
     finally:
         conn.close()
@@ -234,9 +282,9 @@ def _calculate_ranking(period_name: str, period_hours: int, content_type: str, t
 def run_rankings() -> None:
     """Calculate all ranking periods for shorts and video separately."""
     logger.info("=== Ranking calculation started ===")
-    for period_name, period_hours, content_type, table in _iter_ranking_tasks():
+    for period_name, period_hours, content_type, table, history_table in _iter_ranking_tasks():
         try:
-            _calculate_ranking(period_name, period_hours, content_type, table)
+            _calculate_ranking(period_name, period_hours, content_type, table, history_table)
         except Exception:
             logger.exception("Error computing %s/%s ranking", period_name, content_type)
     logger.info("=== Ranking calculation finished ===")

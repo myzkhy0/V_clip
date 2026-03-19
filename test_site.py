@@ -1961,6 +1961,10 @@ def _ranking_table_for_content(content_type: str, period_key: str = "daily") -> 
     return "daily_ranking_shorts" if normalized_content == "shorts" else "daily_ranking_video"
 
 
+def _ranking_history_table_for_content(content_type: str, period_key: str = "daily") -> str:
+    return f"{_ranking_table_for_content(content_type, period_key)}_history"
+
+
 def _to_jst_date(value: datetime | None) -> str:
     if value is None:
         return "-"
@@ -1992,27 +1996,51 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
     video = dict(video_rows[0])
     normalized_period = _normalize_period_key(period_key)
     ranking_table = _ranking_table_for_content(video.get("content_type") or "", normalized_period)
+    history_table = _ranking_history_table_for_content(video.get("content_type") or "", normalized_period)
 
-    first_ranked_rows = fetchall(
-        f"""
-        SELECT calculated_at
-        FROM {ranking_table}
-        WHERE video_id = %s
-        ORDER BY calculated_at ASC
-        LIMIT 1
-        """,
-        (video_id,),
-    )
-    best_rank_rows = fetchall(
-        f"""
-        SELECT rank, calculated_at
-        FROM {ranking_table}
-        WHERE video_id = %s
-        ORDER BY rank ASC, calculated_at ASC
-        LIMIT 1
-        """,
-        (video_id,),
-    )
+    try:
+        first_ranked_rows = fetchall(
+            f"""
+            SELECT calculated_at
+            FROM {history_table}
+            WHERE video_id = %s
+            ORDER BY calculated_at ASC
+            LIMIT 1
+            """,
+            (video_id,),
+        )
+        best_rank_rows = fetchall(
+            f"""
+            SELECT rank, calculated_at
+            FROM {history_table}
+            WHERE video_id = %s
+            ORDER BY rank ASC, calculated_at ASC
+            LIMIT 1
+            """,
+            (video_id,),
+        )
+    except Exception:
+        logger.exception("Failed to read ranking history from %s, fallback to latest table", history_table)
+        first_ranked_rows = fetchall(
+            f"""
+            SELECT calculated_at
+            FROM {ranking_table}
+            WHERE video_id = %s
+            ORDER BY calculated_at ASC
+            LIMIT 1
+            """,
+            (video_id,),
+        )
+        best_rank_rows = fetchall(
+            f"""
+            SELECT rank, calculated_at
+            FROM {ranking_table}
+            WHERE video_id = %s
+            ORDER BY rank ASC, calculated_at ASC
+            LIMIT 1
+            """,
+            (video_id,),
+        )
     current_rank_rows = fetchall(
         f"""
         SELECT rank, calculated_at
@@ -2087,32 +2115,61 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
     trend_7 = trend_30[-7:] if len(trend_30) > 7 else trend_30
     trend_7_dates = trend_30_dates[-7:] if len(trend_30_dates) > 7 else trend_30_dates
 
-    related_rows = fetchall(
-        f"""
-        WITH related AS (
+    try:
+        related_rows = fetchall(
+            f"""
+            WITH related AS (
+                SELECT
+                    r.video_id,
+                    MIN(r.rank) AS best_rank,
+                    MIN(r.calculated_at) AS first_ranked_at
+                FROM {history_table} r
+                JOIN videos v ON v.video_id = r.video_id
+                WHERE v.channel_id = %s
+                  AND r.video_id <> %s
+                GROUP BY r.video_id
+            )
             SELECT
-                r.video_id,
-                MIN(r.rank) AS best_rank,
-                MIN(r.calculated_at) AS first_ranked_at
-            FROM {ranking_table} r
-            JOIN videos v ON v.video_id = r.video_id
-            WHERE v.channel_id = %s
-              AND r.video_id <> %s
-            GROUP BY r.video_id
+                rel.video_id,
+                rel.best_rank,
+                rel.first_ranked_at,
+                v.title
+            FROM related rel
+            JOIN videos v ON v.video_id = rel.video_id
+            WHERE rel.best_rank <= 100
+            ORDER BY rel.best_rank ASC, rel.first_ranked_at DESC
+            LIMIT 50
+            """,
+            (video.get("channel_id"), video_id),
         )
-        SELECT
-            rel.video_id,
-            rel.best_rank,
-            rel.first_ranked_at,
-            v.title
-        FROM related rel
-        JOIN videos v ON v.video_id = rel.video_id
-        WHERE rel.best_rank <= 100
-        ORDER BY rel.best_rank ASC, rel.first_ranked_at DESC
-        LIMIT 50
-        """,
-        (video.get("channel_id"), video_id),
-    )
+    except Exception:
+        logger.exception("Failed to read related history from %s, fallback to latest table", history_table)
+        related_rows = fetchall(
+            f"""
+            WITH related AS (
+                SELECT
+                    r.video_id,
+                    MIN(r.rank) AS best_rank,
+                    MIN(r.calculated_at) AS first_ranked_at
+                FROM {ranking_table} r
+                JOIN videos v ON v.video_id = r.video_id
+                WHERE v.channel_id = %s
+                  AND r.video_id <> %s
+                GROUP BY r.video_id
+            )
+            SELECT
+                rel.video_id,
+                rel.best_rank,
+                rel.first_ranked_at,
+                v.title
+            FROM related rel
+            JOIN videos v ON v.video_id = rel.video_id
+            WHERE rel.best_rank <= 100
+            ORDER BY rel.best_rank ASC, rel.first_ranked_at DESC
+            LIMIT 50
+            """,
+            (video.get("channel_id"), video_id),
+        )
     if len(related_rows) > 3:
         related_rows = random.sample(related_rows, 3)
 
