@@ -1221,13 +1221,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       display:flex;align-items:center;justify-content:center;font-size:0.85rem;
     }}
     .side-title {{ font-size:1.05rem;font-weight:800;margin:0; }}
-    .new-list {{ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }}
-    .new-item {{
-      padding:12px 14px;border-radius:12px;border:1px solid var(--glass-border);
-      background:rgba(255,255,255,0.03);display:flex;align-items:center;gap:10px;
-      transition:background 0.2s;cursor:pointer;text-decoration:none;color:var(--text);
-    }}
-    .new-item:hover {{ background:rgba(255,255,255,0.07); }}
+    .new-list {{ margin:0;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }}
+    .new-list .card {{ border-radius:14px; }}
+    .new-list .card-meta {{ padding:10px 11px; }}
+    .new-list .card-title {{ font-size:0.9rem;min-height:2.4em;margin-bottom:7px; }}
+    .new-list .card-info {{ font-size:0.78rem; }}
+    .new-list .card-info-bottom {{ margin-bottom:6px;font-size:0.76rem; }}
+    .new-list .card-actions {{ gap:8px;font-size:0.74rem; }}
     .new-badge {{
       padding:4px 12px;border-radius:999px;
       background:linear-gradient(135deg,#f472b6,#a78bfa);
@@ -1436,8 +1436,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     /* ── Responsive ── */
     @media (max-width:1024px) {{
       .hero {{ grid-template-columns:1fr; }}
-      .new-list {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
       .cards {{ grid-template-columns:repeat(2,1fr); }}
+      .new-list {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
       .admin-metric-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
     }}
     @media (max-width:760px) {{
@@ -1465,9 +1465,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .side-header-icon {{ width:24px;height:24px;font-size:0.75rem; }}
       .side-title {{ font-size:0.95rem; }}
       .new-list {{ gap:8px;grid-template-columns:1fr; }}
-      .new-item {{ padding:10px 12px;border-radius:10px;gap:8px; }}
       .new-badge {{ padding:3px 9px;font-size:0.68rem; }}
-      .new-text {{ font-size:0.82rem; }}
       .content {{ padding:16px 14px; }}
       .content-head {{ flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:16px; }}
       .content-title {{ font-size:1.2rem;gap:8px; }}
@@ -1525,7 +1523,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         <div class="side-header-icon">\u2728</div>
         <h2 class="side-title">\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
       </div>
-      <div id="new-list" class="new-list"></div>
+      <div id="new-list" class="cards new-list"></div>
     </section>
 
     <!-- ── Hero ── -->
@@ -1788,18 +1786,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 
       const dedup = new Map();
       cards.forEach((card) => {{
-        const titleEl = card.querySelector(".card-title");
-        const rankEl = card.querySelector(".rank-badge");
         const thumbEl = card.querySelector(".thumb");
-        if (!titleEl || !thumbEl) return;
+        if (!thumbEl) return;
         const videoId = thumbEl.dataset.videoId || "";
         if (!videoId || dedup.has(videoId)) return;
-        dedup.set(videoId, {{
-          rank: rankEl ? "#" + rankEl.textContent.trim() : "",
-          text: titleEl.textContent.trim(),
-          videoId,
-          contentType: (thumbEl.dataset.contentType || "shorts").toLowerCase(),
-        }});
+        dedup.set(videoId, card);
       }});
 
       const pool = Array.from(dedup.values());
@@ -1807,27 +1798,18 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }}
-      const picks = pool.slice(0, 3);
+      const picks = pool.slice(0, 4);
       if (!picks.length) {{
-        listEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">新着動画はまだありません</div>';
+        listEl.innerHTML = '<div class="empty">新着動画はまだありません</div>';
         return;
       }}
       listEl.innerHTML = "";
       picks.forEach((pick, i) => {{
-        const item = document.createElement("a");
-        item.className = "new-item animate-in";
-        item.style.animationDelay = `${{0.3 + i * 0.1}}s`;
-        item.href = "#";
-        item.dataset.videoId = pick.videoId;
-        item.dataset.contentType = pick.contentType === "video" ? "video" : "shorts";
-        item.dataset.period = "daily";
-        item.innerHTML = `<span class="new-badge">NEW ${{pick.rank}}</span><p class="new-text"></p>`;
-        item.querySelector(".new-text").textContent = pick.text;
-        item.addEventListener("click", (event) => {{
-          event.preventDefault();
-          jumpToVideoCard(item.dataset.videoId, item.dataset.contentType, item.dataset.period);
-        }});
-        listEl.appendChild(item);
+        const clone = pick.cloneNode(true);
+        clone.classList.add("animate-in");
+        clone.style.animationDelay = `${{0.3 + i * 0.1}}s`;
+        clone.classList.remove("card-focus");
+        listEl.appendChild(clone);
       }});
     }}
     /* ── Main render ── */
@@ -1919,12 +1901,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
 
     // Player modal event delegation
-    periodRoot.addEventListener("click", (event) => {{
+    const handlePlayerTrigger = (event) => {{
       const trigger = event.target.closest(".thumb, .card-title");
       if (!trigger || !trigger.dataset.videoId) return;
       event.preventDefault();
       openPlayer(trigger.dataset.videoId, resolvePlayerLayout(trigger));
-    }});
+    }};
+    periodRoot.addEventListener("click", handlePlayerTrigger);
+    const newListRoot = document.getElementById("new-list");
+    if (newListRoot) newListRoot.addEventListener("click", handlePlayerTrigger);
     playerModePortrait.addEventListener("click", () => setPlayerLayout("portrait"));
     playerModeLandscape.addEventListener("click", () => setPlayerLayout("landscape"));
     playerClose.addEventListener("click", closePlayer);
