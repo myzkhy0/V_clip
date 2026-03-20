@@ -1827,6 +1827,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       cachedNewPickPool = pool;
       return pool;
     }}
+    function truncatePickupTitle(text, maxChars = 34) {{
+      const s = (text || "").trim();
+      if (s.length <= maxChars) return s;
+      return s.slice(0, maxChars) + "...";
+    }}
     function buildNewPicks() {{
       const listEl = document.getElementById("new-list");
       if (!listEl) return;
@@ -1861,7 +1866,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         badge.textContent = "NEW";
         const title = document.createElement("p");
         title.className = "pickup-thumb-title";
-        title.textContent = pick.title || pick.thumbAlt || "";
+        title.textContent = truncatePickupTitle(pick.title || pick.thumbAlt || "", 34);
         link.appendChild(img);
         link.appendChild(rank);
         link.appendChild(badge);
