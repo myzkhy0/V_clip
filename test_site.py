@@ -153,17 +153,39 @@ def _build_sitemap_xml(base_url: str) -> str:
     if not normalized:
         normalized = f"http://{HOST}:{PORT}"
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    urls = [
-        f"{normalized}/",
-        f"{normalized}/index.html",
+    items: list[str] = [
+        f"<url><loc>{html.escape(normalized + '/')}</loc><lastmod>{now_iso}</lastmod></url>",
+        f"<url><loc>{html.escape(normalized + '/index.html')}</loc><lastmod>{now_iso}</lastmod></url>",
     ]
-    items = "".join(
-        f"<url><loc>{html.escape(url)}</loc><lastmod>{now_iso}</lastmod></url>" for url in urls
-    )
+    try:
+        video_rows = fetchall(
+            """
+            SELECT video_id, published_at
+            FROM videos
+            WHERE video_id IS NOT NULL
+            ORDER BY published_at DESC
+            LIMIT 5000
+            """
+        )
+        for row in video_rows:
+            video_id = _normalize_video_id(str(row.get("video_id") or ""))
+            if not video_id:
+                continue
+            lastmod_value = row.get("published_at")
+            if isinstance(lastmod_value, datetime):
+                if lastmod_value.tzinfo is None:
+                    lastmod_value = lastmod_value.replace(tzinfo=timezone.utc)
+                lastmod = lastmod_value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            else:
+                lastmod = now_iso
+            loc = f"{normalized}/video/{video_id}"
+            items.append(f"<url><loc>{html.escape(loc)}</loc><lastmod>{lastmod}</lastmod></url>")
+    except Exception:
+        logger.exception("Failed to build video URL entries for sitemap.xml")
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-        f"{items}"
+        f"{''.join(items)}"
         "</urlset>"
     )
 
@@ -2076,6 +2098,14 @@ def _to_jst_date(value: datetime | None) -> str:
     return value.astimezone(JST).strftime("%Y-%m-%d")
 
 
+def _to_jst_iso(value: datetime | None) -> str:
+    if value is None:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(JST).isoformat()
+
+
 def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dict | None:
     video_rows = fetchall(
         """
@@ -2309,6 +2339,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         "channel_name": _sanitize_text(video.get("channel_name") or ""),
         "channel_icon_url": _sanitize_text(video.get("channel_icon_url") or ""),
         "published_at": _to_jst_date(video.get("published_at")),
+        "published_at_iso": _to_jst_iso(video.get("published_at")),
         "content_type": _sanitize_text(video.get("content_type") or ""),
         "first_ranked_at": _to_jst_date(first_ranked_at) if first_ranked_at else "-",
         "best_rank": int(best_rank) if best_rank is not None else None,
@@ -2375,9 +2406,26 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         detail_path += f"?period={normalized_period}"
     canonical_url = f"{normalized_base_url}{detail_path}" if normalized_base_url else detail_path
     thumbnail_url = _thumbnail_url(payload["video_id"])
+    video_id_escaped = html.escape(payload["video_id"])
+    yt_url = f"https://www.youtube.com/watch?v={video_id_escaped}"
     detail_description = (
         f"{payload['title']} の詳細ページ。初回ランクイン日・最高順位・現在順位・再生推移を確認できます。"
     )
+    video_structured_data = {
+        "@context": "https://schema.org",
+        "@type": "VideoObject",
+        "name": payload["title"],
+        "description": detail_description,
+        "thumbnailUrl": [thumbnail_url],
+        "uploadDate": payload.get("published_at_iso") or payload.get("published_at") or "",
+        "contentUrl": yt_url,
+        "embedUrl": f"https://www.youtube-nocookie.com/embed/{payload['video_id']}",
+        "url": canonical_url,
+        "publisher": {
+            "@type": "Organization",
+            "name": payload.get("channel_name") or SITE_TITLE,
+        },
+    }
     head_meta = (
         f'<meta name="description" content="{html.escape(detail_description, quote=True)}">\n'
         f'  <link rel="icon" type="image/jpeg" href="/assets/ueno-icon.jpg">\n'
@@ -2392,10 +2440,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         f'  <meta name="twitter:card" content="summary_large_image">\n'
         f'  <meta name="twitter:title" content="{html.escape(detail_title, quote=True)}">\n'
         f'  <meta name="twitter:description" content="{html.escape(detail_description, quote=True)}">\n'
-        f'  <meta name="twitter:image" content="{html.escape(thumbnail_url, quote=True)}">'
+        f'  <meta name="twitter:image" content="{html.escape(thumbnail_url, quote=True)}">\n'
+        f'  <script type="application/ld+json">{json.dumps(video_structured_data, ensure_ascii=False)}</script>'
     )
-    video_id_escaped = html.escape(payload["video_id"])
-    yt_url = f"https://www.youtube.com/watch?v={video_id_escaped}"
 
     best_rank_label = _rank_label_for_detail(payload.get("best_rank"))
     current_rank_label = _rank_label_for_detail(payload.get("current_rank"))
