@@ -1237,6 +1237,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       background:rgba(10,15,30,.82);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.76rem;font-weight:800;
     }}
     .pickup-thumb-new {{ position:absolute;top:8px;right:8px;z-index:2; }}
+    .pickup-thumb-title {{
+      margin:0;padding:8px 10px 9px;font-size:.82rem;line-height:1.35;color:var(--text);
+      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+      background:rgba(11,16,26,.66);
+    }}
     .new-badge {{
       padding:4px 12px;border-radius:999px;
       background:linear-gradient(135deg,#f472b6,#a78bfa);
@@ -1854,9 +1859,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const badge = document.createElement("span");
         badge.className = "new-badge pickup-thumb-new";
         badge.textContent = "NEW";
+        const title = document.createElement("p");
+        title.className = "pickup-thumb-title";
+        title.textContent = pick.title || pick.thumbAlt || "";
         link.appendChild(img);
         link.appendChild(rank);
         link.appendChild(badge);
+        link.appendChild(title);
         listEl.appendChild(link);
       }});
     }}
