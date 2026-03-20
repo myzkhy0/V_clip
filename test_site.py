@@ -2448,7 +2448,11 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     current_rank_label = _rank_label_for_detail(payload.get("current_rank"))
     best_rank_at_label = payload.get("best_rank_at") if best_rank_label != "Not ranked" else "-"
     current_rank_at_label = payload.get("current_rank_at") if current_rank_label != "Not ranked" else "-"
-    current_rank_title = "現在順位" if normalized_period == "daily" else f"現在順位（{normalized_period}）"
+    current_rank_title = {
+        "daily": "現在順位（24h）",
+        "weekly": "現在順位（weekly）",
+        "monthly": "現在順位（monthly）",
+    }.get(normalized_period, f"現在順位（{normalized_period}）")
     content_type = (payload.get("content_type") or "").strip().lower()
     top3_heading = "本日のShortsランキング TOP3" if content_type == "shorts" else "本日の動画ランキング TOP3"
     detail_query_suffix = "" if normalized_period == "daily" else f"?period={normalized_period}"
