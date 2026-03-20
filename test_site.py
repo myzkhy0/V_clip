@@ -1230,12 +1230,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .side-title {{ font-size:1.05rem;font-weight:800;margin:0; }}
     .new-list {{ margin:0; }}
-    .new-list .card {{ border-radius:14px; }}
-    .new-list .card-meta {{ padding:10px 11px; }}
-    .new-list .card-title {{ font-size:0.9rem;min-height:2.4em;margin-bottom:7px; }}
-    .new-list .card-info {{ font-size:0.78rem; }}
-    .new-list .card-info-bottom {{ margin-bottom:6px;font-size:0.76rem; }}
-    .new-list .card-actions {{ gap:8px;font-size:0.74rem; }}
+    .pickup-thumb-card {{ display:block;position:relative;border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03); }}
+    .pickup-thumb-card img {{ width:100%;aspect-ratio:16/9;object-fit:cover;display:block; }}
+    .pickup-thumb-rank {{
+      position:absolute;top:8px;left:8px;z-index:2;width:28px;height:28px;border-radius:8px;
+      background:rgba(10,15,30,.82);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.76rem;font-weight:800;
+    }}
+    .pickup-thumb-new {{ position:absolute;top:8px;right:8px;z-index:2; }}
     .new-badge {{
       padding:4px 12px;border-radius:999px;
       background:linear-gradient(135deg,#f472b6,#a78bfa);
@@ -1797,10 +1798,20 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const dedup = new Map();
       cards.forEach((card) => {{
         const thumbEl = card.querySelector(".thumb");
+        const imgEl = thumbEl ? thumbEl.querySelector("img") : null;
+        const rankEl = card.querySelector(".rank-badge");
+        const titleEl = card.querySelector(".card-title");
         if (!thumbEl) return;
         const videoId = thumbEl.dataset.videoId || "";
         if (!videoId || dedup.has(videoId)) return;
-        dedup.set(videoId, card);
+        dedup.set(videoId, {{
+          videoId,
+          contentType: (thumbEl.dataset.contentType || "shorts").toLowerCase(),
+          thumbSrc: imgEl ? (imgEl.getAttribute("src") || "") : "",
+          thumbAlt: imgEl ? (imgEl.getAttribute("alt") || "") : "",
+          rank: rankEl ? (rankEl.textContent || "").trim() : "",
+          title: titleEl ? (titleEl.textContent || "").trim() : "",
+        }});
       }});
 
       const pool = Array.from(dedup.values());
@@ -1823,11 +1834,30 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       }}
       listEl.innerHTML = "";
       picks.forEach((pick, i) => {{
-        const clone = pick.cloneNode(true);
-        clone.classList.add("animate-in");
-        clone.style.animationDelay = `${{0.3 + i * 0.1}}s`;
-        clone.classList.remove("card-focus");
-        listEl.appendChild(clone);
+        const link = document.createElement("a");
+        link.className = "pickup-thumb-card animate-in";
+        link.style.animationDelay = `${{0.3 + i * 0.1}}s`;
+        link.href = "#ranking-section";
+        link.dataset.videoId = pick.videoId;
+        link.dataset.contentType = pick.contentType === "video" ? "video" : "shorts";
+        link.dataset.period = "daily";
+        const rankLabel = pick.rank || "-";
+        const thumbSrc = pick.thumbSrc || "";
+        const thumbAlt = pick.title || pick.thumbAlt || "";
+        const img = document.createElement("img");
+        img.src = thumbSrc;
+        img.alt = thumbAlt;
+        img.loading = "lazy";
+        const rank = document.createElement("span");
+        rank.className = "pickup-thumb-rank";
+        rank.textContent = rankLabel;
+        const badge = document.createElement("span");
+        badge.className = "new-badge pickup-thumb-new";
+        badge.textContent = "NEW";
+        link.appendChild(img);
+        link.appendChild(rank);
+        link.appendChild(badge);
+        listEl.appendChild(link);
       }});
     }}
     const periodMap = new Map(payload.map((p) => [p.table, p]));
@@ -1956,7 +1986,18 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }};
     periodRoot.addEventListener("click", handlePlayerTrigger);
     const newListRoot = document.getElementById("new-list");
-    if (newListRoot) newListRoot.addEventListener("click", handlePlayerTrigger);
+    if (newListRoot) {{
+      newListRoot.addEventListener("click", (event) => {{
+        const trigger = event.target.closest(".pickup-thumb-card");
+        if (!trigger || !trigger.dataset.videoId) return;
+        event.preventDefault();
+        jumpToVideoCard(
+          trigger.dataset.videoId,
+          trigger.dataset.contentType || "shorts",
+          trigger.dataset.period || "daily",
+        );
+      }});
+    }}
     playerModePortrait.addEventListener("click", () => setPlayerLayout("portrait"));
     playerModeLandscape.addEventListener("click", () => setPlayerLayout("landscape"));
     playerClose.addEventListener("click", closePlayer);
