@@ -1252,7 +1252,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .side-title {{ font-size:1.05rem;font-weight:800;margin:0; }}
     .new-list {{ margin:0; }}
-    .pickup-thumb-card {{ display:block;position:relative;border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03); }}
+    .pickup-thumb-card {{
+      display:block;position:relative;border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;
+      background:rgba(255,255,255,.03);text-decoration:none;color:var(--text);
+    }}
     .pickup-thumb-card img {{ width:100%;aspect-ratio:16/9;object-fit:cover;display:block; }}
     .pickup-thumb-rank {{
       position:absolute;top:8px;left:8px;z-index:2;width:28px;height:28px;border-radius:8px;
