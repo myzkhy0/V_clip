@@ -1344,7 +1344,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .card-action-link {{ color:#8ad7ff;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;display:inline-flex;align-items:center;gap:4px; }}
     .card-action-link:hover {{ color:#b8e9ff; }}
     .card-action-link.icon-only {{ text-decoration:none;line-height:1; }}
-    .card-action-icon {{ width:16px;height:16px;display:inline-block;vertical-align:middle; }}
+    .card-action-icon {{ width:18px;height:18px;display:inline-block;vertical-align:middle; }}
     .card-detail-link {{ margin-left:auto; }}
     .channel-link {{ display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--text-dim);min-width:0;flex:1; }}
     .channel-icon {{
