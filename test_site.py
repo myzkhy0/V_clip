@@ -585,8 +585,12 @@ def _render_cards(
                   <span class="card-date">{html.escape(published_label)}</span>
                 </div>
                 <div class="card-actions">
-                  <a class="card-action-link" href="{video_url}" target="_blank" rel="noreferrer">YouTubeで開く</a>
-                  <a class="card-action-link" href="{share_url}" target="_blank" rel="noreferrer">SNSでシェア</a>
+                  <a class="card-action-link icon-only" href="{video_url}" target="_blank" rel="noreferrer" aria-label="YouTubeで開く" title="YouTubeで開く">
+                    <svg class="card-action-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="5" width="21" height="14" rx="4.5" fill="#ff0033"></rect><polygon points="10,9 16,12 10,15" fill="#fff"></polygon></svg>
+                  </a>
+                  <a class="card-action-link icon-only" href="{share_url}" target="_blank" rel="noreferrer" aria-label="Xでシェア" title="Xでシェア">
+                    <svg class="card-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.9 2H22l-6.8 7.8L23 22h-6.1l-4.8-6.3L6.5 22H3.4l7.2-8.2L1 2h6.2l4.3 5.8L18.9 2zm-1.1 18h1.7L6.3 3.9H4.5z"></path></svg>
+                  </a>
                   <a class="card-action-link card-detail-link" href="{detail_url}">詳細を見る</a>
                 </div>
               </div>
@@ -1337,8 +1341,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .card-info-bottom {{ justify-content:space-between;margin-bottom:8px;font-size:0.84rem; }}
     .card-date {{ color:var(--text-dim);white-space:nowrap; }}
     .card-actions {{ display:flex;justify-content:flex-start;align-items:center;gap:12px;font-size:0.82rem; }}
-    .card-action-link {{ color:#8ad7ff;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px; }}
+    .card-action-link {{ color:#8ad7ff;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;display:inline-flex;align-items:center;gap:4px; }}
     .card-action-link:hover {{ color:#b8e9ff; }}
+    .card-action-link.icon-only {{ text-decoration:none;line-height:1; }}
+    .card-action-icon {{ width:16px;height:16px;display:inline-block;vertical-align:middle; }}
     .card-detail-link {{ margin-left:auto; }}
     .channel-link {{ display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--text-dim);min-width:0;flex:1; }}
     .channel-icon {{
@@ -2973,5 +2979,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
