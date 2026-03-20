@@ -2448,6 +2448,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     current_rank_label = _rank_label_for_detail(payload.get("current_rank"))
     best_rank_at_label = payload.get("best_rank_at") if best_rank_label != "Not ranked" else "-"
     current_rank_at_label = payload.get("current_rank_at") if current_rank_label != "Not ranked" else "-"
+    current_rank_title = "現在順位" if normalized_period == "daily" else f"現在順位（{normalized_period}）"
     content_type = (payload.get("content_type") or "").strip().lower()
     top3_heading = "本日のShortsランキング TOP3" if content_type == "shorts" else "本日の動画ランキング TOP3"
     detail_query_suffix = "" if normalized_period == "daily" else f"?period={normalized_period}"
@@ -2653,7 +2654,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       <div class="cards">
         <article class="card"><p class="card-label">初回ランクイン日</p><p class="card-value">{html.escape(payload["first_ranked_at"])}</p></article>
         <article class="card"><p class="card-label">最高順位</p><p class="card-value a">{html.escape(best_rank_label)}</p><p class="card-sub">記録日: {html.escape(best_rank_at_label or "-")}</p></article>
-        <article class="card"><p class="card-label">現在順位</p><p class="card-value g">{html.escape(current_rank_label)}</p><p class="card-sub">時点: {html.escape(current_rank_at_label or "-")}</p></article>
+        <article class="card"><p class="card-label">{html.escape(current_rank_title)}</p><p class="card-value g">{html.escape(current_rank_label)}</p><p class="card-sub">時点: {html.escape(current_rank_at_label or "-")}</p></article>
         <article class="card"><p class="card-label">24h 再生増加</p><p class="card-value w">+{payload["views_delta_24h"]:,}</p></article>
       </div>
     </section>
