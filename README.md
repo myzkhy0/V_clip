@@ -37,6 +37,13 @@ cp .env.example .env
 |---|---|
 | `YOUTUBE_API_KEY` | YouTube Data API v3 キー |
 | `DATABASE_URL` | PostgreSQL 接続文字列 (例: `postgresql://user:pass@localhost:5432/vclip`) |
+| `ENABLE_COLD_SCHEDULING` | `1` で cold 判定によるチャンネル更新間引きを有効化（既定 `0`） |
+| `COLD_REFRESH_HOURS` | cold 判定チャンネルの更新間隔（時間, 例 `72`） |
+| `COLD_MIN_INACTIVE_DAYS` | cold 判定の最小 inactive 日数（既定 `14`） |
+| `COLD_RECENT_GROWTH_7D_MAX` | cold 判定の 7日再生増分しきい値（既定 `5000`） |
+| `COLD_MIN_OBSERVED_VIDEOS` | cold 判定の最小観測動画本数（既定 `1`） |
+| `COLD_MIN_CHANNEL_AGE_DAYS` | 観測不足時の代替条件となるチャンネル経過日数（既定 `14`） |
+| `COLD_MANUAL_PROTECT_FILE` | cold 対象から除外する channel_id リストファイル |
 
 ### 3. Create Database
 

@@ -193,6 +193,18 @@ SEARCH_CRON_MINUTE_JST: int = int(os.getenv("SEARCH_CRON_MINUTE_JST", "0"))
 CHANNEL_UPDATE_INTERVAL_HOURS: int = int(os.getenv("CHANNEL_UPDATE_INTERVAL_HOURS", "4"))
 STATS_INTERVAL_HOURS: int = int(os.getenv("STATS_INTERVAL_HOURS", "4"))
 
+# ── Cold scheduling (channel refresh load reduction) ─────────────────
+ENABLE_COLD_SCHEDULING: bool = _env_bool("ENABLE_COLD_SCHEDULING", "0")
+COLD_REFRESH_HOURS: int = int(os.getenv("COLD_REFRESH_HOURS", "72"))
+COLD_RECENT_GROWTH_7D_MAX: int = int(os.getenv("COLD_RECENT_GROWTH_7D_MAX", "5000"))
+COLD_MIN_INACTIVE_DAYS: int = int(os.getenv("COLD_MIN_INACTIVE_DAYS", "14"))
+COLD_MIN_CHANNEL_AGE_DAYS: int = int(os.getenv("COLD_MIN_CHANNEL_AGE_DAYS", "14"))
+COLD_MIN_OBSERVED_VIDEOS: int = int(os.getenv("COLD_MIN_OBSERVED_VIDEOS", "1"))
+COLD_MANUAL_PROTECT_FILE: str = os.getenv(
+    "COLD_MANUAL_PROTECT_FILE",
+    "scripts/simulation/manual_protect_channels.txt",
+)
+
 
 
 

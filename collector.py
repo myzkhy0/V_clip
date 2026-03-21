@@ -12,12 +12,20 @@ Workflow:
 
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config import (
     CHANNEL_EMPTY_STREAK_PAUSE_THRESHOLD,
     CHANNEL_PAUSE_HOURS,
+    COLD_MANUAL_PROTECT_FILE,
+    COLD_MIN_CHANNEL_AGE_DAYS,
+    COLD_MIN_INACTIVE_DAYS,
+    COLD_MIN_OBSERVED_VIDEOS,
+    COLD_RECENT_GROWTH_7D_MAX,
+    COLD_REFRESH_HOURS,
+    ENABLE_COLD_SCHEDULING,
     GROUP_KEYWORDS,
     MIN_DURATION_SECONDS,
     KEYWORD_ROTATION_STATE_FILE,
@@ -43,6 +51,7 @@ from youtube_client import (
 
 logger = logging.getLogger(__name__)
 VSPO_PERMISSION_MARKER = "ぶいすぽっ！許諾番号"
+IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 # ── Seed channels (first-run helper) ────────────────────────────────
@@ -180,6 +189,191 @@ def _should_skip_channel(ch: dict, now_utc: datetime) -> bool:
     return paused_until > now_utc
 
 
+def _safe_ident(name: str) -> str:
+    if not IDENT_RE.match(name):
+        raise ValueError(f"Unsafe SQL identifier: {name}")
+    return name
+
+
+def _days_since(ts: datetime | None, now_utc: datetime) -> float | None:
+    if ts is None:
+        return None
+    value = ts
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return (now_utc - value.astimezone(timezone.utc)).total_seconds() / 86400.0
+
+
+def _load_manual_protect_ids(path_value: str) -> set[str]:
+    if not path_value:
+        return set()
+    path = Path(path_value)
+    if not path.is_absolute():
+        path = (Path(__file__).resolve().parent / path).resolve()
+    if not path.exists():
+        return set()
+    ids: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        v = line.strip()
+        if v and not v.startswith("#"):
+            ids.add(v)
+    return ids
+
+
+def _load_ranking_tables() -> list[str]:
+    rows = fetchall(
+        """
+        SELECT table_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+        GROUP BY table_name
+        HAVING
+            SUM(CASE WHEN column_name = 'video_id' THEN 1 ELSE 0 END) > 0
+            AND SUM(CASE WHEN column_name = 'calculated_at' THEN 1 ELSE 0 END) > 0
+            AND table_name LIKE '%%ranking%%'
+        ORDER BY table_name
+        """
+    )
+    return [str(r["table_name"]) for r in rows]
+
+
+def _build_cold_candidate_meta(channels: list[dict], now_utc: datetime) -> dict[str, dict]:
+    if not ENABLE_COLD_SCHEDULING:
+        return {}
+
+    channel_ids = [str(ch.get("channel_id") or "") for ch in channels if ch.get("channel_id")]
+    if not channel_ids:
+        return {}
+
+    protected_ids = _load_manual_protect_ids(COLD_MANUAL_PROTECT_FILE)
+    ranking_tables = _load_ranking_tables()
+    if not ranking_tables:
+        logger.warning("Cold scheduling disabled for this run: ranking tables not found.")
+        return {}
+
+    ranking_union = " UNION ALL ".join(
+        f"SELECT video_id FROM {_safe_ident(t)} WHERE calculated_at >= NOW() - INTERVAL '30 days'"
+        for t in ranking_tables
+    )
+
+    sql = f"""
+    WITH scoped AS (
+      SELECT UNNEST(%s::text[]) AS channel_id
+    ),
+    video_base AS (
+      SELECT
+        v.channel_id,
+        v.video_id,
+        COALESCE(v.published_at, v.added_at) AS published_at
+      FROM videos v
+      JOIN scoped s ON s.channel_id = v.channel_id
+    ),
+    video_feat AS (
+      SELECT
+        channel_id,
+        MAX(published_at) AS latest_video_published_at,
+        COUNT(*) FILTER (WHERE published_at >= NOW() - INTERVAL '30 days') AS recent_video_count_30d
+      FROM video_base
+      GROUP BY channel_id
+    ),
+    growth_base AS (
+      SELECT
+        video_id,
+        GREATEST(MAX(view_count) - MIN(view_count), 0) AS view_growth
+      FROM video_stats
+      WHERE timestamp >= NOW() - INTERVAL '7 days'
+      GROUP BY video_id
+    ),
+    growth_7d AS (
+      SELECT
+        vb.channel_id,
+        COALESCE(SUM(gb.view_growth), 0) AS recent_view_growth_7d
+      FROM video_base vb
+      LEFT JOIN growth_base gb ON gb.video_id = vb.video_id
+      WHERE vb.published_at >= NOW() - INTERVAL '7 days'
+      GROUP BY vb.channel_id
+    ),
+    ranking_30d AS (
+      SELECT
+        vb.channel_id,
+        COUNT(DISTINCT r.video_id) AS ranking_count_30d
+      FROM ({ranking_union}) r
+      JOIN video_base vb ON vb.video_id = r.video_id
+      GROUP BY vb.channel_id
+    )
+    SELECT
+      s.channel_id,
+      vf.latest_video_published_at,
+      COALESCE(vf.recent_video_count_30d, 0) AS recent_video_count_30d,
+      COALESCE(g7.recent_view_growth_7d, 0) AS recent_view_growth_7d,
+      COALESCE(r30.ranking_count_30d, 0) AS ranking_count_30d
+    FROM scoped s
+    LEFT JOIN video_feat vf ON vf.channel_id = s.channel_id
+    LEFT JOIN growth_7d g7 ON g7.channel_id = s.channel_id
+    LEFT JOIN ranking_30d r30 ON r30.channel_id = s.channel_id
+    """
+    feature_rows = fetchall(sql, (channel_ids,))
+    feature_by_id = {str(r["channel_id"]): r for r in feature_rows}
+
+    meta: dict[str, dict] = {}
+    for ch in channels:
+        cid = str(ch.get("channel_id") or "")
+        if not cid:
+            continue
+        if cid in protected_ids:
+            meta[cid] = {"is_cold": False, "reason": "manual_protect"}
+            continue
+
+        fr = feature_by_id.get(cid, {})
+        ranking_30d = int(fr.get("ranking_count_30d") or 0)
+        growth_7d = int(fr.get("recent_view_growth_7d") or 0)
+        recent_30d = int(fr.get("recent_video_count_30d") or 0)
+        latest_days = _days_since(fr.get("latest_video_published_at"), now_utc)
+        channel_age_days = _days_since(ch.get("channel_added_at"), now_utc)
+        is_inactive = latest_days is None or latest_days >= COLD_MIN_INACTIVE_DAYS
+        observed = recent_30d >= COLD_MIN_OBSERVED_VIDEOS or (
+            channel_age_days is not None and channel_age_days >= COLD_MIN_CHANNEL_AGE_DAYS
+        )
+
+        is_cold = (
+            ranking_30d == 0
+            and growth_7d < COLD_RECENT_GROWTH_7D_MAX
+            and is_inactive
+            and observed
+        )
+        reason = (
+            f"rank30={ranking_30d}, growth7d={growth_7d}, "
+            f"inactive_days={latest_days if latest_days is not None else 'none'}"
+        )
+        meta[cid] = {"is_cold": is_cold, "reason": reason}
+
+    return meta
+
+
+def _cold_hold_skip_reason(ch: dict, now_utc: datetime, cold_meta: dict[str, dict]) -> str | None:
+    if not ENABLE_COLD_SCHEDULING:
+        return None
+    cid = str(ch.get("channel_id") or "")
+    info = cold_meta.get(cid)
+    if not info or not info.get("is_cold"):
+        return None
+
+    last_checked = ch.get("last_checked_at")
+    if not last_checked:
+        return None
+    if last_checked.tzinfo is None:
+        last_checked = last_checked.replace(tzinfo=timezone.utc)
+
+    next_allowed = last_checked + timedelta(hours=max(1, int(COLD_REFRESH_HOURS)))
+    if next_allowed > now_utc:
+        remaining_hours = int((next_allowed - now_utc).total_seconds() // 3600)
+        return (
+            f"cold_hold until {next_allowed.isoformat()} "
+            f"(remaining~{remaining_hours}h; {info.get('reason', '')})"
+        )
+    return None
+
+
 def _mark_channel_checked(channel_id: str, found_count: int, now_utc: datetime) -> None:
     if found_count > 0:
         execute(
@@ -281,6 +475,21 @@ def discover_videos(
     # 1) Channel-based search (uploads playlist + playlistItems.list)
     if include_channel_search:
         channels = load_channels(tracked_only=True)
+        cold_meta: dict[str, dict] = {}
+        try:
+            cold_meta = _build_cold_candidate_meta(channels, now_utc)
+            if ENABLE_COLD_SCHEDULING:
+                cold_count = sum(1 for v in cold_meta.values() if v.get("is_cold"))
+                logger.info(
+                    "Cold scheduling enabled: %d/%d channel(s) are cold candidates (refresh=%sh)",
+                    cold_count,
+                    len(channels),
+                    COLD_REFRESH_HOURS,
+                )
+        except Exception:
+            cold_meta = {}
+            logger.exception("Failed to build cold candidate metadata; proceeding without cold hold.")
+
         for ch in channels:
             if quota_guard_hit:
                 break
@@ -290,6 +499,15 @@ def discover_videos(
                     ch["channel_name"],
                     ch["group_name"],
                     ch.get("paused_until"),
+                )
+                continue
+            cold_skip_reason = _cold_hold_skip_reason(ch, now_utc, cold_meta)
+            if cold_skip_reason:
+                logger.info(
+                    "Channel %s (%s): %s",
+                    ch["channel_name"],
+                    ch["group_name"],
+                    cold_skip_reason,
                 )
                 continue
 
