@@ -548,7 +548,7 @@ def _render_cards(
         title_plain = " ".join(title_raw.split())
         share_title = _truncate_text(title_plain, 56)
         share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
-        share_text = f"{share_prefix}  {share_title} https://vclipranking.com/"
+        share_text = f"{share_prefix}  {share_title} {video_url} @YouTubeより https://vclipranking.com/"
         share_url = "https://twitter.com/intent/tweet?text=" + quote(share_text, safe="")
         content_type = html.escape((row.get("content_type") or "").lower())
         published_label = ""
@@ -1821,6 +1821,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         }};
       }}).filter((item) => item.title);
     }}
+    function normalizeShareTitle(text) {{
+      return (text || "").replace(/\\s+/g, " ").trim();
+    }}
+    function truncateShareTitle(text, maxLen) {{
+      const normalized = normalizeShareTitle(text);
+      if (!normalized) return "";
+      if (normalized.length <= maxLen) return normalized;
+      return normalized.slice(0, Math.max(1, maxLen - 1)).trimEnd() + "…";
+    }}
     function openDailyTop3Share(contentType) {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const label = normalized === "video" ? "動画" : "Shorts";
@@ -1831,10 +1840,20 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       }}
       const now = new Date();
       const monthDay = `${{now.getMonth() + 1}}/${{now.getDate()}}`;
-      const lines = [
-        `本日(${{monthDay}})の #VTuber切り抜きランキング Top3（${{label}}）`,
-        ...top3.map((item) => `${{item.rank}}位: ${{item.title}}`),
-      ];
+      const rankEmojis = ["🥇", "🥈", "🥉"];
+      const maxTextLen = 240;
+      let titleMaxLen = 34;
+      let lines = [];
+      while (titleMaxLen >= 18) {{
+        lines = [
+          `🔥本日(${{monthDay}})の #VTuber切り抜きランキング Top3`,
+          `（${{label}}）`,
+          "",
+          ...top3.map((item, idx) => `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位: ${{truncateShareTitle(item.title, titleMaxLen)}}`),
+        ];
+        if (lines.join("\\n").length <= maxTextLen) break;
+        titleMaxLen -= 2;
+      }}
       const params = new URLSearchParams({{
         text: lines.join("\\n"),
         url: "https://vclipranking.com/",
