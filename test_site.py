@@ -548,7 +548,7 @@ def _render_cards(
         title_plain = " ".join(title_raw.split())
         share_title = _truncate_text(title_plain, 56)
         share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
-        share_text = f"{share_prefix}  {share_title} {video_url} @YouTubeより https://vclipranking.com/"
+        share_text = f"{share_prefix}  {share_title} https://vclipranking.com/"
         share_url = "https://twitter.com/intent/tweet?text=" + quote(share_text, safe="")
         content_type = html.escape((row.get("content_type") or "").lower())
         published_label = ""
@@ -620,7 +620,12 @@ def _render_cards(
             """
         )
     return "".join(cards)
-def _render_rank_sections(rows: list[dict], show_group: bool = True, period_key: str = "daily", content_label: str = "shorts") -> str:
+def _render_rank_sections(
+    rows: list[dict],
+    show_group: bool = True,
+    period_key: str = "daily",
+    content_label: str = "shorts",
+) -> str:
     if not rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
@@ -657,12 +662,22 @@ def _render_group_content(
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
     shorts_html = (
-        _render_rank_sections(display_shorts_rows, show_group=show_group, period_key=period_key, content_label="shorts")
+        _render_rank_sections(
+            display_shorts_rows,
+            show_group=show_group,
+            period_key=period_key,
+            content_label="shorts",
+        )
         if display_shorts_rows
         else '<div class="empty">Shortsに該当する動画はありません。</div>'
     )
     video_html = (
-        _render_rank_sections(display_video_rows, show_group=show_group, period_key=period_key, content_label="動画")
+        _render_rank_sections(
+            display_video_rows,
+            show_group=show_group,
+            period_key=period_key,
+            content_label="動画",
+        )
         if display_video_rows
         else '<div class="empty">動画に該当する動画はありません。</div>'
     )
@@ -1091,6 +1106,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
             <span class="admin-pill {status_class}">API状態: {status_label}</span>
             <span class="admin-metrics">search.list {used:,} / {limit:,}</span>
           </div>
+          <div class="admin-share-row">
+            <button id="share-daily-top3-shorts" class="admin-share-btn" type="button">本日Top3をX投稿（Shorts）</button>
+            <button id="share-daily-top3-video" class="admin-share-btn" type="button">本日Top3をX投稿（動画）</button>
+          </div>
         """
         admin_board_html = f"""
         <section class="admin-board">
@@ -1475,6 +1494,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .admin-pill.warn {{ background:#f4b942; }}
     .admin-pill.danger {{ background:#ff7c7c; }}
     .admin-pill.muted {{ background:#9fb2c1; }}
+    .admin-share-row {{ margin-top:10px;display:flex;flex-wrap:wrap;gap:8px; }}
+    .admin-share-btn {{
+      border:1px solid rgba(138,215,255,0.35);background:rgba(99,208,255,0.12);color:#dff4ff;
+      border-radius:10px;padding:7px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:inherit;
+      transition:all 0.2s ease;
+    }}
+    .admin-share-btn:hover {{ background:rgba(99,208,255,0.2);border-color:rgba(138,215,255,0.55); }}
     /* ── Responsive ── */
     @media (max-width:1024px) {{
       .hero {{ grid-template-columns:1fr; }}
@@ -1778,6 +1804,44 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         <div class="stat-item"><span class="stat-value">${{fresh.toLocaleString("ja-JP")}}</span><span class="stat-label">新着（24h）</span></div>
       `;
     }}
+    function getDailyTop3Items(contentType) {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const daily = payload.find((p) => p.table === "daily");
+      if (!daily || !daily.groups || !daily.groups.all) return [];
+      const tmp = document.createElement("div");
+      tmp.innerHTML = daily.groups.all;
+      const cards = Array.from(
+        tmp.querySelectorAll(`.content-panel[data-content-panel="${{normalized}}"] .card`)
+      ).slice(0, 3);
+      return cards.map((card, idx) => {{
+        const titleEl = card.querySelector(".card-title");
+        return {{
+          rank: idx + 1,
+          title: (titleEl ? titleEl.textContent : "").trim(),
+        }};
+      }}).filter((item) => item.title);
+    }}
+    function openDailyTop3Share(contentType) {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = normalized === "video" ? "動画" : "Shorts";
+      const top3 = getDailyTop3Items(normalized);
+      if (!top3.length) {{
+        window.alert(`daily ${label} のランキングデータがありません。`);
+        return;
+      }}
+      const now = new Date();
+      const monthDay = `${{now.getMonth() + 1}}/${{now.getDate()}}`;
+      const lines = [
+        `本日(${{monthDay}})の #VTuber切り抜きランキング Top3（${{label}}）`,
+        ...top3.map((item) => `${{item.rank}}位: ${{item.title}}`),
+      ];
+      const params = new URLSearchParams({{
+        text: lines.join("\\n"),
+        url: "https://vclipranking.com/",
+      }});
+      const shareUrl = `https://twitter.com/intent/tweet?${{params.toString()}}`;
+      window.open(shareUrl, "_blank", "noopener,noreferrer");
+    }}
     function jumpToVideoCard(videoId, contentType = "shorts", period = "daily") {{
       if (!videoId) return;
 
@@ -2064,6 +2128,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     buildHeroStats();
     buildNewPicks();
     render();
+    if (showAdminMeta) {{
+      const shareDailyShortsBtn = document.getElementById("share-daily-top3-shorts");
+      const shareDailyVideoBtn = document.getElementById("share-daily-top3-video");
+      if (shareDailyShortsBtn) {{
+        shareDailyShortsBtn.addEventListener("click", () => openDailyTop3Share("shorts"));
+      }}
+      if (shareDailyVideoBtn) {{
+        shareDailyVideoBtn.addEventListener("click", () => openDailyTop3Share("video"));
+      }}
+    }}
   </script>
 </body>
 </html>
