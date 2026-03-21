@@ -1826,7 +1826,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const label = normalized === "video" ? "動画" : "Shorts";
       const top3 = getDailyTop3Items(normalized);
       if (!top3.length) {{
-        window.alert(`daily ${label} のランキングデータがありません。`);
+        window.alert(`daily ${{label}} のランキングデータがありません。`);
         return;
       }}
       const now = new Date();
