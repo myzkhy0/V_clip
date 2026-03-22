@@ -618,8 +618,10 @@ def _render_cards(
                   {group_pill_html}
                 </div>
                 <div class="card-info card-info-bottom">
-                  <span class="card-views"><em class="arrow">↑</em><span class="view-growth">+{row['view_growth']:,}</span></span>
-                  <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">{like_count:,}</span></span>
+                  <span class="card-metrics-stack">
+                    <span class="card-views"><em class="arrow">↑</em><span class="view-growth">+{row['view_growth']:,}</span></span>
+                    <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">{like_count:,}</span></span>
+                  </span>
                   <span class="card-date">{html.escape(published_label)}</span>
                 </div>
                 <div class="card-actions">
@@ -1425,10 +1427,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .channel-avatar {{ width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#f472b6,#a78bfa);flex:0 0 18px; }}
     .card-views {{
       white-space:nowrap;font-weight:700;font-size:0.9rem;
-      display:flex;align-items:center;gap:4px;
+      display:flex;align-items:center;gap:4px;color:#82f2c2;
     }}
     .card-views .view-growth {{
-      color:var(--accent-purple);
+      color:#82f2c2;
+    }}
+    .card-metrics-stack {{
+      display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;
     }}
     .card-likes {{
       white-space:nowrap;font-weight:700;font-size:0.88rem;
