@@ -10,6 +10,7 @@ which requires an old snapshot at or before (now - 24h).
 """
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -47,6 +48,17 @@ HISTORY_RANK_LIMIT = 100
 CLIP_KEYWORD_PATTERN = "%切り抜き%"
 VSPO_GROUP_NAME = "VSPO"
 VSPO_PERMISSION_PATTERN = "%ぶいすぽっ！許諾番号%"
+CHANNEL_ID_PATTERN = re.compile(r"(UC[0-9A-Za-z_-]{20,})")
+
+
+def _extract_channel_id(raw: str) -> str:
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    if value.startswith("UC") and len(value) >= 20:
+        return value
+    match = CHANNEL_ID_PATTERN.search(value)
+    return match.group(1) if match else ""
 
 
 def _load_excluded_channel_ids() -> list[str]:
@@ -60,7 +72,9 @@ def _load_excluded_channel_ids() -> list[str]:
         value = line.strip()
         if not value or value.startswith("#"):
             continue
-        channel_ids.append(value)
+        channel_id = _extract_channel_id(value)
+        if channel_id:
+            channel_ids.append(channel_id)
 
     # de-duplicate while preserving order
     return list(dict.fromkeys(channel_ids))

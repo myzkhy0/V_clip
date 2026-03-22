@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import random
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -79,8 +80,19 @@ SITE_DESCRIPTION = (
     "VTuber切り抜きの再生数ランキング。24時間・7日・30日ごとの注目クリップを確認できます。"
 )
 SITE_OG_LOCALE = "ja_JP"
+CHANNEL_ID_PATTERN = re.compile(r"(UC[0-9A-Za-z_-]{20,})")
 
 
+
+
+def _extract_channel_id(raw: str) -> str:
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    if value.startswith("UC") and len(value) >= 20:
+        return value
+    match = CHANNEL_ID_PATTERN.search(value)
+    return match.group(1) if match else ""
 
 
 def _normalize_base_url(raw: str) -> str:
@@ -321,7 +333,9 @@ def _load_excluded_channel_ids() -> list[str]:
         value = line.strip()
         if not value or value.startswith("#"):
             continue
-        channel_ids.append(value)
+        channel_id = _extract_channel_id(value)
+        if channel_id:
+            channel_ids.append(channel_id)
     return list(dict.fromkeys(channel_ids))
 
 
