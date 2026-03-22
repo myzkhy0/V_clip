@@ -238,6 +238,13 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
         )
         previous_ids = {row["video_id"] for row in prev_rows}
 
+    period_hours_map = {"daily": 24, "weekly": 168, "monthly": 720}
+    period_key = "daily"
+    if table.startswith("weekly_"):
+        period_key = "weekly"
+    elif table.startswith("monthly_"):
+        period_key = "monthly"
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=period_hours_map.get(period_key, 24))
     limit = max(1, int(top_n))
     rows = fetchall(
         f"""
@@ -255,7 +262,10 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
             v.duration_seconds,
             v.tags_text,
             v.published_at,
-            COALESCE(vs.like_count, 0) AS like_count
+            GREATEST(
+                0,
+                COALESCE(ls.like_count, 0) - COALESCE(os.like_count, fs.like_count, ls.like_count, 0)
+            ) AS like_growth
         FROM {table} r
         JOIN videos v ON v.video_id = r.video_id
         LEFT JOIN LATERAL (
@@ -264,12 +274,27 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
             WHERE s.video_id = r.video_id
             ORDER BY s.timestamp DESC
             LIMIT 1
-        ) vs ON TRUE
+        ) ls ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT like_count
+            FROM video_stats s
+            WHERE s.video_id = r.video_id
+              AND s.timestamp <= %s
+            ORDER BY s.timestamp DESC
+            LIMIT 1
+        ) os ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT like_count
+            FROM video_stats s
+            WHERE s.video_id = r.video_id
+            ORDER BY s.timestamp ASC
+            LIMIT 1
+        ) fs ON TRUE
         WHERE r.calculated_at = %s
         ORDER BY r.rank
         LIMIT %s
         """,
-        (calculated_at, limit),
+        (cutoff, calculated_at, limit),
     )
 
     now_utc = datetime.now(timezone.utc)
@@ -337,6 +362,7 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
             SELECT DISTINCT ON (video_id)
                 video_id,
                 view_count,
+                like_count,
                 timestamp AS first_ts
             FROM video_stats
             ORDER BY video_id, timestamp ASC
@@ -354,7 +380,7 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
                 v.tags_text,
                 v.published_at,
                 (l.view_count - f.view_count) AS view_growth,
-                l.like_count AS like_count
+                GREATEST(0, l.like_count - f.like_count) AS like_growth
             FROM latest_stats l
             JOIN first_stats f ON f.video_id = l.video_id
             LEFT JOIN old_stats o ON o.video_id = l.video_id
@@ -379,7 +405,7 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
                 duration_seconds,
                 tags_text,
                 published_at,
-                like_count
+                like_growth
             FROM provisional
             WHERE view_growth > 0
         )
@@ -569,9 +595,9 @@ def _render_cards(
                 published_at = published_at.replace(tzinfo=timezone.utc)
             published_label = published_at.astimezone(JST).strftime("%Y-%m-%d %H:%M")
         try:
-            like_count = int(row.get("like_count") or 0)
+            like_growth = int(row.get("like_growth") or 0)
         except (TypeError, ValueError):
-            like_count = 0
+            like_growth = 0
 
         # Rank-specific glow classes for top 3
         rank = row["rank"]
@@ -618,9 +644,9 @@ def _render_cards(
                   {group_pill_html}
                 </div>
                 <div class="card-info card-info-bottom">
-                  <span class="card-metrics-stack">
-                    <span class="card-views"><em class="arrow">↑</em><span class="view-growth">+{row['view_growth']:,}</span></span>
-                    <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">{like_count:,}</span></span>
+                    <span class="card-metrics-stack">
+                      <span class="card-views"><em class="arrow">↑</em><span class="view-growth">+{row['view_growth']:,}</span></span>
+                    <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
                   </span>
                   <span class="card-date">{html.escape(published_label)}</span>
                 </div>
@@ -2346,7 +2372,8 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         """
         SELECT
             DATE_TRUNC('day', timestamp) AS day_ts,
-            MAX(view_count) AS views
+            MAX(view_count) AS views,
+            MAX(like_count) AS likes
         FROM video_stats
         WHERE video_id = %s
           AND timestamp >= (NOW() - INTERVAL '30 days')
@@ -2356,6 +2383,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         (video_id,),
     )
     trend_30 = [int(row.get("views") or 0) for row in trend_rows]
+    like_trend_30 = [int(row.get("likes") or 0) for row in trend_rows]
     trend_30_dates = []
     for row in trend_rows:
         day_ts = row.get("day_ts")
@@ -2369,7 +2397,9 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         trend_30 = [latest_view]
         trend_30_dates = [datetime.now(JST).strftime("%m/%d")]
     trend_7 = trend_30[-7:] if len(trend_30) > 7 else trend_30
+    like_trend_7 = like_trend_30[-7:] if len(like_trend_30) > 7 else like_trend_30
     trend_7_dates = trend_30_dates[-7:] if len(trend_30_dates) > 7 else trend_30_dates
+    like_has_data = any(value > 0 for value in like_trend_30)
 
     try:
         related_rows = fetchall(
@@ -2474,6 +2504,9 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         "trend_7_dates": trend_7_dates,
         "trend_30": trend_30,
         "trend_30_dates": trend_30_dates,
+        "like_trend_7": like_trend_7,
+        "like_trend_30": like_trend_30,
+        "like_has_data": like_has_data,
         "top3_cards": [
             {
                 "rank": int(row.get("rank") or 0),
@@ -2623,6 +2656,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
             "trend_7_dates": payload["trend_7_dates"],
             "trend_30": payload["trend_30"],
             "trend_30_dates": payload["trend_30_dates"],
+            "like_trend_7": payload["like_trend_7"],
+            "like_trend_30": payload["like_trend_30"],
+            "like_has_data": payload["like_has_data"],
         },
         ensure_ascii=False,
     )
@@ -2689,6 +2725,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     .a {{ color:var(--accent-a); }} .g {{ color:var(--good); }} .w {{ color:var(--warn); }}
     .head {{ display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px; }}
     .tabs {{ display:inline-flex;border:1px solid var(--glass-border);border-radius:10px;overflow:hidden; }}
+    .tab-groups {{ display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end; }}
     .tab {{ border:0;background:transparent;color:var(--text-dim);padding:6px 10px;font-size:.76rem;font-weight:700;cursor:pointer; }}
     .tab.active {{ color:#fff;background:linear-gradient(135deg, rgba(99,208,255,.24), rgba(139,92,246,.24)); }}
     .chart-box {{ border:1px solid var(--glass-border);border-radius:10px;background:rgba(255,255,255,.02);padding:7px; }}
@@ -2784,8 +2821,17 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
 
     <section class="panel">
       <div class="head">
-        <strong>再生推移（軽量）</strong>
-        <div class="tabs"><button class="tab active" data-range="7">7日</button><button class="tab" data-range="30">30日</button></div>
+        <strong>再生・like推移（軽量）</strong>
+        <div class="tab-groups">
+          <div class="tabs">
+            <button class="tab active" data-metric="views">再生</button>
+            <button class="tab" data-metric="likes">like</button>
+          </div>
+          <div class="tabs">
+            <button class="tab active" data-range="7">7日</button>
+            <button class="tab" data-range="30">30日</button>
+          </div>
+        </div>
       </div>
       <div class="chart-box">
         <svg viewBox="0 0 900 220" width="100%" height="220">
@@ -2826,6 +2872,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     const trendPayload = {payload_json};
     const tabs = Array.from(document.querySelectorAll(".tab"));
     let activeRange = "7";
+    let activeMetric = "views";
     function mapPoints(values) {{
       if (!values.length) return [];
       const min = Math.min(...values), max = Math.max(...values), r = Math.max(1, max - min);
@@ -2833,7 +2880,10 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       return values.map((v, i) => [left + i * (right - left) / Math.max(1, values.length - 1), bottom - ((v - min) / r) * (bottom - top)]);
     }}
     function renderTrend() {{
-      const values = activeRange === "30" ? (trendPayload.trend_30 || []) : (trendPayload.trend_7 || []);
+      const metricKey = activeMetric === "likes" ? "likes" : "views";
+      const values = metricKey === "likes"
+        ? (activeRange === "30" ? (trendPayload.like_trend_30 || []) : (trendPayload.like_trend_7 || []))
+        : (activeRange === "30" ? (trendPayload.trend_30 || []) : (trendPayload.trend_7 || []));
       const dates = activeRange === "30" ? (trendPayload.trend_30_dates || []) : (trendPayload.trend_7_dates || []);
       const points = mapPoints(values);
       const line = document.getElementById("line");
@@ -2842,20 +2892,32 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       const xLabels = document.getElementById("x-axis-labels");
       const legendL = document.getElementById("legendL");
       const legendR = document.getElementById("legendR");
+      if (metricKey === "likes" && !trendPayload.like_has_data) {{
+        line.setAttribute("points", "");
+        line.setAttribute("stroke", "#f472b6");
+        dots.innerHTML = "";
+        yLabels.innerHTML = "";
+        xLabels.innerHTML = "";
+        legendL.textContent = "No data";
+        legendR.textContent = "";
+        return;
+      }}
       if (!points.length) {{
         line.setAttribute("points", "");
         dots.innerHTML = "";
         yLabels.innerHTML = "";
         xLabels.innerHTML = "";
-        legendL.textContent = "データ不足";
+        legendL.textContent = "No data";
         legendR.textContent = "";
         return;
       }}
+      line.setAttribute("stroke", metricKey === "likes" ? "#f472b6" : "url(#lineGrad)");
       line.setAttribute("points", points.map(([x,y]) => `${{x.toFixed(1)}},${{y.toFixed(1)}}`).join(" "));
       dots.innerHTML = "";
       points.forEach(([x,y]) => {{
         const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); c.setAttribute("r", "3.5"); c.setAttribute("fill", "#63d0ff");
+        c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); c.setAttribute("r", "3.5");
+        c.setAttribute("fill", metricKey === "likes" ? "#f472b6" : "#63d0ff");
         dots.appendChild(c);
       }});
 
@@ -2904,12 +2966,20 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       }});
 
       legendL.textContent = `期間: 直近${{activeRange}}日 / 点数: ${{values.length}}`;
-      legendR.textContent = `最終値: ${{(values[values.length - 1] || 0).toLocaleString("ja-JP")}} views`;
+      const unit = metricKey === "likes" ? "likes" : "views";
+      legendR.textContent = `最終値: ${{(values[values.length - 1] || 0).toLocaleString("ja-JP")}} ${{unit}}`;
     }}
     tabs.forEach((btn) => btn.addEventListener("click", () => {{
-      tabs.forEach((t) => t.classList.remove("active"));
-      btn.classList.add("active");
-      activeRange = btn.dataset.range || "7";
+      if (btn.dataset.range) {{
+        activeRange = btn.dataset.range || "7";
+        tabs.filter((t) => t.dataset.range).forEach((t) => t.classList.remove("active"));
+        btn.classList.add("active");
+      }}
+      if (btn.dataset.metric) {{
+        activeMetric = btn.dataset.metric === "likes" ? "likes" : "views";
+        tabs.filter((t) => t.dataset.metric).forEach((t) => t.classList.remove("active"));
+        btn.classList.add("active");
+      }}
       renderTrend();
     }}));
     renderTrend();
