@@ -254,9 +254,17 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
             v.content_type,
             v.duration_seconds,
             v.tags_text,
-            v.published_at
+            v.published_at,
+            COALESCE(vs.like_count, 0) AS like_count
         FROM {table} r
         JOIN videos v ON v.video_id = r.video_id
+        LEFT JOIN LATERAL (
+            SELECT like_count
+            FROM video_stats s
+            WHERE s.video_id = r.video_id
+            ORDER BY s.timestamp DESC
+            LIMIT 1
+        ) vs ON TRUE
         WHERE r.calculated_at = %s
         ORDER BY r.rank
         LIMIT %s
@@ -312,6 +320,7 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
             SELECT DISTINCT ON (video_id)
                 video_id,
                 view_count,
+                like_count,
                 timestamp AS latest_ts
             FROM video_stats
             ORDER BY video_id, timestamp DESC
@@ -344,7 +353,8 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
                 v.duration_seconds,
                 v.tags_text,
                 v.published_at,
-                (l.view_count - f.view_count) AS view_growth
+                (l.view_count - f.view_count) AS view_growth,
+                l.like_count AS like_count
             FROM latest_stats l
             JOIN first_stats f ON f.video_id = l.video_id
             LEFT JOIN old_stats o ON o.video_id = l.video_id
@@ -368,7 +378,8 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
                 content_type,
                 duration_seconds,
                 tags_text,
-                published_at
+                published_at,
+                like_count
             FROM provisional
             WHERE view_growth > 0
         )
@@ -557,6 +568,10 @@ def _render_cards(
             if published_at.tzinfo is None:
                 published_at = published_at.replace(tzinfo=timezone.utc)
             published_label = published_at.astimezone(JST).strftime("%Y-%m-%d %H:%M")
+        try:
+            like_count = int(row.get("like_count") or 0)
+        except (TypeError, ValueError):
+            like_count = 0
 
         # Rank-specific glow classes for top 3
         rank = row["rank"]
@@ -604,6 +619,7 @@ def _render_cards(
                 </div>
                 <div class="card-info card-info-bottom">
                   <span class="card-views"><em class="arrow">↑</em><span class="view-growth">+{row['view_growth']:,}</span></span>
+                  <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">{like_count:,}</span></span>
                   <span class="card-date">{html.escape(published_label)}</span>
                 </div>
                 <div class="card-actions">
@@ -1414,6 +1430,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .card-views .view-growth {{
       color:var(--accent-purple);
     }}
+    .card-likes {{
+      white-space:nowrap;font-weight:700;font-size:0.88rem;
+      display:inline-flex;align-items:center;gap:4px;color:#ffb4cf;
+    }}
+    .card-likes .like-icon {{ font-style:normal;line-height:1; }}
     .arrow {{ font-style:normal;color:#34d399; }}
     .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim);margin-left:auto;flex:0 0 auto; }}
     .empty {{ padding:20px;border:1px dashed var(--glass-border);color:var(--text-dim);background:rgba(255,255,255,0.03); }}
