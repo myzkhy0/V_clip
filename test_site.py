@@ -2612,6 +2612,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     current_rank_label = _rank_label_for_detail(payload.get("current_rank"))
     best_rank_at_label = payload.get("best_rank_at") if best_rank_label != "Not ranked" else "-"
     current_rank_at_label = payload.get("current_rank_at") if current_rank_label != "Not ranked" else "-"
+    latest_view_count = int(payload.get("latest_view_count") or 0)
+    latest_like_count = int(payload.get("latest_like_count") or 0)
+    like_rate_label = "-" if latest_view_count <= 0 else f"{(latest_like_count / latest_view_count) * 100:.2f}%"
     current_rank_title = "現在順位（24h）"
     content_type = (payload.get("content_type") or "").strip().lower()
     top3_heading = "本日のShortsランキング TOP3" if content_type == "shorts" else "本日の動画ランキング TOP3"
@@ -2825,8 +2828,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         <article class="card"><p class="card-label">{html.escape(current_rank_title)}</p><p class="card-value g">{html.escape(current_rank_label)}</p><p class="card-sub">時点: {html.escape(current_rank_at_label or "-")}</p></article>
         <article class="card"><p class="card-label">24h 再生増加</p><p class="card-value w">+{payload["views_delta_24h"]:,}</p></article>
         <article class="card"><p class="card-label">24h like増加</p><p class="card-value w">+{payload["likes_delta_24h"]:,}</p></article>
-        <article class="card"><p class="card-label">合計再生数</p><p class="card-value">{payload["latest_view_count"]:,}</p></article>
-        <article class="card"><p class="card-label">合計like</p><p class="card-value">{payload["latest_like_count"]:,}</p></article>
+        <article class="card"><p class="card-label">合計再生数</p><p class="card-value">{latest_view_count:,}</p></article>
+        <article class="card"><p class="card-label">合計like</p><p class="card-value">{latest_like_count:,}</p></article>
+        <article class="card"><p class="card-label">like率（like/view）</p><p class="card-value">{html.escape(like_rate_label)}</p></article>
       </div>
     </section>
 
