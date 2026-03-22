@@ -2337,14 +2337,14 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
     delta_rows = fetchall(
         """
         WITH latest AS (
-            SELECT view_count
+            SELECT view_count, like_count
             FROM video_stats
             WHERE video_id = %s
             ORDER BY timestamp DESC
             LIMIT 1
         ),
         old AS (
-            SELECT view_count
+            SELECT view_count, like_count
             FROM video_stats
             WHERE video_id = %s
               AND timestamp <= (NOW() - INTERVAL '24 hours')
@@ -2352,7 +2352,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
             LIMIT 1
         ),
         first_stat AS (
-            SELECT view_count
+            SELECT view_count, like_count
             FROM video_stats
             WHERE video_id = %s
             ORDER BY timestamp ASC
@@ -2360,13 +2360,18 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         )
         SELECT
             COALESCE((SELECT view_count FROM latest), 0) AS latest_view,
-            COALESCE((SELECT view_count FROM old), (SELECT view_count FROM first_stat), 0) AS base_view
+            COALESCE((SELECT view_count FROM old), (SELECT view_count FROM first_stat), 0) AS base_view,
+            COALESCE((SELECT like_count FROM latest), 0) AS latest_like,
+            COALESCE((SELECT like_count FROM old), (SELECT like_count FROM first_stat), 0) AS base_like
         """,
         (video_id, video_id, video_id),
     )
     latest_view = int((delta_rows[0].get("latest_view") if delta_rows else 0) or 0)
     base_view = int((delta_rows[0].get("base_view") if delta_rows else 0) or 0)
+    latest_like = int((delta_rows[0].get("latest_like") if delta_rows else 0) or 0)
+    base_like = int((delta_rows[0].get("base_like") if delta_rows else 0) or 0)
     views_delta_24h = max(0, latest_view - base_view)
+    likes_delta_24h = max(0, latest_like - base_like)
 
     trend_rows = fetchall(
         """
@@ -2500,6 +2505,9 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         "current_rank": int(current_rank) if current_rank is not None else None,
         "current_rank_at": _to_jst_date(current_rank_at) if current_rank_at else "-",
         "views_delta_24h": int(views_delta_24h),
+        "likes_delta_24h": int(likes_delta_24h),
+        "latest_view_count": int(latest_view),
+        "latest_like_count": int(latest_like),
         "trend_7": trend_7,
         "trend_7_dates": trend_7_dates,
         "trend_30": trend_30,
@@ -2816,6 +2824,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         <article class="card"><p class="card-label">最高順位</p><p class="card-value a">{html.escape(best_rank_label)}</p><p class="card-sub">記録日: {html.escape(best_rank_at_label or "-")}</p></article>
         <article class="card"><p class="card-label">{html.escape(current_rank_title)}</p><p class="card-value g">{html.escape(current_rank_label)}</p><p class="card-sub">時点: {html.escape(current_rank_at_label or "-")}</p></article>
         <article class="card"><p class="card-label">24h 再生増加</p><p class="card-value w">+{payload["views_delta_24h"]:,}</p></article>
+        <article class="card"><p class="card-label">24h like増加</p><p class="card-value w">+{payload["likes_delta_24h"]:,}</p></article>
+        <article class="card"><p class="card-label">合計再生数</p><p class="card-value">{payload["latest_view_count"]:,}</p></article>
+        <article class="card"><p class="card-label">合計like</p><p class="card-value">{payload["latest_like_count"]:,}</p></article>
       </div>
     </section>
 
