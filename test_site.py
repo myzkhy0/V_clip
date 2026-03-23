@@ -2069,7 +2069,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const shareUrl = `https://twitter.com/intent/tweet?${{params.toString()}}`;
       window.open(shareUrl, "_blank", "noopener,noreferrer");
     }}
-    function getDailyTopItems(contentType, limit = 5, sortMode = "rank_up") {{
+    function getDailyTopItems(contentType, limit = 5) {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const daily = payload.find((p) => p.table === "daily");
       if (!daily || !daily.groups || !daily.groups.all) return [];
@@ -2098,19 +2098,19 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           rankUp: Number.isFinite(rankUp) ? rankUp : 0,
         }};
       }}).filter((item) => item.videoId);
-      if (sortMode === "view_growth") {{
-        items.sort((a, b) =>
-          (b.viewGrowth - a.viewGrowth) ||
-          (b.rankUp - a.rankUp) ||
-          (a.rank - b.rank)
-        );
-      }} else {{
-        items.sort((a, b) =>
-          (b.rankUp - a.rankUp) ||
-          (b.viewGrowth - a.viewGrowth) ||
-          (a.rank - b.rank)
-        );
-      }}
+      const maxViewGrowth = Math.max(1, ...items.map((item) => Math.max(0, Number(item.viewGrowth || 0))));
+      const maxRankUp = Math.max(1, ...items.map((item) => Math.max(0, Number(item.rankUp || 0))));
+      items.forEach((item) => {{
+        const viewNorm = Math.max(0, Number(item.viewGrowth || 0)) / maxViewGrowth;
+        const rankNorm = Math.max(0, Number(item.rankUp || 0)) / maxRankUp;
+        item.momentumScore = (viewNorm * 0.5) + (rankNorm * 0.5);
+      }});
+      items.sort((a, b) =>
+        (b.momentumScore - a.momentumScore) ||
+        (b.rankUp - a.rankUp) ||
+        (b.viewGrowth - a.viewGrowth) ||
+        (a.rank - b.rank)
+      );
       return items.slice(0, Math.max(1, limit));
     }}
     function buildTrendingTemplateText(item) {{
@@ -2150,25 +2150,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         card.className = "admin-picker-card";
         const head = document.createElement("div");
         head.className = "admin-picker-head";
-        head.textContent = spec.label;
+        head.textContent = `${{spec.label}}（混合: 再生増加 + 順位上昇）`;
         card.appendChild(head);
-        const modeLabel = document.createElement("div");
-        modeLabel.className = "admin-picker-head";
-        modeLabel.textContent = "並び替え";
-        const modeSelect = document.createElement("select");
-        modeSelect.className = "admin-picker-select";
-        const modeOptions = [
-          {{ value: "rank_up", label: "順位上昇幅（2）" }},
-          {{ value: "view_growth", label: "24h再生増加数（1）" }},
-        ];
-        modeOptions.forEach((mode) => {{
-          const option = document.createElement("option");
-          option.value = mode.value;
-          option.textContent = mode.label;
-          modeSelect.appendChild(option);
-        }});
-        card.appendChild(modeLabel);
-        card.appendChild(modeSelect);
         const select = document.createElement("select");
         select.className = "admin-picker-select";
         const preview = document.createElement("pre");
@@ -2188,16 +2171,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         openBtn.textContent = "Xで開く";
         let items = [];
         function refillCandidates() {{
-          items = getDailyTopItems(spec.contentType, 5, modeSelect.value);
+          items = getDailyTopItems(spec.contentType, 5);
           select.innerHTML = "";
           items.forEach((item, idx) => {{
             const option = document.createElement("option");
             option.value = String(idx);
             const rankLabel = item.rank > 0 ? `${{item.rank}}位` : "-";
-            const extra = modeSelect.value === "view_growth"
-              ? `+${{Number(item.viewGrowth || 0).toLocaleString("ja-JP")}}`
-              : `+${{Number(item.rankUp || 0).toLocaleString("ja-JP")}}`;
-            option.textContent = `${{rankLabel}} | ${{extra}} | ${{truncateShareTitle(item.title, 36)}}`;
+            const viewText = `再生+${{Number(item.viewGrowth || 0).toLocaleString("ja-JP")}}`;
+            const rankText = `上昇+${{Number(item.rankUp || 0).toLocaleString("ja-JP")}}`;
+            option.textContent = `${{rankLabel}} | ${{viewText}} / ${{rankText}} | ${{truncateShareTitle(item.title, 30)}}`;
             select.appendChild(option);
           }});
           const hasItems = items.length > 0;
@@ -2215,10 +2197,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           const selected = getSelectedItem();
           preview.textContent = selected ? buildTrendingTemplateText(selected) : "投稿候補データがありません。";
         }}
-        modeSelect.addEventListener("change", () => {{
-          refillCandidates();
-          updatePreview();
-        }});
         select.addEventListener("change", updatePreview);
         copyBtn.addEventListener("click", async () => {{
           try {{
