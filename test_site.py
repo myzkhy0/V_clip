@@ -1235,8 +1235,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           <div class="admin-share-row">
             <button id="share-daily-top3-shorts" class="admin-share-btn" type="button">本日Top3をX投稿（Shorts）</button>
             <button id="share-daily-top3-video" class="admin-share-btn" type="button">本日Top3をX投稿（動画）</button>
-            <button id="share-trending-shorts-draft" class="admin-share-btn" type="button">急上昇投稿を作成（X）</button>
           </div>
+          <div id="admin-trending-picker" class="admin-trending-picker"></div>
         """
         admin_board_html = f"""
         <section class="admin-board">
@@ -1636,12 +1636,81 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       transition:all 0.2s ease;
     }}
     .admin-share-btn:hover {{ background:rgba(99,208,255,0.2);border-color:rgba(138,215,255,0.55); }}
+    .admin-trending-picker {{
+      margin-top:10px;
+      display:grid;
+      gap:10px;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+    }}
+    .admin-picker-card {{
+      border:1px solid var(--glass-border);
+      background:linear-gradient(180deg,#172232,#121a25);
+      border-radius:12px;
+      padding:10px;
+      display:grid;
+      gap:8px;
+    }}
+    .admin-picker-head {{
+      font-size:0.8rem;
+      color:var(--text-dim);
+      font-weight:700;
+      letter-spacing:0.02em;
+    }}
+    .admin-picker-select {{
+      width:100%;
+      border:1px solid rgba(138,215,255,0.35);
+      background:#0f1a24;
+      color:#e8edf4;
+      border-radius:10px;
+      padding:7px 9px;
+      font-family:inherit;
+      font-size:0.82rem;
+    }}
+    .admin-picker-preview {{
+      white-space:pre-wrap;
+      margin:0;
+      border:1px solid rgba(138,215,255,0.18);
+      border-radius:10px;
+      background:rgba(7,12,18,0.6);
+      color:#dbe8f4;
+      padding:8px 9px;
+      font-size:0.76rem;
+      line-height:1.5;
+      min-height:84px;
+    }}
+    .admin-picker-actions {{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }}
+    .admin-picker-btn {{
+      border:1px solid rgba(138,215,255,0.35);
+      background:rgba(99,208,255,0.1);
+      color:#dff4ff;
+      border-radius:9px;
+      padding:6px 10px;
+      font-size:0.78rem;
+      font-weight:700;
+      cursor:pointer;
+      font-family:inherit;
+      transition:all 0.2s ease;
+    }}
+    .admin-picker-btn:hover {{ background:rgba(99,208,255,0.2);border-color:rgba(138,215,255,0.55); }}
+    .admin-picker-empty {{
+      color:var(--text-dim);
+      font-size:0.76rem;
+      border:1px dashed rgba(138,215,255,0.2);
+      border-radius:9px;
+      padding:8px 9px;
+      margin:0;
+    }}
     /* ── Responsive ── */
     @media (max-width:1024px) {{
       .hero {{ grid-template-columns:1fr; }}
       .cards {{ grid-template-columns:repeat(2,1fr); }}
       .cards.new-list {{ grid-template-columns:repeat(4,minmax(0,1fr)); }}
       .admin-metric-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }}
+      .admin-trending-picker {{ grid-template-columns:1fr; }}
     }}
     @media (max-width:760px) {{
       .shell {{ width:calc(100% - 20px);padding:12px 0 40px; }}
@@ -1996,51 +2065,128 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const shareUrl = `https://twitter.com/intent/tweet?${{params.toString()}}`;
       window.open(shareUrl, "_blank", "noopener,noreferrer");
     }}
-    function getDailyTopShortLead() {{
+    function getDailyTopItems(contentType, limit = 5) {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const daily = payload.find((p) => p.table === "daily");
-      if (!daily || !daily.groups || !daily.groups.all) return null;
+      if (!daily || !daily.groups || !daily.groups.all) return [];
       const tmp = document.createElement("div");
       tmp.innerHTML = daily.groups.all;
-      const firstCard = tmp.querySelector('.content-panel[data-content-panel="shorts"] .card');
-      if (!firstCard) return null;
-      const thumb = firstCard.querySelector(".thumb");
-      const titleEl = firstCard.querySelector(".card-title");
-      const videoId = (thumb?.dataset?.videoId || "").trim();
-      if (!videoId) return null;
-      const rankValue = Number(firstCard.dataset.rank || 0);
-      const prevRankValue = Number(firstCard.dataset.prevRank || 0);
-      const growthPctValue = Number(firstCard.dataset.viewGrowthPct || 0);
-      return {{
-        videoId,
-        title: normalizeShareTitle(titleEl ? titleEl.textContent : ""),
-        rank: Number.isFinite(rankValue) ? rankValue : 0,
-        prevRank: Number.isFinite(prevRankValue) ? prevRankValue : 0,
-        growthPct: Number.isFinite(growthPctValue) ? growthPctValue : 0,
-      }};
+      const cards = Array.from(
+        tmp.querySelectorAll(`.content-panel[data-content-panel="${{normalized}}"] .card`)
+      ).slice(0, Math.max(1, limit));
+      return cards.map((card) => {{
+        const thumb = card.querySelector(".thumb");
+        const titleEl = card.querySelector(".card-title");
+        const videoId = (thumb?.dataset?.videoId || "").trim();
+        const rank = Number(card.dataset.rank || 0);
+        const prevRank = Number(card.dataset.prevRank || 0);
+        const growthPct = Number(card.dataset.viewGrowthPct || 0);
+        return {{
+          contentType: normalized,
+          videoId,
+          title: normalizeShareTitle(titleEl ? titleEl.textContent : ""),
+          rank: Number.isFinite(rank) ? rank : 0,
+          prevRank: Number.isFinite(prevRank) ? prevRank : 0,
+          growthPct: Number.isFinite(growthPct) ? growthPct : 0,
+        }};
+      }}).filter((item) => item.videoId);
     }}
-    function buildTrendingShortsTemplateText() {{
-      const lead = getDailyTopShortLead();
-      const detailUrl = lead ? `${{window.location.origin}}/video/${{lead.videoId}}` : "詳細URL";
-      const title = lead ? truncateShareTitle(lead.title, 60) : "動画タイトル";
+    function buildTrendingTemplateText(item) {{
+      const isVideo = item?.contentType === "video";
+      const label = isVideo ? "動画" : "Shorts";
+      const detailUrl = item?.videoId ? `${{window.location.origin}}/video/${{item.videoId}}` : "詳細URL";
+      const title = item ? truncateShareTitle(item.title, 60) : "動画タイトル";
       let rankText = "順位データなし";
-      if (lead && lead.prevRank > 0 && lead.rank > 0) {{
-        rankText = `${{lead.prevRank}}位→${{lead.rank}}位`;
-      }} else if (lead && lead.rank > 0) {{
-        rankText = `${{lead.rank}}位`;
+      if (item && item.prevRank > 0 && item.rank > 0) {{
+        rankText = `${{item.prevRank}}位→${{item.rank}}位`;
+      }} else if (item && item.rank > 0) {{
+        rankText = `${{item.rank}}位`;
       }}
-      const pctText = lead && lead.growthPct > 0 ? `(+${{lead.growthPct}}%)` : "";
+      const pctText = item && item.growthPct > 0 ? `(+${{item.growthPct}}%)` : "";
       return [
-        "🔥現在、急上昇中のShortsです。",
+        `🔥現在、急上昇中の${{label}}です。`,
         `「${{title}}」`,
         detailUrl,
         `24h ${{rankText}}${{pctText}} #VCLIP`,
       ].join("\\n");
     }}
-    function openTrendingShortsShareDraft() {{
-      const text = buildTrendingShortsTemplateText();
+    function openShareDraft(text) {{
       const params = new URLSearchParams({{ text }});
       const shareUrl = `https://twitter.com/intent/tweet?${{params.toString()}}`;
       window.open(shareUrl, "_blank", "noopener,noreferrer");
+    }}
+    function renderAdminTrendingPicker() {{
+      const root = document.getElementById("admin-trending-picker");
+      if (!root) return;
+      root.innerHTML = "";
+      const specs = [
+        {{ contentType: "shorts", label: "急上昇Shorts（上位5件）" }},
+        {{ contentType: "video", label: "急上昇動画（上位5件）" }},
+      ];
+      specs.forEach((spec) => {{
+        const items = getDailyTopItems(spec.contentType, 5);
+        const card = document.createElement("section");
+        card.className = "admin-picker-card";
+        const head = document.createElement("div");
+        head.className = "admin-picker-head";
+        head.textContent = spec.label;
+        card.appendChild(head);
+        if (!items.length) {{
+          const empty = document.createElement("p");
+          empty.className = "admin-picker-empty";
+          empty.textContent = "投稿候補データがありません。";
+          card.appendChild(empty);
+          root.appendChild(card);
+          return;
+        }}
+        const select = document.createElement("select");
+        select.className = "admin-picker-select";
+        items.forEach((item, idx) => {{
+          const option = document.createElement("option");
+          option.value = String(idx);
+          const rankLabel = item.rank > 0 ? `${{item.rank}}位` : "-";
+          option.textContent = `${{rankLabel}} | ${{truncateShareTitle(item.title, 44)}}`;
+          select.appendChild(option);
+        }});
+        const preview = document.createElement("pre");
+        preview.className = "admin-picker-preview";
+        const actions = document.createElement("div");
+        actions.className = "admin-picker-actions";
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "admin-picker-btn";
+        copyBtn.textContent = "コピー";
+        const openBtn = document.createElement("button");
+        openBtn.type = "button";
+        openBtn.className = "admin-picker-btn";
+        openBtn.textContent = "Xで開く";
+        function getSelectedItem() {{
+          const idx = Number(select.value || 0);
+          return items[Math.max(0, Math.min(items.length - 1, idx))];
+        }}
+        function updatePreview() {{
+          preview.textContent = buildTrendingTemplateText(getSelectedItem());
+        }}
+        select.addEventListener("change", updatePreview);
+        copyBtn.addEventListener("click", async () => {{
+          try {{
+            await copyTextToClipboard(buildTrendingTemplateText(getSelectedItem()));
+            window.alert("投稿文をコピーしました。");
+          }} catch (error) {{
+            window.alert("コピーに失敗しました。ブラウザの権限設定をご確認ください。");
+          }}
+        }});
+        openBtn.addEventListener("click", () => {{
+          openShareDraft(buildTrendingTemplateText(getSelectedItem()));
+        }});
+        updatePreview();
+        actions.appendChild(copyBtn);
+        actions.appendChild(openBtn);
+        card.appendChild(select);
+        card.appendChild(preview);
+        card.appendChild(actions);
+        root.appendChild(card);
+      }});
     }}
     async function copyTextToClipboard(text) {{
       if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {{
@@ -2350,18 +2496,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     if (showAdminMeta) {{
       const shareDailyShortsBtn = document.getElementById("share-daily-top3-shorts");
       const shareDailyVideoBtn = document.getElementById("share-daily-top3-video");
-      const shareTrendingShortsDraftBtn = document.getElementById("share-trending-shorts-draft");
       if (shareDailyShortsBtn) {{
         shareDailyShortsBtn.addEventListener("click", () => openDailyTop3Share("shorts"));
       }}
       if (shareDailyVideoBtn) {{
         shareDailyVideoBtn.addEventListener("click", () => openDailyTop3Share("video"));
       }}
-      if (shareTrendingShortsDraftBtn) {{
-        shareTrendingShortsDraftBtn.addEventListener("click", () => {{
-          openTrendingShortsShareDraft();
-        }});
-      }}
+      renderAdminTrendingPicker();
     }}
   </script>
 </body>
