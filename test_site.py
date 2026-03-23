@@ -1167,6 +1167,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           <div class="admin-share-row">
             <button id="share-daily-top3-shorts" class="admin-share-btn" type="button">本日Top3をX投稿（Shorts）</button>
             <button id="share-daily-top3-video" class="admin-share-btn" type="button">本日Top3をX投稿（動画）</button>
+            <button id="copy-trending-shorts-template" class="admin-share-btn" type="button">急上昇定型文をコピー</button>
           </div>
         """
         admin_board_html = f"""
@@ -1927,6 +1928,43 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const shareUrl = `https://twitter.com/intent/tweet?${{params.toString()}}`;
       window.open(shareUrl, "_blank", "noopener,noreferrer");
     }}
+    function getDailyTopShortLead() {{
+      const daily = payload.find((p) => p.table === "daily");
+      if (!daily || !daily.groups || !daily.groups.all) return null;
+      const tmp = document.createElement("div");
+      tmp.innerHTML = daily.groups.all;
+      const firstCard = tmp.querySelector('.content-panel[data-content-panel="shorts"] .card');
+      if (!firstCard) return null;
+      const thumb = firstCard.querySelector(".thumb");
+      const videoId = (thumb?.dataset?.videoId || "").trim();
+      if (!videoId) return null;
+      return {{ videoId }};
+    }}
+    function buildTrendingShortsTemplateText() {{
+      const lead = getDailyTopShortLead();
+      const videoUrl = lead ? `https://www.youtube.com/watch?v=${{lead.videoId}}` : "URL";
+      const detailUrl = lead ? `${{window.location.origin}}/video/${{lead.videoId}}?period=daily` : "詳細URL";
+      return `現在、急上昇中のshortsです。${{videoUrl}} ${{detailUrl}} 12位→5位 / 24h +38% #VCLIP`;
+    }}
+    async function copyTextToClipboard(text) {{
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {{
+        await navigator.clipboard.writeText(text);
+        return;
+      }}
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.setAttribute("readonly", "readonly");
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const succeeded = document.execCommand("copy");
+      textArea.remove();
+      if (!succeeded) {{
+        throw new Error("copy_failed");
+      }}
+    }}
     function jumpToVideoCard(videoId, contentType = "shorts", period = "daily") {{
       if (!videoId) return;
 
@@ -2216,11 +2254,23 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     if (showAdminMeta) {{
       const shareDailyShortsBtn = document.getElementById("share-daily-top3-shorts");
       const shareDailyVideoBtn = document.getElementById("share-daily-top3-video");
+      const copyTrendingShortsTemplateBtn = document.getElementById("copy-trending-shorts-template");
       if (shareDailyShortsBtn) {{
         shareDailyShortsBtn.addEventListener("click", () => openDailyTop3Share("shorts"));
       }}
       if (shareDailyVideoBtn) {{
         shareDailyVideoBtn.addEventListener("click", () => openDailyTop3Share("video"));
+      }}
+      if (copyTrendingShortsTemplateBtn) {{
+        copyTrendingShortsTemplateBtn.addEventListener("click", async () => {{
+          const templateText = buildTrendingShortsTemplateText();
+          try {{
+            await copyTextToClipboard(templateText);
+            window.alert("急上昇定型文をコピーしました。");
+          }} catch (error) {{
+            window.alert("コピーに失敗しました。ブラウザの権限設定をご確認ください。");
+          }}
+        }});
       }}
     }}
   </script>
