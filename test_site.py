@@ -1167,7 +1167,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           <div class="admin-share-row">
             <button id="share-daily-top3-shorts" class="admin-share-btn" type="button">本日Top3をX投稿（Shorts）</button>
             <button id="share-daily-top3-video" class="admin-share-btn" type="button">本日Top3をX投稿（動画）</button>
-            <button id="copy-trending-shorts-template" class="admin-share-btn" type="button">急上昇定型文をコピー</button>
+            <button id="share-trending-shorts-draft" class="admin-share-btn" type="button">急上昇投稿を作成（X）</button>
           </div>
         """
         admin_board_html = f"""
@@ -1902,7 +1902,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const label = normalized === "video" ? "動画" : "Shorts";
       const top3 = getDailyTop3Items(normalized);
       if (!top3.length) {{
-        window.alert(`daily ${{label}} のランキングデータがありません。`);
+        window.alert(`本日${{label}}のランキングデータがありません。`);
         return;
       }}
       const now = new Date();
@@ -1936,15 +1936,26 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const firstCard = tmp.querySelector('.content-panel[data-content-panel="shorts"] .card');
       if (!firstCard) return null;
       const thumb = firstCard.querySelector(".thumb");
+      const titleEl = firstCard.querySelector(".card-title");
       const videoId = (thumb?.dataset?.videoId || "").trim();
       if (!videoId) return null;
-      return {{ videoId }};
+      return {{
+        videoId,
+        title: normalizeShareTitle(titleEl ? titleEl.textContent : ""),
+      }};
     }}
     function buildTrendingShortsTemplateText() {{
       const lead = getDailyTopShortLead();
       const videoUrl = lead ? `https://www.youtube.com/watch?v=${{lead.videoId}}` : "URL";
-      const detailUrl = lead ? `${{window.location.origin}}/video/${{lead.videoId}}?period=daily` : "詳細URL";
-      return `現在、急上昇中のshortsです。${{videoUrl}} ${{detailUrl}} 12位→5位 / 24h +38% #VCLIP`;
+      const detailUrl = lead ? `${{window.location.origin}}/video/${{lead.videoId}}` : "詳細URL";
+      const title = lead ? truncateShareTitle(lead.title, 46) : "動画タイトル";
+      return `🔥急上昇中のShorts「${{title}}」${{videoUrl}} ${{detailUrl}} #VCLIP`;
+    }}
+    function openTrendingShortsShareDraft() {{
+      const text = buildTrendingShortsTemplateText();
+      const params = new URLSearchParams({{ text }});
+      const shareUrl = `https://twitter.com/intent/tweet?${{params.toString()}}`;
+      window.open(shareUrl, "_blank", "noopener,noreferrer");
     }}
     async function copyTextToClipboard(text) {{
       if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {{
@@ -2254,22 +2265,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     if (showAdminMeta) {{
       const shareDailyShortsBtn = document.getElementById("share-daily-top3-shorts");
       const shareDailyVideoBtn = document.getElementById("share-daily-top3-video");
-      const copyTrendingShortsTemplateBtn = document.getElementById("copy-trending-shorts-template");
+      const shareTrendingShortsDraftBtn = document.getElementById("share-trending-shorts-draft");
       if (shareDailyShortsBtn) {{
         shareDailyShortsBtn.addEventListener("click", () => openDailyTop3Share("shorts"));
       }}
       if (shareDailyVideoBtn) {{
         shareDailyVideoBtn.addEventListener("click", () => openDailyTop3Share("video"));
       }}
-      if (copyTrendingShortsTemplateBtn) {{
-        copyTrendingShortsTemplateBtn.addEventListener("click", async () => {{
-          const templateText = buildTrendingShortsTemplateText();
-          try {{
-            await copyTextToClipboard(templateText);
-            window.alert("急上昇定型文をコピーしました。");
-          }} catch (error) {{
-            window.alert("コピーに失敗しました。ブラウザの権限設定をご確認ください。");
-          }}
+      if (shareTrendingShortsDraftBtn) {{
+        shareTrendingShortsDraftBtn.addEventListener("click", () => {{
+          openTrendingShortsShareDraft();
         }});
       }}
     }}
