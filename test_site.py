@@ -228,6 +228,7 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
     calculated_at = latest_row[0]["calculated_at"]
 
     previous_ids: set[str] = set()
+    prev_calculated_at: datetime | None = None
     previous_row = fetchall(
         f"""
         SELECT calculated_at
@@ -274,12 +275,29 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
             v.duration_seconds,
             v.tags_text,
             v.published_at,
+            lv.view_count AS latest_view_count,
+            ov.view_count AS old_view_count,
             GREATEST(
                 0,
                 COALESCE(ls.like_count, 0) - COALESCE(os.like_count, fs.like_count, ls.like_count, 0)
             ) AS like_growth
         FROM {table} r
         JOIN videos v ON v.video_id = r.video_id
+        LEFT JOIN LATERAL (
+            SELECT view_count
+            FROM video_stats s
+            WHERE s.video_id = r.video_id
+            ORDER BY s.timestamp DESC
+            LIMIT 1
+        ) lv ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT view_count
+            FROM video_stats s
+            WHERE s.video_id = r.video_id
+              AND s.timestamp <= %s
+            ORDER BY s.timestamp DESC
+            LIMIT 1
+        ) ov ON TRUE
         LEFT JOIN LATERAL (
             SELECT like_count
             FROM video_stats s
@@ -306,11 +324,44 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
         ORDER BY r.rank
         LIMIT %s
         """,
-        (cutoff, calculated_at, limit),
+        (cutoff, cutoff, calculated_at, limit),
     )
+
+    prev_rank_map: dict[str, int] = {}
+    if prev_calculated_at and rows:
+        video_ids = [str(row.get("video_id") or "") for row in rows if row.get("video_id")]
+        if video_ids:
+            prev_rank_rows = fetchall(
+                f"""
+                SELECT video_id, rank
+                FROM {table}
+                WHERE calculated_at = %s
+                  AND video_id = ANY(%s)
+                """,
+                (prev_calculated_at, video_ids),
+            )
+            prev_rank_map = {
+                str(row.get("video_id") or ""): int(row.get("rank") or 0)
+                for row in prev_rank_rows
+                if row.get("video_id") and row.get("rank")
+            }
 
     now_utc = datetime.now(timezone.utc)
     for row in rows:
+        video_id = str(row.get("video_id") or "")
+        row["prev_rank"] = prev_rank_map.get(video_id)
+        try:
+            latest_view_count = int(row.get("latest_view_count") or 0)
+        except (TypeError, ValueError):
+            latest_view_count = 0
+        try:
+            old_view_count = int(row.get("old_view_count") or 0)
+        except (TypeError, ValueError):
+            old_view_count = 0
+        if latest_view_count > 0 and old_view_count > 0 and latest_view_count >= old_view_count:
+            row["view_growth_pct"] = int(round((latest_view_count - old_view_count) * 100 / old_view_count))
+        else:
+            row["view_growth_pct"] = None
         published_at = row.get("published_at")
         if published_at is None:
             row["is_new"] = False
@@ -394,6 +445,10 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
                 v.tags_text,
                 v.published_at,
                 (l.view_count - f.view_count) AS view_growth,
+                CASE
+                    WHEN f.view_count > 0 THEN ROUND(((l.view_count - f.view_count)::numeric * 100) / f.view_count)
+                    ELSE NULL
+                END AS view_growth_pct,
                 GREATEST(0, l.like_count - f.like_count) AS like_growth
             FROM latest_stats l
             JOIN first_stats f ON f.video_id = l.video_id
@@ -433,6 +488,7 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
 
     now_utc = datetime.now(timezone.utc)
     for row in rows:
+        row["prev_rank"] = None
         published_at = row.get("published_at")
         if published_at is None:
             row["is_new"] = False
@@ -624,6 +680,18 @@ def _render_cards(
         duration_label = _format_duration_label(row.get("duration_seconds"))
         duration_html = f'<span class="duration-badge">{html.escape(duration_label)}</span>' if duration_label else ""
         group_pill_html = f'<span class="pill">{group_name}</span>' if show_group else ""
+        try:
+            current_rank = int(row.get("rank") or 0)
+        except (TypeError, ValueError):
+            current_rank = 0
+        try:
+            prev_rank = int(row.get("prev_rank") or 0)
+        except (TypeError, ValueError):
+            prev_rank = 0
+        try:
+            view_growth_pct = int(row.get("view_growth_pct") or 0)
+        except (TypeError, ValueError):
+            view_growth_pct = 0
 
         # Channel icon HTML
         icon_html = ""
@@ -639,9 +707,9 @@ def _render_cards(
 
         cards.append(
             f"""
-            <article class="card video-card{rank_class}" data-video-id="{video_id}">
+            <article class="card video-card{rank_class}" data-video-id="{video_id}" data-rank="{current_rank}" data-prev-rank="{prev_rank}" data-view-growth-pct="{view_growth_pct}">
               <a class="thumb" href="{video_url}" target="_blank" rel="noreferrer"
-                 data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">
+                  data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <div class="{rank_badge_class}">{rank}</div>
                 {new_badge_html}
@@ -1939,17 +2007,34 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const titleEl = firstCard.querySelector(".card-title");
       const videoId = (thumb?.dataset?.videoId || "").trim();
       if (!videoId) return null;
+      const rankValue = Number(firstCard.dataset.rank || 0);
+      const prevRankValue = Number(firstCard.dataset.prevRank || 0);
+      const growthPctValue = Number(firstCard.dataset.viewGrowthPct || 0);
       return {{
         videoId,
         title: normalizeShareTitle(titleEl ? titleEl.textContent : ""),
+        rank: Number.isFinite(rankValue) ? rankValue : 0,
+        prevRank: Number.isFinite(prevRankValue) ? prevRankValue : 0,
+        growthPct: Number.isFinite(growthPctValue) ? growthPctValue : 0,
       }};
     }}
     function buildTrendingShortsTemplateText() {{
       const lead = getDailyTopShortLead();
-      const videoUrl = lead ? `https://www.youtube.com/watch?v=${{lead.videoId}}` : "URL";
       const detailUrl = lead ? `${{window.location.origin}}/video/${{lead.videoId}}` : "詳細URL";
-      const title = lead ? truncateShareTitle(lead.title, 46) : "動画タイトル";
-      return `🔥急上昇中のShorts「${{title}}」${{videoUrl}} ${{detailUrl}} #VCLIP`;
+      const title = lead ? truncateShareTitle(lead.title, 60) : "動画タイトル";
+      let rankText = "順位データなし";
+      if (lead && lead.prevRank > 0 && lead.rank > 0) {{
+        rankText = `${{lead.prevRank}}位→${{lead.rank}}位`;
+      }} else if (lead && lead.rank > 0) {{
+        rankText = `${{lead.rank}}位`;
+      }}
+      const pctText = lead && lead.growthPct > 0 ? `(+${{lead.growthPct}}%)` : "";
+      return [
+        "🔥現在、急上昇中のShortsです。",
+        `「${{title}}」`,
+        detailUrl,
+        `24h ${{rankText}}${{pctText}} #VCLIP`,
+      ].join("\\n");
     }}
     function openTrendingShortsShareDraft() {{
       const text = buildTrendingShortsTemplateText();
