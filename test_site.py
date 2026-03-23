@@ -668,6 +668,10 @@ def _render_cards(
             like_growth = int(row.get("like_growth") or 0)
         except (TypeError, ValueError):
             like_growth = 0
+        try:
+            view_growth_value = int(row.get("view_growth") or 0)
+        except (TypeError, ValueError):
+            view_growth_value = 0
 
         # Rank-specific glow classes for top 3
         rank = row["rank"]
@@ -707,7 +711,7 @@ def _render_cards(
 
         cards.append(
             f"""
-            <article class="card video-card{rank_class}" data-video-id="{video_id}" data-rank="{current_rank}" data-prev-rank="{prev_rank}" data-view-growth-pct="{view_growth_pct}">
+            <article class="card video-card{rank_class}" data-video-id="{video_id}" data-rank="{current_rank}" data-prev-rank="{prev_rank}" data-view-growth-pct="{view_growth_pct}" data-view-growth="{view_growth_value}">
               <a class="thumb" href="{video_url}" target="_blank" rel="noreferrer"
                   data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
@@ -727,7 +731,7 @@ def _render_cards(
                 </div>
                 <div class="card-info card-info-bottom">
                     <span class="card-metrics-stack">
-                      <span class="card-views"><em class="arrow">↑</em><span class="view-growth">+{row['view_growth']:,}</span></span>
+                      <span class="card-views"><em class="arrow">↑</em><span class="view-growth">+{view_growth_value:,}</span></span>
                     <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
                   </span>
                   <span class="card-date">{html.escape(published_label)}</span>
@@ -2065,7 +2069,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const shareUrl = `https://twitter.com/intent/tweet?${{params.toString()}}`;
       window.open(shareUrl, "_blank", "noopener,noreferrer");
     }}
-    function getDailyTopItems(contentType, limit = 5) {{
+    function getDailyTopItems(contentType, limit = 5, sortMode = "rank_up") {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const daily = payload.find((p) => p.table === "daily");
       if (!daily || !daily.groups || !daily.groups.all) return [];
@@ -2073,14 +2077,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       tmp.innerHTML = daily.groups.all;
       const cards = Array.from(
         tmp.querySelectorAll(`.content-panel[data-content-panel="${{normalized}}"] .card`)
-      ).slice(0, Math.max(1, limit));
-      return cards.map((card) => {{
+      );
+      const items = cards.map((card) => {{
         const thumb = card.querySelector(".thumb");
         const titleEl = card.querySelector(".card-title");
         const videoId = (thumb?.dataset?.videoId || "").trim();
         const rank = Number(card.dataset.rank || 0);
         const prevRank = Number(card.dataset.prevRank || 0);
         const growthPct = Number(card.dataset.viewGrowthPct || 0);
+        const viewGrowth = Number(card.dataset.viewGrowth || 0);
+        const rankUp = prevRank > 0 && rank > 0 ? (prevRank - rank) : 0;
         return {{
           contentType: normalized,
           videoId,
@@ -2088,8 +2094,24 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           rank: Number.isFinite(rank) ? rank : 0,
           prevRank: Number.isFinite(prevRank) ? prevRank : 0,
           growthPct: Number.isFinite(growthPct) ? growthPct : 0,
+          viewGrowth: Number.isFinite(viewGrowth) ? viewGrowth : 0,
+          rankUp: Number.isFinite(rankUp) ? rankUp : 0,
         }};
       }}).filter((item) => item.videoId);
+      if (sortMode === "view_growth") {{
+        items.sort((a, b) =>
+          (b.viewGrowth - a.viewGrowth) ||
+          (b.rankUp - a.rankUp) ||
+          (a.rank - b.rank)
+        );
+      }} else {{
+        items.sort((a, b) =>
+          (b.rankUp - a.rankUp) ||
+          (b.viewGrowth - a.viewGrowth) ||
+          (a.rank - b.rank)
+        );
+      }}
+      return items.slice(0, Math.max(1, limit));
     }}
     function buildTrendingTemplateText(item) {{
       const isVideo = item?.contentType === "video";
@@ -2124,32 +2146,36 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         {{ contentType: "video", label: "急上昇動画（上位5件）" }},
       ];
       specs.forEach((spec) => {{
-        const items = getDailyTopItems(spec.contentType, 5);
         const card = document.createElement("section");
         card.className = "admin-picker-card";
         const head = document.createElement("div");
         head.className = "admin-picker-head";
         head.textContent = spec.label;
         card.appendChild(head);
-        if (!items.length) {{
-          const empty = document.createElement("p");
-          empty.className = "admin-picker-empty";
-          empty.textContent = "投稿候補データがありません。";
-          card.appendChild(empty);
-          root.appendChild(card);
-          return;
-        }}
+        const modeLabel = document.createElement("div");
+        modeLabel.className = "admin-picker-head";
+        modeLabel.textContent = "並び替え";
+        const modeSelect = document.createElement("select");
+        modeSelect.className = "admin-picker-select";
+        const modeOptions = [
+          {{ value: "rank_up", label: "順位上昇幅（2）" }},
+          {{ value: "view_growth", label: "24h再生増加数（1）" }},
+        ];
+        modeOptions.forEach((mode) => {{
+          const option = document.createElement("option");
+          option.value = mode.value;
+          option.textContent = mode.label;
+          modeSelect.appendChild(option);
+        }});
+        card.appendChild(modeLabel);
+        card.appendChild(modeSelect);
         const select = document.createElement("select");
         select.className = "admin-picker-select";
-        items.forEach((item, idx) => {{
-          const option = document.createElement("option");
-          option.value = String(idx);
-          const rankLabel = item.rank > 0 ? `${{item.rank}}位` : "-";
-          option.textContent = `${{rankLabel}} | ${{truncateShareTitle(item.title, 44)}}`;
-          select.appendChild(option);
-        }});
         const preview = document.createElement("pre");
         preview.className = "admin-picker-preview";
+        const empty = document.createElement("p");
+        empty.className = "admin-picker-empty";
+        empty.textContent = "投稿候補データがありません。";
         const actions = document.createElement("div");
         actions.className = "admin-picker-actions";
         const copyBtn = document.createElement("button");
@@ -2160,13 +2186,39 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         openBtn.type = "button";
         openBtn.className = "admin-picker-btn";
         openBtn.textContent = "Xで開く";
+        let items = [];
+        function refillCandidates() {{
+          items = getDailyTopItems(spec.contentType, 5, modeSelect.value);
+          select.innerHTML = "";
+          items.forEach((item, idx) => {{
+            const option = document.createElement("option");
+            option.value = String(idx);
+            const rankLabel = item.rank > 0 ? `${{item.rank}}位` : "-";
+            const extra = modeSelect.value === "view_growth"
+              ? `+${{Number(item.viewGrowth || 0).toLocaleString("ja-JP")}}`
+              : `+${{Number(item.rankUp || 0).toLocaleString("ja-JP")}}`;
+            option.textContent = `${{rankLabel}} | ${{extra}} | ${{truncateShareTitle(item.title, 36)}}`;
+            select.appendChild(option);
+          }});
+          const hasItems = items.length > 0;
+          select.style.display = hasItems ? "" : "none";
+          empty.style.display = hasItems ? "none" : "";
+          copyBtn.disabled = !hasItems;
+          openBtn.disabled = !hasItems;
+          if (hasItems) select.value = "0";
+        }}
         function getSelectedItem() {{
           const idx = Number(select.value || 0);
           return items[Math.max(0, Math.min(items.length - 1, idx))];
         }}
         function updatePreview() {{
-          preview.textContent = buildTrendingTemplateText(getSelectedItem());
+          const selected = getSelectedItem();
+          preview.textContent = selected ? buildTrendingTemplateText(selected) : "投稿候補データがありません。";
         }}
+        modeSelect.addEventListener("change", () => {{
+          refillCandidates();
+          updatePreview();
+        }});
         select.addEventListener("change", updatePreview);
         copyBtn.addEventListener("click", async () => {{
           try {{
@@ -2179,10 +2231,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         openBtn.addEventListener("click", () => {{
           openShareDraft(buildTrendingTemplateText(getSelectedItem()));
         }});
+        refillCandidates();
         updatePreview();
         actions.appendChild(copyBtn);
         actions.appendChild(openBtn);
         card.appendChild(select);
+        card.appendChild(empty);
         card.appendChild(preview);
         card.appendChild(actions);
         root.appendChild(card);
