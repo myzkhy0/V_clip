@@ -2069,7 +2069,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const shareUrl = `https://twitter.com/intent/tweet?${{params.toString()}}`;
       window.open(shareUrl, "_blank", "noopener,noreferrer");
     }}
-    function getDailyTopItems(contentType, limit = 5) {{
+    function getDailyTopItems(contentType, limit = 3) {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const daily = payload.find((p) => p.table === "daily");
       if (!daily || !daily.groups || !daily.groups.all) return [];
@@ -2081,6 +2081,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const items = cards.map((card) => {{
         const thumb = card.querySelector(".thumb");
         const titleEl = card.querySelector(".card-title");
+        const hasNewBadge = !!card.querySelector(".new-badge");
         const videoId = (thumb?.dataset?.videoId || "").trim();
         const rank = Number(card.dataset.rank || 0);
         const prevRank = Number(card.dataset.prevRank || 0);
@@ -2090,6 +2091,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         return {{
           contentType: normalized,
           videoId,
+          isNew: hasNewBadge,
           title: normalizeShareTitle(titleEl ? titleEl.textContent : ""),
           rank: Number.isFinite(rank) ? rank : 0,
           prevRank: Number.isFinite(prevRank) ? prevRank : 0,
@@ -2097,7 +2099,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           viewGrowth: Number.isFinite(viewGrowth) ? viewGrowth : 0,
           rankUp: Number.isFinite(rankUp) ? rankUp : 0,
         }};
-      }}).filter((item) => item.videoId);
+      }}).filter((item) => item.videoId && item.isNew);
       const maxViewGrowth = Math.max(1, ...items.map((item) => Math.max(0, Number(item.viewGrowth || 0))));
       const maxRankUp = Math.max(1, ...items.map((item) => Math.max(0, Number(item.rankUp || 0))));
       items.forEach((item) => {{
@@ -2142,8 +2144,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       if (!root) return;
       root.innerHTML = "";
       const specs = [
-        {{ contentType: "shorts", label: "急上昇Shorts（上位5件）" }},
-        {{ contentType: "video", label: "急上昇動画（上位5件）" }},
+        {{ contentType: "shorts", label: "急上昇Shorts（NEW上位3件）" }},
+        {{ contentType: "video", label: "急上昇動画（NEW上位3件）" }},
       ];
       specs.forEach((spec) => {{
         const card = document.createElement("section");
@@ -2171,7 +2173,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         openBtn.textContent = "Xで開く";
         let items = [];
         function refillCandidates() {{
-          items = getDailyTopItems(spec.contentType, 5);
+          items = getDailyTopItems(spec.contentType, 3);
           select.innerHTML = "";
           items.forEach((item, idx) => {{
             const option = document.createElement("option");
