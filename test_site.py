@@ -1271,14 +1271,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
             <span class="admin-pill {status_class}">API状態: {status_label}</span>
             <span class="admin-metrics">search.list {used:,} / {limit:,}</span>
           </div>
-          <div class="admin-share-row">
-            <button id="share-category-overall" class="admin-share-btn" type="button">全体データ</button>
-            <button id="share-category-trending" class="admin-share-btn" type="button">急上昇</button>
-            <button id="share-category-top3" class="admin-share-btn" type="button">TOP3</button>
-            <button id="share-category-likes" class="admin-share-btn" type="button">いいね数</button>
-            <button id="share-category-comments" class="admin-share-btn" type="button">コメント数</button>
-            <button id="share-category-longseller" class="admin-share-btn" type="button">ロングセラー</button>
-          </div>
           <div class="admin-target-toggle" id="admin-target-toggle">
             <button class="admin-target-btn active" type="button" data-target-type="shorts">Shorts投稿</button>
             <button class="admin-target-btn" type="button" data-target-type="video">動画投稿</button>
@@ -2319,6 +2311,143 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         `公開から${{ageDays.toLocaleString("ja-JP")}}日 / 24h +${{Number(best.viewGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
       ].join("\\n");
     }}
+    function ensureThreeCandidates(candidates, fallbackText) {{
+      const base = Array.isArray(candidates) ? candidates.filter((c) => c && c.text) : [];
+      if (!base.length) {{
+        return [1, 2, 3].map((idx) => ({
+          label: `候補${{idx}}`,
+          text: fallbackText || "投稿候補データがありません。 #VCLIP",
+        }));
+      }}
+      const out = base.slice(0, 3);
+      while (out.length < 3) {{
+        const src = out[out.length - 1] || out[0];
+        out.push({
+          label: `候補${{out.length + 1}}`,
+          text: src.text,
+        });
+      }}
+      return out;
+    }}
+    function buildOverallCategoryCandidates(contentType = "shorts") {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = targetLabelFromType(normalized);
+      const tracking = Number(heroStats?.tracking_videos || 0);
+      const growth = Number(heroStats?.daily_growth_total || 0);
+      const fresh = Number(heroStats?.new_24h || 0);
+      const picks = getDailyTopItems(normalized, 3);
+      const candidates = picks.map((item, idx) => {{
+        const detailUrl = `${{window.location.origin}}/video/${{item.videoId}}`;
+        return {{
+          label: `${{idx + 1}}件目注目`,
+          text: [
+            `📊VCLIP全体データ（24h / ${{label}}投稿）`,
+            `トラッキング動画数: ${{tracking.toLocaleString("ja-JP")}}`,
+            `総再生増加: +${{growth.toLocaleString("ja-JP")}} / 新着動画: ${{fresh.toLocaleString("ja-JP")}}`,
+            `注目: 「${{truncateShareTitle(item.title, 52)}}」`,
+            detailUrl,
+            "#VCLIP",
+          ].join("\\n"),
+        }};
+      }});
+      return ensureThreeCandidates(candidates, buildOverallDataShareText(normalized));
+    }}
+    function buildTrendingCategoryCandidates(contentType = "shorts") {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const picks = getDailyTopItems(normalized, 3);
+      const candidates = picks.map((item, idx) => ({{
+        label: `${{idx + 1}}件目急上昇`,
+        text: buildTrendingTemplateText(item),
+      }}));
+      return ensureThreeCandidates(candidates, buildTrendingTemplateText(null));
+    }}
+    function buildTop3CategoryCandidates(contentType = "shorts") {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = targetLabelFromType(normalized);
+      const top3 = getDailyTop3Items(normalized);
+      const rankEmojis = ["🥇", "🥈", "🥉"];
+      const candidates = top3.slice(0, 3).map((item, idx) => ({{
+        label: `${{item.rank}}位フォーカス`,
+        text: [
+          `🏆本日の${{label}} TOP3`,
+          `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位: ${{truncateShareTitle(item.title, 54)}}`,
+          "#VCLIP",
+        ].join("\\n"),
+      }}));
+      return ensureThreeCandidates(candidates, buildTop3CategoryText(normalized));
+    }}
+    function buildLikesCategoryCandidates(contentType = "shorts") {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = targetLabelFromType(normalized);
+      const items = getDailyCardMetrics(normalized);
+      items.sort((a, b) => (b.likeGrowth - a.likeGrowth) || (b.viewGrowth - a.viewGrowth));
+      const candidates = items.slice(0, 3).map((item, idx) => {{
+        const detailUrl = `${{window.location.origin}}/video/${{item.videoId}}`;
+        return {{
+          label: `${{idx + 1}}件目いいね`,
+          text: [
+            `❤️いいね数が伸びている${{label}}です。`,
+            `「${{truncateShareTitle(item.title, 60)}}」`,
+            detailUrl,
+            `24h いいね +${{Number(item.likeGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
+          ].join("\\n"),
+        }};
+      }});
+      return ensureThreeCandidates(candidates, buildLikesCategoryText(normalized));
+    }}
+    function buildCommentsCategoryCandidates(contentType = "shorts") {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = targetLabelFromType(normalized);
+      const items = getDailyCardMetrics(normalized);
+      items.sort((a, b) => (b.commentGrowth - a.commentGrowth) || (b.viewGrowth - a.viewGrowth));
+      const candidates = items.slice(0, 3).map((item, idx) => {{
+        const detailUrl = `${{window.location.origin}}/video/${{item.videoId}}`;
+        return {{
+          label: `${{idx + 1}}件目コメント`,
+          text: [
+            `💬コメント数が伸びている${{label}}です。`,
+            `「${{truncateShareTitle(item.title, 60)}}」`,
+            detailUrl,
+            `24h コメント +${{Number(item.commentGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
+          ].join("\\n"),
+        }};
+      }});
+      return ensureThreeCandidates(candidates, buildCommentsCategoryText(normalized));
+    }}
+    function buildLongSellerCategoryCandidates(contentType = "shorts") {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = targetLabelFromType(normalized);
+      const now = new Date();
+      const items = getDailyCardMetrics(normalized).filter((item) => {{
+        if (!item.publishedAt) return false;
+        const ageDays = (now.getTime() - item.publishedAt.getTime()) / (1000 * 60 * 60 * 24);
+        return ageDays >= 7;
+      }});
+      items.sort((a, b) => (b.viewGrowth - a.viewGrowth) || (b.likeGrowth - a.likeGrowth));
+      const candidates = items.slice(0, 3).map((item, idx) => {{
+        const detailUrl = `${{window.location.origin}}/video/${{item.videoId}}`;
+        const ageDays = item.publishedAt ? Math.max(0, Math.floor((now.getTime() - item.publishedAt.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+        return {{
+          label: `${{idx + 1}}件目ロング`,
+          text: [
+            `🕰ロングセラー${{label}}です。`,
+            `「${{truncateShareTitle(item.title, 60)}}」`,
+            detailUrl,
+            `公開から${{ageDays.toLocaleString("ja-JP")}}日 / 24h +${{Number(item.viewGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
+          ].join("\\n"),
+        }};
+      }});
+      return ensureThreeCandidates(candidates, buildLongSellerCategoryText(normalized));
+    }}
+    function getAdminCategoryCandidates(categoryKey, contentType) {{
+      if (categoryKey === "overall") return buildOverallCategoryCandidates(contentType);
+      if (categoryKey === "trending") return buildTrendingCategoryCandidates(contentType);
+      if (categoryKey === "top3") return buildTop3CategoryCandidates(contentType);
+      if (categoryKey === "likes") return buildLikesCategoryCandidates(contentType);
+      if (categoryKey === "comments") return buildCommentsCategoryCandidates(contentType);
+      if (categoryKey === "longseller") return buildLongSellerCategoryCandidates(contentType);
+      return ensureThreeCandidates([], "投稿候補データがありません。 #VCLIP");
+    }}
     function bindAdminTargetToggle() {{
       if (!adminTargetToggle) return;
       const buttons = Array.from(adminTargetToggle.querySelectorAll(".admin-target-btn"));
@@ -2327,6 +2456,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         buttons.forEach((btn) => {{
           btn.classList.toggle("active", btn.dataset.targetType === adminShareTargetType);
         }});
+        renderAdminTrendingPicker();
       }};
       buttons.forEach((btn) => {{
         btn.addEventListener("click", () => apply(btn.dataset.targetType || "shorts"));
@@ -2343,15 +2473,19 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       if (!root) return;
       root.innerHTML = "";
       const specs = [
-        {{ contentType: "shorts", label: "急上昇Shorts（NEW上位3件）" }},
-        {{ contentType: "video", label: "急上昇動画（NEW上位3件）" }},
+        {{ key: "overall", label: "全体データ" }},
+        {{ key: "trending", label: "急上昇" }},
+        {{ key: "top3", label: "TOP3" }},
+        {{ key: "likes", label: "いいね数" }},
+        {{ key: "comments", label: "コメント数" }},
+        {{ key: "longseller", label: "ロングセラー" }},
       ];
       specs.forEach((spec) => {{
         const card = document.createElement("section");
         card.className = "admin-picker-card";
         const head = document.createElement("div");
         head.className = "admin-picker-head";
-        head.textContent = `${{spec.label}}（混合: 再生増加 + 順位上昇）`;
+        head.textContent = `${{spec.label}}（3候補）`;
         card.appendChild(head);
         const select = document.createElement("select");
         select.className = "admin-picker-select";
@@ -2372,15 +2506,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         openBtn.textContent = "Xで開く";
         let items = [];
         function refillCandidates() {{
-          items = getDailyTopItems(spec.contentType, 3);
+          items = getAdminCategoryCandidates(spec.key, adminShareTargetType);
           select.innerHTML = "";
           items.forEach((item, idx) => {{
             const option = document.createElement("option");
             option.value = String(idx);
-            const rankLabel = item.rank > 0 ? `${{item.rank}}位` : "-";
-            const viewText = `再生+${{Number(item.viewGrowth || 0).toLocaleString("ja-JP")}}`;
-            const rankText = `上昇+${{Number(item.rankUp || 0).toLocaleString("ja-JP")}}`;
-            option.textContent = `${{rankLabel}} | ${{viewText}} / ${{rankText}} | ${{truncateShareTitle(item.title, 30)}}`;
+            option.textContent = item.label || `候補${{idx + 1}}`;
             select.appendChild(option);
           }});
           const hasItems = items.length > 0;
@@ -2396,19 +2527,20 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         }}
         function updatePreview() {{
           const selected = getSelectedItem();
-          preview.textContent = selected ? buildTrendingTemplateText(selected) : "投稿候補データがありません。";
+          preview.textContent = selected && selected.text ? selected.text : "投稿候補データがありません。";
         }}
         select.addEventListener("change", updatePreview);
         copyBtn.addEventListener("click", async () => {{
           try {{
-            await copyTextToClipboard(buildTrendingTemplateText(getSelectedItem()));
+            await copyTextToClipboard((getSelectedItem() || {{}}).text || "");
             window.alert("投稿文をコピーしました。");
           }} catch (error) {{
             window.alert("コピーに失敗しました。ブラウザの権限設定をご確認ください。");
           }}
         }});
         openBtn.addEventListener("click", () => {{
-          openShareDraft(buildTrendingTemplateText(getSelectedItem()));
+          const selected = getSelectedItem();
+          openShareDraft(selected && selected.text ? selected.text : "");
         }});
         refillCandidates();
         updatePreview();
@@ -2727,34 +2859,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     buildNewPicks();
     render();
     if (showAdminMeta) {{
-      const shareOverallBtn = document.getElementById("share-category-overall");
-      const shareTrendingBtn = document.getElementById("share-category-trending");
-      const shareTop3Btn = document.getElementById("share-category-top3");
-      const shareLikesBtn = document.getElementById("share-category-likes");
-      const shareCommentsBtn = document.getElementById("share-category-comments");
-      const shareLongSellerBtn = document.getElementById("share-category-longseller");
       bindAdminTargetToggle();
-      if (shareOverallBtn) {{
-        shareOverallBtn.addEventListener("click", () => openShareDraft(buildOverallDataShareText(adminShareTargetType)));
-      }}
-      if (shareTrendingBtn) {{
-        shareTrendingBtn.addEventListener("click", () => {{
-          const trending = getDailyTopItems(adminShareTargetType, 1)[0] || null;
-          openShareDraft(buildTrendingTemplateText(trending));
-        }});
-      }}
-      if (shareTop3Btn) {{
-        shareTop3Btn.addEventListener("click", () => openShareDraft(buildTop3CategoryText(adminShareTargetType)));
-      }}
-      if (shareLikesBtn) {{
-        shareLikesBtn.addEventListener("click", () => openShareDraft(buildLikesCategoryText(adminShareTargetType)));
-      }}
-      if (shareCommentsBtn) {{
-        shareCommentsBtn.addEventListener("click", () => openShareDraft(buildCommentsCategoryText(adminShareTargetType)));
-      }}
-      if (shareLongSellerBtn) {{
-        shareLongSellerBtn.addEventListener("click", () => openShareDraft(buildLongSellerCategoryText(adminShareTargetType)));
-      }}
       renderAdminTrendingPicker();
     }}
   </script>
