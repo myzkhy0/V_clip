@@ -1244,6 +1244,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
             <button id="share-category-comments" class="admin-share-btn" type="button">コメント数</button>
             <button id="share-category-longseller" class="admin-share-btn" type="button">ロングセラー</button>
           </div>
+          <div class="admin-target-toggle" id="admin-target-toggle">
+            <button class="admin-target-btn active" type="button" data-target-type="shorts">Shorts投稿</button>
+            <button class="admin-target-btn" type="button" data-target-type="video">動画投稿</button>
+          </div>
           <div id="admin-trending-picker" class="admin-trending-picker"></div>
         """
         admin_board_html = f"""
@@ -1644,6 +1648,27 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       transition:all 0.2s ease;
     }}
     .admin-share-btn:hover {{ background:rgba(99,208,255,0.2);border-color:rgba(138,215,255,0.55); }}
+    .admin-target-toggle {{
+      margin-top:8px;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }}
+    .admin-target-btn {{
+      border:1px solid rgba(138,215,255,0.35);
+      background:rgba(99,208,255,0.06);
+      color:#dff4ff;
+      border-radius:9px;
+      padding:6px 10px;
+      font-size:0.78rem;
+      font-weight:700;
+      cursor:pointer;
+      font-family:inherit;
+    }}
+    .admin-target-btn.active {{
+      background:rgba(99,208,255,0.22);
+      border-color:rgba(138,215,255,0.65);
+    }}
     .admin-trending-picker {{
       margin-top:10px;
       display:grid;
@@ -1894,6 +1919,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const playerClose = document.getElementById("player-close");
     const playerModePortrait = document.getElementById("player-mode-portrait");
     const playerModeLandscape = document.getElementById("player-mode-landscape");
+    const adminTargetToggle = document.getElementById("admin-target-toggle");
+    let adminShareTargetType = "shorts";
     let activePeriod = "{first_period}";
     let activeContentType = "shorts";
     const PAGE_SIZE_MOBILE = 20;
@@ -2178,12 +2205,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         `24h ${{rankText}}${{pctText}} #VCLIP`,
       ].join("\\n");
     }}
-    function buildOverallDataShareText() {{
+    function targetLabelFromType(contentType) {{
+      return (contentType || "").toLowerCase() === "video" ? "動画" : "Shorts";
+    }}
+    function buildOverallDataShareText(contentType = "shorts") {{
       const tracking = Number(heroStats?.tracking_videos || 0);
       const growth = Number(heroStats?.daily_growth_total || 0);
       const fresh = Number(heroStats?.new_24h || 0);
+      const label = targetLabelFromType(contentType);
       return [
-        "📊VCLIP全体データ（24h）",
+        `📊VCLIP全体データ（24h / ${{label}}投稿）`,
         `トラッキング動画数: ${{tracking.toLocaleString("ja-JP")}}`,
         `総再生増加: +${{growth.toLocaleString("ja-JP")}}`,
         `新着動画: ${{fresh.toLocaleString("ja-JP")}}`,
@@ -2202,44 +2233,63 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         "#VCLIP",
       ].join("\\n");
     }}
-    function buildLikesCategoryText() {{
-      const items = getDailyCardMetrics("shorts");
-      if (!items.length) return "いいね数データがありません。 #VCLIP";
+    function buildLikesCategoryText(contentType = "shorts") {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = targetLabelFromType(normalized);
+      const items = getDailyCardMetrics(normalized);
+      if (!items.length) return `${{label}}のいいね数データがありません。 #VCLIP`;
       items.sort((a, b) => (b.likeGrowth - a.likeGrowth) || (b.viewGrowth - a.viewGrowth));
       const best = items[0];
       const detailUrl = `${{window.location.origin}}/video/${{best.videoId}}`;
       return [
-        "❤️いいね数が伸びているShortsです。",
+        `❤️いいね数が伸びている${{label}}です。`,
         `「${{truncateShareTitle(best.title, 60)}}」`,
         detailUrl,
         `24h いいね +${{Number(best.likeGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
       ].join("\\n");
     }}
-    function buildCommentsCategoryText() {{
+    function buildCommentsCategoryText(contentType = "shorts") {{
+      const label = targetLabelFromType(contentType);
       return [
-        "💬コメント数カテゴリ",
+        `💬コメント数カテゴリ（${{label}}）`,
         "現在、コメント数の収集は未対応です。",
         "対応後に自動投稿へ切り替え予定です。 #VCLIP",
       ].join("\\n");
     }}
-    function buildLongSellerCategoryText() {{
+    function buildLongSellerCategoryText(contentType = "shorts") {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = targetLabelFromType(normalized);
       const now = new Date();
-      const items = getDailyCardMetrics("shorts").filter((item) => {{
+      const items = getDailyCardMetrics(normalized).filter((item) => {{
         if (!item.publishedAt) return false;
         const ageDays = (now.getTime() - item.publishedAt.getTime()) / (1000 * 60 * 60 * 24);
         return ageDays >= 30;
       }});
-      if (!items.length) return "ロングセラー候補がありません。 #VCLIP";
+      if (!items.length) return `${{label}}のロングセラー候補がありません。 #VCLIP`;
       items.sort((a, b) => (b.viewGrowth - a.viewGrowth) || (b.likeGrowth - a.likeGrowth));
       const best = items[0];
       const detailUrl = `${{window.location.origin}}/video/${{best.videoId}}`;
       const ageDays = best.publishedAt ? Math.max(0, Math.floor((now.getTime() - best.publishedAt.getTime()) / (1000 * 60 * 60 * 24))) : 0;
       return [
-        "🕰ロングセラーShortsです。",
+        `🕰ロングセラー${{label}}です。`,
         `「${{truncateShareTitle(best.title, 60)}}」`,
         detailUrl,
         `公開から${{ageDays.toLocaleString("ja-JP")}}日 / 24h +${{Number(best.viewGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
       ].join("\\n");
+    }}
+    function bindAdminTargetToggle() {{
+      if (!adminTargetToggle) return;
+      const buttons = Array.from(adminTargetToggle.querySelectorAll(".admin-target-btn"));
+      const apply = (nextType) => {{
+        adminShareTargetType = nextType === "video" ? "video" : "shorts";
+        buttons.forEach((btn) => {{
+          btn.classList.toggle("active", btn.dataset.targetType === adminShareTargetType);
+        }});
+      }};
+      buttons.forEach((btn) => {{
+        btn.addEventListener("click", () => apply(btn.dataset.targetType || "shorts"));
+      }});
+      apply(adminShareTargetType);
     }}
     function openShareDraft(text) {{
       const params = new URLSearchParams({{ text }});
@@ -2641,26 +2691,27 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const shareLikesBtn = document.getElementById("share-category-likes");
       const shareCommentsBtn = document.getElementById("share-category-comments");
       const shareLongSellerBtn = document.getElementById("share-category-longseller");
+      bindAdminTargetToggle();
       if (shareOverallBtn) {{
-        shareOverallBtn.addEventListener("click", () => openShareDraft(buildOverallDataShareText()));
+        shareOverallBtn.addEventListener("click", () => openShareDraft(buildOverallDataShareText(adminShareTargetType)));
       }}
       if (shareTrendingBtn) {{
         shareTrendingBtn.addEventListener("click", () => {{
-          const trending = getDailyTopItems("shorts", 1)[0] || null;
+          const trending = getDailyTopItems(adminShareTargetType, 1)[0] || null;
           openShareDraft(buildTrendingTemplateText(trending));
         }});
       }}
       if (shareTop3Btn) {{
-        shareTop3Btn.addEventListener("click", () => openShareDraft(buildTop3CategoryText("shorts")));
+        shareTop3Btn.addEventListener("click", () => openShareDraft(buildTop3CategoryText(adminShareTargetType)));
       }}
       if (shareLikesBtn) {{
-        shareLikesBtn.addEventListener("click", () => openShareDraft(buildLikesCategoryText()));
+        shareLikesBtn.addEventListener("click", () => openShareDraft(buildLikesCategoryText(adminShareTargetType)));
       }}
       if (shareCommentsBtn) {{
-        shareCommentsBtn.addEventListener("click", () => openShareDraft(buildCommentsCategoryText()));
+        shareCommentsBtn.addEventListener("click", () => openShareDraft(buildCommentsCategoryText(adminShareTargetType)));
       }}
       if (shareLongSellerBtn) {{
-        shareLongSellerBtn.addEventListener("click", () => openShareDraft(buildLongSellerCategoryText()));
+        shareLongSellerBtn.addEventListener("click", () => openShareDraft(buildLongSellerCategoryText(adminShareTargetType)));
       }}
       renderAdminTrendingPicker();
     }}
