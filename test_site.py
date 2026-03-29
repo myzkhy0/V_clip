@@ -2341,7 +2341,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const candidates = picks.map((item, idx) => {{
         const detailUrl = `${{window.location.origin}}/video/${{item.videoId}}`;
         return {{
-          label: `${{idx + 1}}件目注目`,
+          label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
           text: [
             `📊VCLIP全体データ（24h / ${{label}}投稿）`,
             `トラッキング動画数: ${{tracking.toLocaleString("ja-JP")}}`,
@@ -2358,7 +2358,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const picks = getDailyTopItems(normalized, 3);
       const candidates = picks.map((item, idx) => ({{
-        label: `${{idx + 1}}件目急上昇`,
+        label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
         text: buildTrendingTemplateText(item),
       }}));
       return ensureThreeCandidates(candidates, buildTrendingTemplateText(null));
@@ -2369,7 +2369,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const top3 = getDailyTop3Items(normalized);
       const rankEmojis = ["🥇", "🥈", "🥉"];
       const candidates = top3.slice(0, 3).map((item, idx) => ({{
-        label: `${{item.rank}}位フォーカス`,
+        label: `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位 | ${{truncateShareTitle(item.title, 24)}}`,
         text: [
           `🏆本日の${{label}} TOP3`,
           `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位: ${{truncateShareTitle(item.title, 54)}}`,
@@ -2386,7 +2386,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const candidates = items.slice(0, 3).map((item, idx) => {{
         const detailUrl = `${{window.location.origin}}/video/${{item.videoId}}`;
         return {{
-          label: `${{idx + 1}}件目いいね`,
+          label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
           text: [
             `❤️いいね数が伸びている${{label}}です。`,
             `「${{truncateShareTitle(item.title, 60)}}」`,
@@ -2405,7 +2405,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const candidates = items.slice(0, 3).map((item, idx) => {{
         const detailUrl = `${{window.location.origin}}/video/${{item.videoId}}`;
         return {{
-          label: `${{idx + 1}}件目コメント`,
+          label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
           text: [
             `💬コメント数が伸びている${{label}}です。`,
             `「${{truncateShareTitle(item.title, 60)}}」`,
@@ -2430,7 +2430,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const detailUrl = `${{window.location.origin}}/video/${{item.videoId}}`;
         const ageDays = item.publishedAt ? Math.max(0, Math.floor((now.getTime() - item.publishedAt.getTime()) / (1000 * 60 * 60 * 24))) : 0;
         return {{
-          label: `${{idx + 1}}件目ロング`,
+          label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
           text: [
             `🕰ロングセラー${{label}}です。`,
             `「${{truncateShareTitle(item.title, 60)}}」`,
