@@ -2305,7 +2305,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const items = getDailyCardMetrics(normalized).filter((item) => {{
         if (!item.publishedAt) return false;
         const ageDays = (now.getTime() - item.publishedAt.getTime()) / (1000 * 60 * 60 * 24);
-        return ageDays >= 30;
+        return ageDays >= 7;
       }});
       if (!items.length) return `${{label}}のロングセラー候補がありません。 #VCLIP`;
       items.sort((a, b) => (b.viewGrowth - a.viewGrowth) || (b.likeGrowth - a.likeGrowth));
