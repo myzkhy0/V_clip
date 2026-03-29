@@ -1237,8 +1237,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
             <span class="admin-metrics">search.list {used:,} / {limit:,}</span>
           </div>
           <div class="admin-share-row">
-            <button id="share-daily-top3-shorts" class="admin-share-btn" type="button">本日Top3をX投稿（Shorts）</button>
-            <button id="share-daily-top3-video" class="admin-share-btn" type="button">本日Top3をX投稿（動画）</button>
+            <button id="share-category-overall" class="admin-share-btn" type="button">全体データ</button>
+            <button id="share-category-trending" class="admin-share-btn" type="button">急上昇</button>
+            <button id="share-category-top3" class="admin-share-btn" type="button">TOP3</button>
+            <button id="share-category-likes" class="admin-share-btn" type="button">いいね数</button>
+            <button id="share-category-comments" class="admin-share-btn" type="button">コメント数</button>
+            <button id="share-category-longseller" class="admin-share-btn" type="button">ロングセラー</button>
           </div>
           <div id="admin-trending-picker" class="admin-trending-picker"></div>
         """
@@ -2115,6 +2119,46 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       );
       return items.slice(0, Math.max(1, limit));
     }}
+    function parseMetricNumber(text) {{
+      const normalized = String(text || "").replace(/[^0-9-]/g, "");
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }}
+    function parseJstDateLabelToDate(value) {{
+      const raw = String(value || "").trim();
+      if (!raw) return null;
+      const iso = raw.replace(" ", "T") + ":00+09:00";
+      const parsed = new Date(iso);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }}
+    function getDailyCardMetrics(contentType) {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const daily = payload.find((p) => p.table === "daily");
+      if (!daily || !daily.groups || !daily.groups.all) return [];
+      const tmp = document.createElement("div");
+      tmp.innerHTML = daily.groups.all;
+      const cards = Array.from(tmp.querySelectorAll(`.content-panel[data-content-panel="${{normalized}}"] .card`));
+      return cards.map((card) => {{
+        const thumb = card.querySelector(".thumb");
+        const titleEl = card.querySelector(".card-title");
+        const likeEl = card.querySelector(".like-count");
+        const dateEl = card.querySelector(".card-date");
+        const videoId = (thumb?.dataset?.videoId || "").trim();
+        const title = normalizeShareTitle(titleEl ? titleEl.textContent : "");
+        const likeGrowth = parseMetricNumber(likeEl ? likeEl.textContent : "");
+        const publishedLabel = (dateEl ? dateEl.textContent : "").trim();
+        const publishedAt = parseJstDateLabelToDate(publishedLabel);
+        const viewGrowth = Number(card.dataset.viewGrowth || 0);
+        return {{
+          contentType: normalized,
+          videoId,
+          title,
+          likeGrowth: Number.isFinite(likeGrowth) ? likeGrowth : 0,
+          viewGrowth: Number.isFinite(viewGrowth) ? viewGrowth : 0,
+          publishedAt,
+        }};
+      }}).filter((item) => item.videoId);
+    }}
     function buildTrendingTemplateText(item) {{
       const isVideo = item?.contentType === "video";
       const label = isVideo ? "動画" : "Shorts";
@@ -2132,6 +2176,69 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         `「${{title}}」`,
         detailUrl,
         `24h ${{rankText}}${{pctText}} #VCLIP`,
+      ].join("\\n");
+    }}
+    function buildOverallDataShareText() {{
+      const tracking = Number(heroStats?.tracking_videos || 0);
+      const growth = Number(heroStats?.daily_growth_total || 0);
+      const fresh = Number(heroStats?.new_24h || 0);
+      return [
+        "📊VCLIP全体データ（24h）",
+        `トラッキング動画数: ${{tracking.toLocaleString("ja-JP")}}`,
+        `総再生増加: +${{growth.toLocaleString("ja-JP")}}`,
+        `新着動画: ${{fresh.toLocaleString("ja-JP")}}`,
+        "#VCLIP",
+      ].join("\\n");
+    }}
+    function buildTop3CategoryText(contentType = "shorts") {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = normalized === "video" ? "動画" : "Shorts";
+      const top3 = getDailyTop3Items(normalized);
+      if (!top3.length) return `本日の${{label}}TOP3データがありません。 #VCLIP`;
+      const rankEmojis = ["🥇", "🥈", "🥉"];
+      return [
+        `🏆本日の${{label}} TOP3`,
+        ...top3.map((item, idx) => `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位: ${{truncateShareTitle(item.title, 40)}}`),
+        "#VCLIP",
+      ].join("\\n");
+    }}
+    function buildLikesCategoryText() {{
+      const items = getDailyCardMetrics("shorts");
+      if (!items.length) return "いいね数データがありません。 #VCLIP";
+      items.sort((a, b) => (b.likeGrowth - a.likeGrowth) || (b.viewGrowth - a.viewGrowth));
+      const best = items[0];
+      const detailUrl = `${{window.location.origin}}/video/${{best.videoId}}`;
+      return [
+        "❤️いいね数が伸びているShortsです。",
+        `「${{truncateShareTitle(best.title, 60)}}」`,
+        detailUrl,
+        `24h いいね +${{Number(best.likeGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
+      ].join("\\n");
+    }}
+    function buildCommentsCategoryText() {{
+      return [
+        "💬コメント数カテゴリ",
+        "現在、コメント数の収集は未対応です。",
+        "対応後に自動投稿へ切り替え予定です。 #VCLIP",
+      ].join("\\n");
+    }}
+    function buildLongSellerCategoryText() {{
+      const now = new Date();
+      const items = getDailyCardMetrics("shorts").filter((item) => {{
+        if (!item.publishedAt) return false;
+        const ageDays = (now.getTime() - item.publishedAt.getTime()) / (1000 * 60 * 60 * 24);
+        return ageDays >= 30;
+      }});
+      if (!items.length) return "ロングセラー候補がありません。 #VCLIP";
+      items.sort((a, b) => (b.viewGrowth - a.viewGrowth) || (b.likeGrowth - a.likeGrowth));
+      const best = items[0];
+      const detailUrl = `${{window.location.origin}}/video/${{best.videoId}}`;
+      const ageDays = best.publishedAt ? Math.max(0, Math.floor((now.getTime() - best.publishedAt.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+      return [
+        "🕰ロングセラーShortsです。",
+        `「${{truncateShareTitle(best.title, 60)}}」`,
+        detailUrl,
+        `公開から${{ageDays.toLocaleString("ja-JP")}}日 / 24h +${{Number(best.viewGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
       ].join("\\n");
     }}
     function openShareDraft(text) {{
@@ -2528,13 +2635,32 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     buildNewPicks();
     render();
     if (showAdminMeta) {{
-      const shareDailyShortsBtn = document.getElementById("share-daily-top3-shorts");
-      const shareDailyVideoBtn = document.getElementById("share-daily-top3-video");
-      if (shareDailyShortsBtn) {{
-        shareDailyShortsBtn.addEventListener("click", () => openDailyTop3Share("shorts"));
+      const shareOverallBtn = document.getElementById("share-category-overall");
+      const shareTrendingBtn = document.getElementById("share-category-trending");
+      const shareTop3Btn = document.getElementById("share-category-top3");
+      const shareLikesBtn = document.getElementById("share-category-likes");
+      const shareCommentsBtn = document.getElementById("share-category-comments");
+      const shareLongSellerBtn = document.getElementById("share-category-longseller");
+      if (shareOverallBtn) {{
+        shareOverallBtn.addEventListener("click", () => openShareDraft(buildOverallDataShareText()));
       }}
-      if (shareDailyVideoBtn) {{
-        shareDailyVideoBtn.addEventListener("click", () => openDailyTop3Share("video"));
+      if (shareTrendingBtn) {{
+        shareTrendingBtn.addEventListener("click", () => {{
+          const trending = getDailyTopItems("shorts", 1)[0] || null;
+          openShareDraft(buildTrendingTemplateText(trending));
+        }});
+      }}
+      if (shareTop3Btn) {{
+        shareTop3Btn.addEventListener("click", () => openShareDraft(buildTop3CategoryText("shorts")));
+      }}
+      if (shareLikesBtn) {{
+        shareLikesBtn.addEventListener("click", () => openShareDraft(buildLikesCategoryText()));
+      }}
+      if (shareCommentsBtn) {{
+        shareCommentsBtn.addEventListener("click", () => openShareDraft(buildCommentsCategoryText()));
+      }}
+      if (shareLongSellerBtn) {{
+        shareLongSellerBtn.addEventListener("click", () => openShareDraft(buildLongSellerCategoryText()));
       }}
       renderAdminTrendingPicker();
     }}
