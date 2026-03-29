@@ -2314,18 +2314,18 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function ensureThreeCandidates(candidates, fallbackText) {{
       const base = Array.isArray(candidates) ? candidates.filter((c) => c && c.text) : [];
       if (!base.length) {{
-        return [1, 2, 3].map((idx) => ({
+        return [1, 2, 3].map((idx) => ({{
           label: `候補${{idx}}`,
           text: fallbackText || "投稿候補データがありません。 #VCLIP",
-        }));
+        }}));
       }}
       const out = base.slice(0, 3);
       while (out.length < 3) {{
         const src = out[out.length - 1] || out[0];
-        out.push({
+        out.push({{
           label: `候補${{out.length + 1}}`,
           text: src.text,
-        });
+        }});
       }}
       return out;
     }}
