@@ -1,5 +1,5 @@
 """
-stats_collector.py — Collect hourly view / like snapshots for tracked videos.
+stats_collector.py — Collect hourly view / like / comment snapshots for tracked videos.
 
 Only videos published within the last TRACK_DAYS are updated.
 """
@@ -48,8 +48,8 @@ def _bulk_insert_stats(stats_rows: list[tuple]) -> None:
         with conn.cursor() as cur:
             cur.executemany(
                 """
-                INSERT INTO video_stats (video_id, view_count, like_count)
-                VALUES (%s, %s, %s)
+                INSERT INTO video_stats (video_id, view_count, like_count, comment_count)
+                VALUES (%s, %s, %s, %s)
                 """,
                 stats_rows,
             )
@@ -72,7 +72,7 @@ def run_stats_collector() -> None:
     details = get_video_details(video_ids)
 
     stats_rows = [
-        (d["video_id"], d["view_count"], d["like_count"])
+        (d["video_id"], d["view_count"], d["like_count"], d.get("comment_count", 0))
         for d in details
     ]
 

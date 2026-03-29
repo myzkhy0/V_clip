@@ -2,7 +2,7 @@
 youtube_client.py — YouTube Data API v3 wrapper.
 
 Provides helpers to search for videos by channel / keyword and to
-retrieve video details (duration, view count, like count).
+retrieve video details (duration, view count, like count, comment count).
 """
 
 import json
@@ -413,6 +413,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
             "duration_seconds": int,
             "view_count": int,
             "like_count": int,
+            "comment_count": int,
             "tags_text": str,
             "channel_icon_url": str,
             "description": str,
@@ -460,6 +461,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
                 "duration_seconds": _parse_duration(content.get("duration", "PT0S")),
                 "view_count": int(stats.get("viewCount", 0)),
                 "like_count": int(stats.get("likeCount", 0)),
+                "comment_count": int(stats.get("commentCount", 0)),
                 "tags_text": " ".join(tags),
                 "channel_icon_url": icon_map.get(channel_id, ""),
                 "description": snippet.get("description", ""),

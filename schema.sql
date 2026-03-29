@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS video_stats (
     video_id    VARCHAR(32)  NOT NULL REFERENCES videos(video_id) ON DELETE CASCADE,
     timestamp   TIMESTAMP    NOT NULL DEFAULT NOW(),
     view_count  BIGINT       NOT NULL DEFAULT 0,
-    like_count  BIGINT       NOT NULL DEFAULT 0
+    like_count  BIGINT       NOT NULL DEFAULT 0,
+    comment_count BIGINT     NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_video_stats_video_ts

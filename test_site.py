@@ -280,7 +280,11 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
             GREATEST(
                 0,
                 COALESCE(ls.like_count, 0) - COALESCE(os.like_count, fs.like_count, ls.like_count, 0)
-            ) AS like_growth
+            ) AS like_growth,
+            GREATEST(
+                0,
+                COALESCE(lc.comment_count, 0) - COALESCE(oc.comment_count, fc.comment_count, lc.comment_count, 0)
+            ) AS comment_growth
         FROM {table} r
         JOIN videos v ON v.video_id = r.video_id
         LEFT JOIN LATERAL (
@@ -320,11 +324,33 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
             ORDER BY s.timestamp ASC
             LIMIT 1
         ) fs ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT comment_count
+            FROM video_stats s
+            WHERE s.video_id = r.video_id
+            ORDER BY s.timestamp DESC
+            LIMIT 1
+        ) lc ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT comment_count
+            FROM video_stats s
+            WHERE s.video_id = r.video_id
+              AND s.timestamp <= %s
+            ORDER BY s.timestamp DESC
+            LIMIT 1
+        ) oc ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT comment_count
+            FROM video_stats s
+            WHERE s.video_id = r.video_id
+            ORDER BY s.timestamp ASC
+            LIMIT 1
+        ) fc ON TRUE
         WHERE r.calculated_at = %s
         ORDER BY r.rank
         LIMIT %s
         """,
-        (cutoff, cutoff, calculated_at, limit),
+        (cutoff, cutoff, cutoff, calculated_at, limit),
     )
 
     prev_rank_map: dict[str, int] = {}
@@ -411,6 +437,7 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
                 video_id,
                 view_count,
                 like_count,
+                comment_count,
                 timestamp AS latest_ts
             FROM video_stats
             ORDER BY video_id, timestamp DESC
@@ -428,6 +455,7 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
                 video_id,
                 view_count,
                 like_count,
+                comment_count,
                 timestamp AS first_ts
             FROM video_stats
             ORDER BY video_id, timestamp ASC
@@ -449,7 +477,8 @@ def _fetch_daily_provisional_rows(content_type: str, top_n: int = 100) -> list[d
                     WHEN f.view_count > 0 THEN ROUND(((l.view_count - f.view_count)::numeric * 100) / f.view_count)
                     ELSE NULL
                 END AS view_growth_pct,
-                GREATEST(0, l.like_count - f.like_count) AS like_growth
+                GREATEST(0, l.like_count - f.like_count) AS like_growth,
+                GREATEST(0, l.comment_count - f.comment_count) AS comment_growth
             FROM latest_stats l
             JOIN first_stats f ON f.video_id = l.video_id
             LEFT JOIN old_stats o ON o.video_id = l.video_id
@@ -659,15 +688,21 @@ def _render_cards(
         share_url = "https://twitter.com/intent/tweet?text=" + quote(share_text, safe="")
         content_type = html.escape((row.get("content_type") or "").lower())
         published_label = ""
+        published_iso = ""
         published_at = row.get("published_at")
         if isinstance(published_at, datetime):
             if published_at.tzinfo is None:
                 published_at = published_at.replace(tzinfo=timezone.utc)
             published_label = published_at.astimezone(JST).strftime("%Y-%m-%d %H:%M")
+            published_iso = published_at.astimezone(JST).isoformat()
         try:
             like_growth = int(row.get("like_growth") or 0)
         except (TypeError, ValueError):
             like_growth = 0
+        try:
+            comment_growth = int(row.get("comment_growth") or 0)
+        except (TypeError, ValueError):
+            comment_growth = 0
         try:
             view_growth_value = int(row.get("view_growth") or 0)
         except (TypeError, ValueError):
@@ -711,7 +746,7 @@ def _render_cards(
 
         cards.append(
             f"""
-            <article class="card video-card{rank_class}" data-video-id="{video_id}" data-rank="{current_rank}" data-prev-rank="{prev_rank}" data-view-growth-pct="{view_growth_pct}" data-view-growth="{view_growth_value}">
+            <article class="card video-card{rank_class}" data-video-id="{video_id}" data-rank="{current_rank}" data-prev-rank="{prev_rank}" data-view-growth-pct="{view_growth_pct}" data-view-growth="{view_growth_value}" data-like-growth="{like_growth}" data-comment-growth="{comment_growth}" data-published-at="{html.escape(published_iso, quote=True)}">
               <a class="thumb" href="{video_url}" target="_blank" rel="noreferrer"
                   data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
@@ -2168,21 +2203,21 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       return cards.map((card) => {{
         const thumb = card.querySelector(".thumb");
         const titleEl = card.querySelector(".card-title");
-        const likeEl = card.querySelector(".like-count");
-        const dateEl = card.querySelector(".card-date");
         const videoId = (thumb?.dataset?.videoId || "").trim();
         const title = normalizeShareTitle(titleEl ? titleEl.textContent : "");
-        const likeGrowth = parseMetricNumber(likeEl ? likeEl.textContent : "");
-        const publishedLabel = (dateEl ? dateEl.textContent : "").trim();
-        const publishedAt = parseJstDateLabelToDate(publishedLabel);
+        const likeGrowth = Number(card.dataset.likeGrowth || 0);
+        const commentGrowth = Number(card.dataset.commentGrowth || 0);
+        const publishedIso = String(card.dataset.publishedAt || "").trim();
+        const publishedAt = publishedIso ? new Date(publishedIso) : null;
         const viewGrowth = Number(card.dataset.viewGrowth || 0);
         return {{
           contentType: normalized,
           videoId,
           title,
           likeGrowth: Number.isFinite(likeGrowth) ? likeGrowth : 0,
+          commentGrowth: Number.isFinite(commentGrowth) ? commentGrowth : 0,
           viewGrowth: Number.isFinite(viewGrowth) ? viewGrowth : 0,
-          publishedAt,
+          publishedAt: publishedAt && !Number.isNaN(publishedAt.getTime()) ? publishedAt : null,
         }};
       }}).filter((item) => item.videoId);
     }}
@@ -2249,11 +2284,18 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       ].join("\\n");
     }}
     function buildCommentsCategoryText(contentType = "shorts") {{
-      const label = targetLabelFromType(contentType);
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const label = targetLabelFromType(normalized);
+      const items = getDailyCardMetrics(normalized);
+      if (!items.length) return `${{label}}のコメント数データがありません。 #VCLIP`;
+      items.sort((a, b) => (b.commentGrowth - a.commentGrowth) || (b.viewGrowth - a.viewGrowth));
+      const best = items[0];
+      const detailUrl = `${{window.location.origin}}/video/${{best.videoId}}`;
       return [
-        `💬コメント数カテゴリ（${{label}}）`,
-        "現在、コメント数の収集は未対応です。",
-        "対応後に自動投稿へ切り替え予定です。 #VCLIP",
+        `💬コメント数が伸びている${{label}}です。`,
+        `「${{truncateShareTitle(best.title, 60)}}」`,
+        detailUrl,
+        `24h コメント +${{Number(best.commentGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
       ].join("\\n");
     }}
     function buildLongSellerCategoryText(contentType = "shorts") {{

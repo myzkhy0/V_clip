@@ -77,6 +77,12 @@ def init_db():
                 ADD COLUMN IF NOT EXISTS content_type VARCHAR(16) NOT NULL DEFAULT 'video'
                 """
             )
+            cur.execute(
+                """
+                ALTER TABLE video_stats
+                ADD COLUMN IF NOT EXISTS comment_count BIGINT NOT NULL DEFAULT 0
+                """
+            )
         conn.commit()
         print("[db] Schema initialized successfully.")
     finally:
