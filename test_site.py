@@ -578,13 +578,14 @@ def _sanitize_text(value: object) -> str:
 
 
 def _share_prefix_for_period(period_key: str, month_day: str, rank: int, content_label: str) -> str:
+    normalized_label = "shorts" if content_label == "shorts" else "動画"
     if period_key == "daily":
-        return f"本日({month_day})の #VTuber切り抜きランキング {rank}位の{content_label}です！"
+        return f"本日({month_day})のVTuber切り抜きランキング {rank}位の{normalized_label}です！"
     if period_key == "weekly":
-        return f"直近7日間の #VTuber切り抜きランキング {rank}位の{content_label}です！"
+        return f"直近7日間のVTuber切り抜きランキング {rank}位の{normalized_label}です！"
     if period_key == "monthly":
-        return f"直近30日間の #VTuber切り抜きランキング {rank}位の{content_label}です！"
-    return f"#VTuber切り抜きランキング {rank}位の{content_label}です！"
+        return f"直近30日間のVTuber切り抜きランキング {rank}位の{normalized_label}です！"
+    return f"VTuber切り抜きランキング {rank}位の{normalized_label}です！"
 
 
 def _rank_label_for_detail(rank_value: int | None, top_n: int = 100) -> str:
@@ -682,9 +683,10 @@ def _render_cards(
         detail_url = f"/video/{video_id}?period={period_key}"
         channel_url = f"https://www.youtube.com/channel/{channel_id}"
         title_plain = " ".join(title_raw.split())
-        share_title = _truncate_text(title_plain, 56)
+        share_title = title_plain
         share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
-        share_text = f"{share_prefix}  {share_title} {video_url} @YouTubeより https://vclipranking.com/"
+        share_detail_url = f"https://vclipranking.com/video/{video_id}"
+        share_text = f"{share_prefix} {share_title} {share_detail_url} #VCLIP"
         share_url = "https://twitter.com/intent/tweet?text=" + quote(share_text, safe="")
         content_type = html.escape((row.get("content_type") or "").lower())
         published_label = ""
