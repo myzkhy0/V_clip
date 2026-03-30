@@ -2083,11 +2083,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       ).slice(0, 3);
       return cards.map((card, idx) => {{
         const titleEl = card.querySelector(".card-title");
+        const videoId = (card.dataset.videoId || "").trim();
         return {{
           rank: idx + 1,
+          videoId,
           title: (titleEl ? titleEl.textContent : "").trim(),
         }};
-      }}).filter((item) => item.title);
+      }}).filter((item) => item.title && item.videoId);
     }}
     function normalizeShareTitle(text) {{
       return (text || "").replace(/\\s+/g, " ").trim();
@@ -2258,7 +2260,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const rankEmojis = ["🥇", "🥈", "🥉"];
       return [
         `🏆本日の${{label}} TOP3`,
-        ...top3.map((item, idx) => `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位: ${{truncateShareTitle(item.title, 40)}}`),
+        ...top3.flatMap((item, idx) => [
+          `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位: ${{truncateShareTitle(item.title, 40)}}`,
+          `${{window.location.origin}}/video/${{item.videoId}}`,
+        ]),
         "#VCLIP",
       ].join("\\n");
     }}
@@ -2365,18 +2370,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     function buildTop3CategoryCandidates(contentType = "shorts") {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
-      const label = targetLabelFromType(normalized);
-      const top3 = getDailyTop3Items(normalized);
-      const rankEmojis = ["🥇", "🥈", "🥉"];
-      const candidates = top3.slice(0, 3).map((item, idx) => ({{
-        label: `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位 | ${{truncateShareTitle(item.title, 24)}}`,
-        text: [
-          `🏆本日の${{label}} TOP3`,
-          `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位: ${{truncateShareTitle(item.title, 54)}}`,
-          "#VCLIP",
-        ].join("\\n"),
-      }}));
-      return ensureThreeCandidates(candidates, buildTop3CategoryText(normalized));
+      return [{{
+        label: "TOP3まとめ",
+        text: buildTop3CategoryText(normalized),
+      }}];
     }}
     function buildLikesCategoryCandidates(contentType = "shorts") {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
@@ -2477,7 +2474,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const specs = [
         {{ key: "overall", label: "全体データ" }},
         {{ key: "trending", label: "急上昇" }},
-        {{ key: "top3", label: "TOP3" }},
+        {{ key: "top3", label: "TOP3", singleCandidate: true }},
         {{ key: "likes", label: "いいね数" }},
         {{ key: "comments", label: "コメント数" }},
         {{ key: "longseller", label: "ロングセラー" }},
@@ -2517,7 +2514,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
             select.appendChild(option);
           }});
           const hasItems = items.length > 0;
-          select.style.display = hasItems ? "" : "none";
+          const showSelector = !spec.singleCandidate && hasItems;
+          select.style.display = showSelector ? "" : "none";
           empty.style.display = hasItems ? "none" : "";
           copyBtn.disabled = !hasItems;
           openBtn.disabled = !hasItems;
