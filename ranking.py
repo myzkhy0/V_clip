@@ -44,6 +44,7 @@ RANKING_TABLES: dict[str, dict[str, str]] = {
 
 HISTORY_TABLE_SUFFIX = "_history"
 HISTORY_RANK_LIMIT = 100
+DAILY_BASE_WINDOW_HOURS = 6
 
 CLIP_KEYWORD_PATTERN = "%切り抜き%"
 VSPO_GROUP_NAME = "VSPO"
@@ -104,7 +105,30 @@ def _build_ranking_sql(
     growth_expr: str,
     is_strict_daily: bool,
 ) -> str:
+    old_stats_sql = """
+                    old_stats AS (
+                        SELECT DISTINCT ON (video_id)
+                            video_id,
+                            view_count
+                        FROM video_stats
+                        WHERE timestamp <= %s
+                        ORDER BY video_id, timestamp DESC
+                    ),
+    """
     if is_strict_daily:
+        old_stats_sql = """
+                    old_stats AS (
+                        SELECT DISTINCT ON (video_id)
+                            video_id,
+                            view_count
+                        FROM video_stats
+                        WHERE timestamp BETWEEN %s AND %s
+                        ORDER BY
+                            video_id,
+                            ABS(EXTRACT(EPOCH FROM (timestamp - %s))) ASC,
+                            timestamp DESC
+                    ),
+        """
         is_today_expr = (
             "(v.published_at + interval '9 hours')::date = "
             "((NOW() AT TIME ZONE 'Asia/Tokyo')::date)"
@@ -124,14 +148,7 @@ def _build_ranking_sql(
                         FROM video_stats
                         ORDER BY video_id, timestamp DESC
                     ),
-                    old_stats AS (
-                        SELECT DISTINCT ON (video_id)
-                            video_id,
-                            view_count
-                        FROM video_stats
-                        WHERE timestamp <= %s
-                        ORDER BY video_id, timestamp DESC
-                    ),
+                    {old_stats_sql}
                     first_stats AS (
                         SELECT DISTINCT ON (video_id)
                             video_id,
@@ -179,9 +196,14 @@ def _build_ranking_params(
     excluded_params: tuple,
     is_strict_daily: bool,
 ) -> tuple:
-    params: list[object] = [period_start]
     if is_strict_daily:
+        window_hours = max(1, int(DAILY_BASE_WINDOW_HOURS))
+        period_lower = period_start - timedelta(hours=window_hours)
+        period_upper = period_start + timedelta(hours=window_hours)
+        params: list[object] = [period_lower, period_upper, period_start]
         params.append(now_utc)
+    else:
+        params = [period_start]
     params.extend([
         CLIP_KEYWORD_PATTERN,
         CLIP_KEYWORD_PATTERN,
