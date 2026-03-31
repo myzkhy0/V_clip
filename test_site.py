@@ -2359,11 +2359,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const tracking = Number(heroStats?.tracking_videos || 0);
       const growth = Number(heroStats?.daily_growth_total || 0);
       const fresh = Number(heroStats?.new_24h || 0);
-      const label = targetLabelFromType(contentType);
       const now = new Date();
       const monthDay = `${{now.getMonth() + 1}}/${{now.getDate()}}`;
       return [
-        `📊VCLIP全体データ（24h ${{monthDay}} / ${{label}}投稿）`,
+        `📊VCLIP全体データ（24h ${{monthDay}}）`,
         `トラッキング動画数: ${{tracking.toLocaleString("ja-JP")}}`,
         `総再生増加: +${{growth.toLocaleString("ja-JP")}} / 新着動画: ${{fresh.toLocaleString("ja-JP")}}`,
         "#VCLIP",
