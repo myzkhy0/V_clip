@@ -621,13 +621,6 @@ def _normalize_period_key(period_key: str | None) -> str:
     return normalized if normalized in {"daily", "weekly", "monthly"} else "daily"
 
 
-def _normalize_content_scope(content: str | None) -> str:
-    normalized = (content or "").strip().lower()
-    if normalized in {"shorts", "video"}:
-        return normalized
-    return "all"
-
-
 def _format_duration_label(duration_seconds: object) -> str:
     try:
         total = int(duration_seconds or 0)
@@ -881,91 +874,74 @@ def _render_group_content(
     <div class="content-panel" data-content-panel="shorts">{shorts_html}</div>
     <div class="content-panel" data-content-panel="video">{video_html}</div>
     """
-def _build_period_payload_item(period_key: str, is_admin: bool = False, content_scope: str = "all") -> dict | None:
-    period_meta = next((item for item in PERIODS if item[0] == period_key), None)
-    if period_meta is None:
-        return None
-
-    _, label, shorts_table, video_table = period_meta
-    normalized_scope = _normalize_content_scope(content_scope)
+def _build_period_payload(is_admin: bool = False) -> list[dict]:
+    payload = []
     top_n = 200 if is_admin else 100
-    shorts_calculated_at: datetime | None = None
-    video_calculated_at: datetime | None = None
-    shorts_rows: list[dict] = []
-    video_rows: list[dict] = []
-    if normalized_scope in {"all", "shorts"}:
+    for period_key, label, shorts_table, video_table in PERIODS:
         shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table, top_n=top_n)
-    if normalized_scope in {"all", "video"}:
         video_calculated_at, video_rows = _fetch_latest_rankings(video_table, top_n=top_n)
 
-    provisional_shorts_rows: list[dict] = []
-    provisional_video_rows: list[dict] = []
-    if period_key == "daily" and normalized_scope in {"all", "shorts"}:
-        provisional_shorts_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
-    if period_key == "daily" and normalized_scope in {"all", "video"}:
-        provisional_video_rows = _fetch_daily_provisional_rows("video", top_n=top_n)
+        provisional_shorts_rows: list[dict] = []
+        provisional_video_rows: list[dict] = []
+        if period_key == "daily":
+            provisional_shorts_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
+            provisional_video_rows = _fetch_daily_provisional_rows("video", top_n=top_n)
 
-    grouped_shorts: dict[str, list[dict]] = defaultdict(list)
-    grouped_video: dict[str, list[dict]] = defaultdict(list)
-    grouped_provisional_shorts: dict[str, list[dict]] = defaultdict(list)
-    grouped_provisional_video: dict[str, list[dict]] = defaultdict(list)
+        grouped_shorts: dict[str, list[dict]] = defaultdict(list)
+        grouped_video: dict[str, list[dict]] = defaultdict(list)
+        grouped_provisional_shorts: dict[str, list[dict]] = defaultdict(list)
+        grouped_provisional_video: dict[str, list[dict]] = defaultdict(list)
 
-    grouped_shorts["all"] = shorts_rows
-    grouped_video["all"] = video_rows
-    grouped_provisional_shorts["all"] = provisional_shorts_rows
-    grouped_provisional_video["all"] = provisional_video_rows
+        grouped_shorts["all"] = shorts_rows
+        grouped_video["all"] = video_rows
+        grouped_provisional_shorts["all"] = provisional_shorts_rows
+        grouped_provisional_video["all"] = provisional_video_rows
 
-    for row in shorts_rows:
-        grouped_shorts[_infer_group(row)].append(row)
-    for row in video_rows:
-        grouped_video[_infer_group(row)].append(row)
-    for row in provisional_shorts_rows:
-        grouped_provisional_shorts[_infer_group(row)].append(row)
-    for row in provisional_video_rows:
-        grouped_provisional_video[_infer_group(row)].append(row)
+        for row in shorts_rows:
+            grouped_shorts[_infer_group(row)].append(row)
+        for row in video_rows:
+            grouped_video[_infer_group(row)].append(row)
+        for row in provisional_shorts_rows:
+            grouped_provisional_shorts[_infer_group(row)].append(row)
+        for row in provisional_video_rows:
+            grouped_provisional_video[_infer_group(row)].append(row)
 
-    available_groups = [
-        group_name
-        for group_name in GROUP_ORDER
-        if grouped_shorts.get(group_name)
-        or grouped_video.get(group_name)
-        or grouped_provisional_shorts.get(group_name)
-        or grouped_provisional_video.get(group_name)
-    ]
-    if not available_groups:
-        available_groups = ["all"]
-    if not is_admin:
-        available_groups = ["all"]
+        available_groups = [
+            group_name
+            for group_name in GROUP_ORDER
+            if grouped_shorts.get(group_name)
+            or grouped_video.get(group_name)
+            or grouped_provisional_shorts.get(group_name)
+            or grouped_provisional_video.get(group_name)
+        ]
+        if not available_groups:
+            available_groups = ["all"]
+        if not is_admin:
+            available_groups = ["all"]
 
-    candidates = [dt for dt in (shorts_calculated_at, video_calculated_at) if dt is not None]
-    calculated_at = max(candidates) if candidates else None
-    return {
-        "table": period_key,
-        "label": label,
-        "content_scope": normalized_scope,
-        "calculated_at": _fmt_datetime(calculated_at),
-        "groups": {
-            group_name: _render_group_content(
-                grouped_shorts.get(group_name, []),
-                grouped_video.get(group_name, []),
-                show_group=True,
-                period_key=period_key,
-                provisional_shorts_rows=grouped_provisional_shorts.get(group_name, []),
-                provisional_video_rows=grouped_provisional_video.get(group_name, []),
-                top_n=top_n,
-            )
-            for group_name in available_groups
-        },
-        "available_groups": available_groups,
-    }
+        candidates = [dt for dt in (shorts_calculated_at, video_calculated_at) if dt is not None]
+        calculated_at = max(candidates) if candidates else None
 
-
-def _build_period_payload(is_admin: bool = False) -> list[dict]:
-    payload: list[dict] = []
-    for period_key, _, _, _ in PERIODS:
-        item = _build_period_payload_item(period_key, is_admin=is_admin, content_scope="all")
-        if item is not None:
-            payload.append(item)
+        payload.append(
+            {
+                "table": period_key,
+                "label": label,
+                "calculated_at": _fmt_datetime(calculated_at),
+                "groups": {
+                    group_name: _render_group_content(
+                        grouped_shorts.get(group_name, []),
+                        grouped_video.get(group_name, []),
+                        show_group=True,
+                        period_key=period_key,
+                        provisional_shorts_rows=grouped_provisional_shorts.get(group_name, []),
+                        provisional_video_rows=grouped_provisional_video.get(group_name, []),
+                        top_n=top_n,
+                    )
+                    for group_name in available_groups
+                },
+                "available_groups": available_groups,
+            }
+        )
     return payload
 def _load_quota_usage() -> tuple[int, int]:
     """Return (used_units, limit_units) from local quota state file."""
@@ -1378,12 +1354,10 @@ def render_policy_page(base_url: str = "") -> str:
 """
 
 def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
-    first_period = PERIODS[0][0] if PERIODS else "daily"
+    payload = _build_period_payload(is_admin=is_admin)
+    first_period = payload[0]["table"] if payload else ""
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
-    period_options_json = json.dumps(
-        [{"table": table, "label": label} for table, label, _, _ in PERIODS],
-        ensure_ascii=False,
-    ).replace("</", "<\\/")
+    payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     hero_stats_json = json.dumps(_fetch_public_hero_stats(), ensure_ascii=False).replace("</", "<\\/")
     normalized_base_url = _normalize_base_url(base_url)
     head_meta = _build_head_meta(normalized_base_url, is_admin=is_admin)
@@ -1625,7 +1599,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .type-tab:hover,.period-tab:hover {{ color:var(--text);background:rgba(255,255,255,0.06); }}
     .type-tab.active {{ background:rgba(167,139,250,0.2);color:#fff;box-shadow:0 0 12px rgba(167,139,250,0.15); }}
     .period-tab.active {{ background:rgba(167,139,250,0.2);color:#fff;box-shadow:0 0 12px rgba(167,139,250,0.15); }}
-    .period-tab.loading {{ opacity:0.72;pointer-events:none; }}
     /* ── Ranking panel display ── */
     .ranking-panel {{ display:none; }}
     .ranking-panel.active {{ display:block; }}
@@ -1750,10 +1723,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .arrow {{ font-style:normal;color:#34d399; }}
     .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim);margin-left:auto;flex:0 0 auto; }}
     .empty {{ padding:20px;border:1px dashed var(--glass-border);color:var(--text-dim);background:rgba(255,255,255,0.03); }}
-    .loading-note {{
-      padding:20px;border:1px solid var(--glass-border);border-radius:14px;
-      color:var(--text-dim);background:rgba(255,255,255,0.03);text-align:center;
-    }}
     /* ── Pagination tabs ── */
     .page-tabs {{ display:none;gap:4px;flex-wrap:wrap;margin-top:12px;margin-bottom:10px; }}
     .page-tabs.bottom {{ margin-top:16px;margin-bottom:0;justify-content:center; }}
@@ -2089,12 +2058,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     </div>
   </div>
   <script>
-    let payload = [];
-    const periodOptions = {period_options_json};
+    const payload = {payload_json};
     const heroStats = {hero_stats_json};
     const groupLabels = {group_labels_json};
     const showAdminMeta = {show_admin_meta};
-    const adminToken = new URLSearchParams(window.location.search).get("admin_token") || "";
     const typeTabs = document.getElementById("type-tabs");
     const periodTabs = document.getElementById("period-tabs");
     const periodRoot = document.getElementById("period-root");
@@ -2787,20 +2754,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         throw new Error("copy_failed");
       }}
     }}
-    async function jumpToVideoCard(videoId, contentType = "shorts", period = "daily") {{
+    function jumpToVideoCard(videoId, contentType = "shorts", period = "daily") {{
       if (!videoId) return;
-      if (!loadedContentScopes.has(contentType)) {{
-        await fetchContentBundle(contentType);
-        builtPeriodPanels.clear();
-        periodRoot.innerHTML = "";
-      }}
 
       if (activePeriod !== period || activeContentType !== contentType) {{
         activePeriod = period;
         activeContentType = contentType;
         rankingIcon.textContent = typeConfig[contentType]?.icon || typeConfig.shorts.icon;
         rankingLabel.textContent = typeConfig[contentType]?.label || typeConfig.shorts.label;
-        await render();
+        render();
       }}
 
       const selector = `.period-panel[data-period="${{period}}"] .content-panel[data-content-panel="${{contentType}}"] .card[data-video-id="${{videoId}}"]`;
@@ -2913,102 +2875,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         listEl.appendChild(link);
       }});
     }}
-    const periodMetaMap = new Map(periodOptions.map((p) => [p.table, p]));
-    const periodMap = new Map();
-    const loadedContentScopes = new Set();
-    const contentBundleLoadingMap = new Map();
+    const periodMap = new Map(payload.map((p) => [p.table, p]));
     const builtPeriodPanels = new Set();
-    function mergeGroupHtml(existingHtml, incomingHtml, contentType) {{
-      if (!existingHtml) return incomingHtml || "";
-      if (!incomingHtml) return existingHtml;
-      const targetSelector = `.content-panel[data-content-panel="${{contentType}}"]`;
-      const existingRoot = document.createElement("div");
-      existingRoot.innerHTML = existingHtml;
-      const incomingRoot = document.createElement("div");
-      incomingRoot.innerHTML = incomingHtml;
-      const existingPanel = existingRoot.querySelector(targetSelector);
-      const incomingPanel = incomingRoot.querySelector(targetSelector);
-      if (!incomingPanel) return existingHtml;
-      if (existingPanel) {{
-        existingPanel.replaceWith(incomingPanel);
-      }} else {{
-        existingRoot.appendChild(incomingPanel);
-      }}
-      return existingRoot.innerHTML;
-    }}
-    function upsertPeriodPayload(period, contentScope = "all") {{
-      if (!period || !period.table) return;
-      const idx = payload.findIndex((item) => item.table === period.table);
-      if (idx >= 0) {{
-        const existing = payload[idx];
-        if (contentScope === "all") {{
-          payload[idx] = period;
-        }} else {{
-          const mergedGroups = {{ ...(existing.groups || {{}}) }};
-          const incomingGroups = period.groups || {{}};
-          Object.keys(incomingGroups).forEach((groupName) => {{
-            mergedGroups[groupName] = mergeGroupHtml(
-              mergedGroups[groupName] || "",
-              incomingGroups[groupName] || "",
-              contentScope
-            );
-          }});
-          payload[idx] = {{
-            ...existing,
-            ...period,
-            groups: mergedGroups,
-            available_groups: period.available_groups || existing.available_groups || ["all"],
-          }};
-        }}
-      }} else {{
-        payload.push(period);
-      }}
-      periodMap.set(period.table, payload.find((item) => item.table === period.table));
-      if (period.table === "daily") {{
-        cachedNewPickPool = null;
-      }}
-    }}
-    async function fetchPeriodPayload(periodTable, contentScope = "all") {{
-      const task = (async () => {{
-        const params = new URLSearchParams();
-        if (showAdminMeta && adminToken) params.set("admin_token", adminToken);
-        const scopePath = contentScope && contentScope !== "all" ? `/${{encodeURIComponent(contentScope)}}` : "";
-        const endpoint = `/api/ranking/${{encodeURIComponent(periodTable)}}${{scopePath}}`;
-        const url = params.toString() ? `${{endpoint}}?${{params.toString()}}` : endpoint;
-        const response = await fetch(url, {{
-          headers: {{ "Accept": "application/json" }},
-        }});
-        const data = await response.json();
-        if (!response.ok || !data?.ok || !data?.period) {{
-          throw new Error(data?.error || `api_error_${{response.status}}`);
-        }}
-        upsertPeriodPayload(data.period, contentScope);
-        return data.period;
-      }})();
-      return await task;
-    }}
-    async function fetchContentBundle(contentType) {{
-      if (loadedContentScopes.has(contentType)) return;
-      if (contentBundleLoadingMap.has(contentType)) {{
-        await contentBundleLoadingMap.get(contentType);
-        return;
-      }}
-      const task = Promise.all(
-        periodOptions.map((period) => fetchPeriodPayload(period.table, contentType))
-      );
-      contentBundleLoadingMap.set(contentType, task);
-      try {{
-        await task;
-        loadedContentScopes.add(contentType);
-      }} finally {{
-        contentBundleLoadingMap.delete(contentType);
-      }}
-    }}
-    function setPeriodTabLoading(periodTable, loading) {{
-      const btn = periodTabs.querySelector(`.period-tab[data-period="${{periodTable}}"]`);
-      if (!btn) return;
-      btn.classList.toggle("loading", !!loading);
-    }}
     function ensureTypeTabs() {{
       if (typeTabs.dataset.ready === "1") {{
         typeTabs.querySelectorAll(".type-tab").forEach((btn) => {{
@@ -3023,15 +2891,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         btn.textContent = type === "shorts" ? "Shorts" : "\u52d5\u753b";
         btn.type = "button";
         btn.dataset.type = type;
-        btn.addEventListener("click", async () => {{
+        btn.addEventListener("click", () => {{
           activeContentType = type;
-          if (!loadedContentScopes.has(type)) {{
-            periodRoot.innerHTML = '<div class="loading-note">ランキングを読み込み中...</div>';
-            await fetchContentBundle(type);
-            builtPeriodPanels.clear();
-            periodRoot.innerHTML = "";
-          }}
-          await render();
+          render();
         }});
         typeTabs.appendChild(btn);
       }});
@@ -3045,31 +2907,24 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         return;
       }}
       periodTabs.innerHTML = "";
-      periodOptions.forEach((period) => {{
+      payload.forEach((period) => {{
         const btn = document.createElement("button");
         btn.className = "period-tab" + (period.table === activePeriod ? " active" : "");
         btn.textContent = period.label;
         btn.type = "button";
         btn.dataset.period = period.table;
-        btn.addEventListener("click", async () => {{
+        btn.addEventListener("click", () => {{
           activePeriod = period.table;
-          await render();
+          render();
         }});
         periodTabs.appendChild(btn);
       }});
       periodTabs.dataset.ready = "1";
     }}
-    async function ensurePeriodPanel(periodTable) {{
+    function ensurePeriodPanel(periodTable) {{
       if (builtPeriodPanels.has(periodTable)) return;
-      setPeriodTabLoading(periodTable, true);
-      if (!periodMap.has(periodTable)) {{
-        await fetchPeriodPayload(periodTable, activeContentType);
-      }}
       const period = periodMap.get(periodTable);
-      if (!period) {{
-        setPeriodTabLoading(periodTable, false);
-        return;
-      }}
+      if (!period) return;
       const panel = document.createElement("section");
       panel.className = "period-panel";
       panel.dataset.period = period.table;
@@ -3115,29 +2970,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 
       periodRoot.appendChild(panel);
       builtPeriodPanels.add(periodTable);
-      setPeriodTabLoading(periodTable, false);
-      if (periodTable === "daily") {{
-        buildNewPicks();
-        if (showAdminMeta) renderAdminTrendingPicker();
-      }}
     }}
     /* ── Main render ── */
-    async function render() {{
-      if (!periodMetaMap.has(activePeriod) && periodOptions.length) {{
-        activePeriod = periodOptions[0].table;
+    function render() {{
+      if (!periodMap.has(activePeriod) && payload.length) {{
+        activePeriod = payload[0].table;
       }}
       ensureTypeTabs();
       ensurePeriodTabs();
-      if (!builtPeriodPanels.has(activePeriod)) {{
-        periodRoot.innerHTML = '<div class="loading-note">ランキングを読み込み中...</div>';
-      }}
-      try {{
-        await ensurePeriodPanel(activePeriod);
-      }} catch (error) {{
-        periodRoot.innerHTML = '<div class="empty">ランキングの読み込みに失敗しました。時間をおいて再試行してください。</div>';
-      }} finally {{
-        setPeriodTabLoading(activePeriod, false);
-      }}
+      ensurePeriodPanel(activePeriod);
 
       rankingIcon.textContent = typeConfig[activeContentType]?.icon || typeConfig.shorts.icon;
       rankingLabel.textContent = typeConfig[activeContentType]?.label || typeConfig.shorts.label;
@@ -3161,11 +3002,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     periodRoot.addEventListener("click", handlePlayerTrigger);
     const newListRoot = document.getElementById("new-list");
     if (newListRoot) {{
-      newListRoot.addEventListener("click", async (event) => {{
+      newListRoot.addEventListener("click", (event) => {{
         const trigger = event.target.closest(".pickup-thumb-card");
         if (!trigger || !trigger.dataset.videoId) return;
         event.preventDefault();
-        await jumpToVideoCard(
+        jumpToVideoCard(
           trigger.dataset.videoId,
           trigger.dataset.contentType || "shorts",
           trigger.dataset.period || "daily",
@@ -3196,20 +3037,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       }}
     }});
 
-    async function initPage() {{
-      buildHeroStats();
-      if (showAdminMeta) {{
-        bindAdminTargetToggle();
-      }}
-      periodRoot.innerHTML = '<div class="loading-note">ランキングを読み込み中...</div>';
-      await fetchContentBundle("shorts");
-      await render();
-      buildNewPicks();
-      if (showAdminMeta) {{
-        renderAdminTrendingPicker();
-      }}
+    buildHeroStats();
+    buildNewPicks();
+    render();
+    if (showAdminMeta) {{
+      bindAdminTargetToggle();
+      renderAdminTrendingPicker();
     }}
-    initPage();
   </script>
 </body>
 </html>
@@ -4254,33 +4088,6 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-            return
-
-        if path_only == "/api/ranking" or path_only.startswith("/api/ranking/"):
-            period_key = "daily"
-            content_scope = "all"
-            if path_only.startswith("/api/ranking/"):
-                remainder = path_only[len("/api/ranking/"):].strip("/")
-                segments = [segment for segment in remainder.split("/") if segment]
-                if segments:
-                    period_key = _normalize_period_key(segments[0])
-                if len(segments) >= 2:
-                    content_scope = _normalize_content_scope(segments[1])
-            else:
-                period_key = _normalize_period_key((query.get("period") or ["daily"])[0])
-                content_scope = _normalize_content_scope((query.get("content") or ["all"])[0])
-            token = (query.get("admin_token") or [""])[0].strip()
-            is_admin = False
-            if ADMIN_TOKEN:
-                if token and token != ADMIN_TOKEN:
-                    _json_response(self, 403, {"ok": False, "error": "admin_token_required"})
-                    return
-                is_admin = token == ADMIN_TOKEN
-            item = _build_period_payload_item(period_key, is_admin=is_admin, content_scope=content_scope)
-            if item is None:
-                _json_response(self, 400, {"ok": False, "error": "invalid_period"})
-                return
-            _json_response(self, 200, {"ok": True, "period": item})
             return
 
         if path_only == "/policy":
