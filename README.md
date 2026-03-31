@@ -47,6 +47,10 @@ cp .env.example .env
 | `X_API_USER_BEARER_TOKEN` | X投稿に使う Bearer Token（ユーザー文脈） |
 | `X_API_POST_URL` | 投稿APIエンドポイント（既定 `https://api.x.com/2/tweets`） |
 | `X_API_TIMEOUT_SECONDS` | X API呼び出しタイムアウト秒（既定 `10`） |
+| `X_API_OAUTH1_CONSUMER_KEY` | OAuth 1.0a Consumer Key（任意） |
+| `X_API_OAUTH1_CONSUMER_SECRET` | OAuth 1.0a Consumer Secret（任意） |
+| `X_API_OAUTH1_ACCESS_TOKEN` | OAuth 1.0a Access Token（任意） |
+| `X_API_OAUTH1_ACCESS_TOKEN_SECRET` | OAuth 1.0a Access Token Secret（任意） |
 | `ENABLE_X_AUTO_POST` | `1` で scheduler のX自動投稿を有効化（既定 `0`） |
 
 `ENABLE_X_AUTO_POST=1` の場合、JSTで以下を自動投稿します。

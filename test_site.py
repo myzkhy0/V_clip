@@ -10,6 +10,11 @@ import logging
 import os
 import random
 import re
+import base64
+import hashlib
+import hmac
+import secrets
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -40,6 +45,10 @@ YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota
 X_API_USER_BEARER_TOKEN = os.getenv("X_API_USER_BEARER_TOKEN", "").strip()
 X_API_POST_URL = os.getenv("X_API_POST_URL", "https://api.x.com/2/tweets").strip() or "https://api.x.com/2/tweets"
 X_API_TIMEOUT_SECONDS = float(os.getenv("X_API_TIMEOUT_SECONDS", "10"))
+X_API_OAUTH1_CONSUMER_KEY = os.getenv("X_API_OAUTH1_CONSUMER_KEY", "").strip()
+X_API_OAUTH1_CONSUMER_SECRET = os.getenv("X_API_OAUTH1_CONSUMER_SECRET", "").strip()
+X_API_OAUTH1_ACCESS_TOKEN = os.getenv("X_API_OAUTH1_ACCESS_TOKEN", "").strip()
+X_API_OAUTH1_ACCESS_TOKEN_SECRET = os.getenv("X_API_OAUTH1_ACCESS_TOKEN_SECRET", "").strip()
 JST = timezone(timedelta(hours=9))
 
 PERIODS: list[tuple[str, str, str, str]] = [
@@ -971,21 +980,68 @@ def _json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) 
     handler.wfile.write(body)
 
 
+def _build_oauth1_header_for_x_post(url: str) -> str:
+    oauth_params = {
+        "oauth_consumer_key": X_API_OAUTH1_CONSUMER_KEY,
+        "oauth_token": X_API_OAUTH1_ACCESS_TOKEN,
+        "oauth_nonce": secrets.token_hex(16),
+        "oauth_timestamp": str(int(time.time())),
+        "oauth_signature_method": "HMAC-SHA1",
+        "oauth_version": "1.0",
+    }
+
+    def _pct(value: str) -> str:
+        return quote(str(value), safe="~")
+
+    parsed = urlparse(url)
+    base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+    signing_items = sorted((k, v) for k, v in oauth_params.items())
+    parameter_string = "&".join(f"{_pct(k)}={_pct(v)}" for k, v in signing_items)
+    signature_base_string = "&".join(["POST", _pct(base_url), _pct(parameter_string)])
+    signing_key = f"{_pct(X_API_OAUTH1_CONSUMER_SECRET)}&{_pct(X_API_OAUTH1_ACCESS_TOKEN_SECRET)}"
+    digest = hmac.new(signing_key.encode("utf-8"), signature_base_string.encode("utf-8"), hashlib.sha1).digest()
+    signature = base64.b64encode(digest).decode("ascii")
+    oauth_params["oauth_signature"] = signature
+
+    header_params = ", ".join(
+        f'{_pct(k)}="{_pct(v)}"'
+        for k, v in sorted(oauth_params.items())
+    )
+    return f"OAuth {header_params}"
+
+
 def _post_text_to_x_api(text: str) -> tuple[bool, int, dict]:
     normalized_text = (text or "").strip()
     if not normalized_text:
         return False, 400, {"error": "text is required"}
     if len(normalized_text) > 280:
         return False, 400, {"error": "text is too long (max 280 chars)"}
-    if not X_API_USER_BEARER_TOKEN:
-        return False, 503, {"error": "X API token is not configured (X_API_USER_BEARER_TOKEN)"}
+    use_oauth1 = all(
+        [
+            X_API_OAUTH1_CONSUMER_KEY,
+            X_API_OAUTH1_CONSUMER_SECRET,
+            X_API_OAUTH1_ACCESS_TOKEN,
+            X_API_OAUTH1_ACCESS_TOKEN_SECRET,
+        ]
+    )
+    if not X_API_USER_BEARER_TOKEN and not use_oauth1:
+        return False, 503, {
+            "error": (
+                "X API token is not configured "
+                "(set X_API_USER_BEARER_TOKEN or OAuth1 keys)"
+            )
+        }
 
     payload = json.dumps({"text": normalized_text}, ensure_ascii=False).encode("utf-8")
+    if use_oauth1:
+        auth_header = _build_oauth1_header_for_x_post(X_API_POST_URL)
+    else:
+        auth_header = f"Bearer {X_API_USER_BEARER_TOKEN}"
     req = Request(
         X_API_POST_URL,
         data=payload,
         headers={
-            "Authorization": f"Bearer {X_API_USER_BEARER_TOKEN}",
+            "Authorization": auth_header,
             "Content-Type": "application/json",
             "Accept": "application/json",
         },
