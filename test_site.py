@@ -2972,8 +2972,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const task = (async () => {{
         const params = new URLSearchParams();
         if (showAdminMeta && adminToken) params.set("admin_token", adminToken);
-        if (contentScope && contentScope !== "all") params.set("content", contentScope);
-        const endpoint = `/api/ranking/${{encodeURIComponent(periodTable)}}`;
+        const scopePath = contentScope && contentScope !== "all" ? `/${{encodeURIComponent(contentScope)}}` : "";
+        const endpoint = `/api/ranking/${{encodeURIComponent(periodTable)}}${{scopePath}}`;
         const url = params.toString() ? `${{endpoint}}?${{params.toString()}}` : endpoint;
         const response = await fetch(url, {{
           headers: {{ "Accept": "application/json" }},
@@ -4258,11 +4258,17 @@ class TestSiteHandler(BaseHTTPRequestHandler):
 
         if path_only == "/api/ranking" or path_only.startswith("/api/ranking/"):
             period_key = "daily"
+            content_scope = "all"
             if path_only.startswith("/api/ranking/"):
-                period_key = _normalize_period_key(path_only.rsplit("/", 1)[-1])
+                remainder = path_only[len("/api/ranking/"):].strip("/")
+                segments = [segment for segment in remainder.split("/") if segment]
+                if segments:
+                    period_key = _normalize_period_key(segments[0])
+                if len(segments) >= 2:
+                    content_scope = _normalize_content_scope(segments[1])
             else:
                 period_key = _normalize_period_key((query.get("period") or ["daily"])[0])
-            content_scope = _normalize_content_scope((query.get("content") or ["all"])[0])
+                content_scope = _normalize_content_scope((query.get("content") or ["all"])[0])
             token = (query.get("admin_token") or [""])[0].strip()
             is_admin = False
             if ADMIN_TOKEN:
