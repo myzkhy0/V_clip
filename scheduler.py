@@ -181,6 +181,27 @@ def _truncate_text_for_x(value: str, max_len: int = 60) -> str:
     return text[: max_len - 1].rstrip() + "…"
 
 
+def _fit_x_text(text: str, max_len: int = 280) -> str:
+    normalized = (text or "").strip()
+    if len(normalized) <= max_len:
+        return normalized
+    # Keep structure for TOP3 posts while shrinking title lines first.
+    lines = normalized.splitlines()
+    if lines and "TOP3" in lines[0]:
+        for target_prefix in ("🥉", "🥈", "🥇"):
+            for idx, line in enumerate(lines):
+                if line.strip().startswith(target_prefix):
+                    lines[idx] = _truncate_text_for_x(line, 28)
+                    compact = "\n".join(lines).strip()
+                    if len(compact) <= max_len:
+                        return compact
+                    break
+        compact = "\n".join(lines).strip()
+        if len(compact) <= max_len:
+            return compact
+    return _truncate_text_for_x(normalized, max_len)
+
+
 def _detail_url(video_id: str) -> str:
     return f"https://vclipranking.com/video/{video_id}"
 
@@ -313,7 +334,7 @@ def x_auto_post_job(category: str, content_type: str = "shorts") -> None:
     label = _target_label(content_type)
     logger.info("======== X auto post start (%s/%s) ========", category, label)
     try:
-        text = _build_x_post_text(category, content_type=content_type)
+        text = _fit_x_text(_build_x_post_text(category, content_type=content_type))
         ok, status, result = _post_text_to_x_api(text)
         if not ok:
             raise RuntimeError(f"X API post failed ({status}): {result}")
