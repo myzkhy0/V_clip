@@ -686,7 +686,12 @@ def _render_cards(
         share_title = title_plain
         share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
         share_detail_url = f"https://vclipranking.com/video/{video_id}"
-        share_text = f"{share_prefix} {share_title} {share_detail_url} #VCLIP"
+        share_text = (
+            f"{share_prefix}\n\n"
+            f"{share_title}\n"
+            f"{share_detail_url}\n"
+            f"24h {row['rank']}位 再生増加数 #VCLIP"
+        )
         share_url = "https://twitter.com/intent/tweet?text=" + quote(share_text, safe="")
         content_type = html.escape((row.get("content_type") or "").lower())
         published_label = ""
@@ -2222,18 +2227,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const label = isVideo ? "動画" : "Shorts";
       const detailUrl = item?.videoId ? `${{window.location.origin}}/video/${{item.videoId}}` : "詳細URL";
       const title = item ? truncateShareTitle(item.title, 60) : "動画タイトル";
-      let rankText = "順位データなし";
-      if (item && item.prevRank > 0 && item.rank > 0) {{
-        rankText = `${{item.prevRank}}位→${{item.rank}}位`;
-      }} else if (item && item.rank > 0) {{
-        rankText = `${{item.rank}}位`;
-      }}
-      const pctText = item && item.growthPct > 0 ? `(+${{item.growthPct}}%)` : "";
+      const rankText = item && item.rank > 0 ? `${{item.rank}}位` : "順位データなし";
       return [
         `🔥現在、急上昇中の${{label}}です。`,
+        "",
         `「${{title}}」`,
         detailUrl,
-        `24h ${{rankText}}${{pctText}} #VCLIP`,
+        `24h ${{rankText}} 再生増加数 #VCLIP`,
       ].join("\\n");
     }}
     function targetLabelFromType(contentType) {{
@@ -2247,8 +2247,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       return [
         `📊VCLIP全体データ（24h / ${{label}}投稿）`,
         `トラッキング動画数: ${{tracking.toLocaleString("ja-JP")}}`,
-        `総再生増加: +${{growth.toLocaleString("ja-JP")}}`,
-        `新着動画: ${{fresh.toLocaleString("ja-JP")}}`,
+        `総再生増加: +${{growth.toLocaleString("ja-JP")}} / 新着動画: ${{fresh.toLocaleString("ja-JP")}}`,
         "#VCLIP",
       ].join("\\n");
     }}
@@ -2260,9 +2259,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const rankEmojis = ["🥇", "🥈", "🥉"];
       return [
         `🏆本日の${{label}} TOP3`,
+        "",
         ...top3.flatMap((item, idx) => [
           `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位: ${{truncateShareTitle(item.title, 40)}}`,
           `${{window.location.origin}}/video/${{item.videoId}}`,
+          "",
         ]),
         "#VCLIP",
       ].join("\\n");
@@ -2276,10 +2277,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const best = items[0];
       const detailUrl = `${{window.location.origin}}/video/${{best.videoId}}`;
       return [
-        `❤️いいね数が伸びている${{label}}です。`,
+        `❤️like数が伸びている${{label}}です。`,
+        "",
         `「${{truncateShareTitle(best.title, 60)}}」`,
         detailUrl,
-        `24h いいね +${{Number(best.likeGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
+        `24h like +${{Number(best.likeGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
       ].join("\\n");
     }}
     function buildCommentsCategoryText(contentType = "shorts") {{
@@ -2292,6 +2294,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const detailUrl = `${{window.location.origin}}/video/${{best.videoId}}`;
       return [
         `💬コメント数が伸びている${{label}}です。`,
+        "",
         `「${{truncateShareTitle(best.title, 60)}}」`,
         detailUrl,
         `24h コメント +${{Number(best.commentGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
@@ -2351,6 +2354,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
             `📊VCLIP全体データ（24h / ${{label}}投稿）`,
             `トラッキング動画数: ${{tracking.toLocaleString("ja-JP")}}`,
             `総再生増加: +${{growth.toLocaleString("ja-JP")}} / 新着動画: ${{fresh.toLocaleString("ja-JP")}}`,
+            "",
             `注目: 「${{truncateShareTitle(item.title, 52)}}」`,
             detailUrl,
             "#VCLIP",
@@ -2385,10 +2389,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         return {{
           label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
           text: [
-            `❤️いいね数が伸びている${{label}}です。`,
+            `❤️like数が伸びている${{label}}です。`,
+            "",
             `「${{truncateShareTitle(item.title, 60)}}」`,
             detailUrl,
-            `24h いいね +${{Number(item.likeGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
+            `24h like +${{Number(item.likeGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
           ].join("\\n"),
         }};
       }});
@@ -2405,6 +2410,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
           text: [
             `💬コメント数が伸びている${{label}}です。`,
+            "",
             `「${{truncateShareTitle(item.title, 60)}}」`,
             detailUrl,
             `24h コメント +${{Number(item.commentGrowth || 0).toLocaleString("ja-JP")}} #VCLIP`,
