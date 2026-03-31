@@ -2398,7 +2398,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const best = items[0];
       const detailUrl = `${{window.location.origin}}/video/${{best.videoId}}`;
       return [
-        `❤️現在(${{monthDay}})like数が伸びている${{label}}です。`,
+        `❤️現在(${{monthDay}})、like数が伸びている${{label}}です。`,
         "",
         `「${{truncateShareTitle(best.title, 60)}}」`,
         detailUrl,
@@ -2500,7 +2500,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         return {{
           label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
           text: [
-            `❤️現在(${{monthDay}})like数が伸びている${{label}}です。`,
+            `❤️現在(${{monthDay}})、like数が伸びている${{label}}です。`,
             "",
             `「${{truncateShareTitle(item.title, 60)}}」`,
             detailUrl,

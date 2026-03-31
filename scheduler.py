@@ -288,7 +288,7 @@ def _build_likes_text(content_type: str) -> str:
     like_growth = int(best.get("like_growth") or 0)
     title = _truncate_text_for_x(str(best.get("title") or ""), 60)
     return (
-        f"❤️現在({month_day})like数が伸びている{label}です。\n\n"
+        f"❤️現在({month_day})、like数が伸びている{label}です。\n\n"
         f"「{title}」\n"
         f"{_detail_url(str(best.get('video_id') or ''))}\n"
         f"24h like +{like_growth:,} #VCLIP"
