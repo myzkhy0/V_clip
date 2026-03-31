@@ -621,6 +621,13 @@ def _normalize_period_key(period_key: str | None) -> str:
     return normalized if normalized in {"daily", "weekly", "monthly"} else "daily"
 
 
+def _normalize_content_scope(content: str | None) -> str:
+    normalized = (content or "").strip().lower()
+    if normalized in {"shorts", "video"}:
+        return normalized
+    return "all"
+
+
 def _format_duration_label(duration_seconds: object) -> str:
     try:
         total = int(duration_seconds or 0)
@@ -874,20 +881,28 @@ def _render_group_content(
     <div class="content-panel" data-content-panel="shorts">{shorts_html}</div>
     <div class="content-panel" data-content-panel="video">{video_html}</div>
     """
-def _build_period_payload_item(period_key: str, is_admin: bool = False) -> dict | None:
+def _build_period_payload_item(period_key: str, is_admin: bool = False, content_scope: str = "all") -> dict | None:
     period_meta = next((item for item in PERIODS if item[0] == period_key), None)
     if period_meta is None:
         return None
 
     _, label, shorts_table, video_table = period_meta
+    normalized_scope = _normalize_content_scope(content_scope)
     top_n = 200 if is_admin else 100
-    shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table, top_n=top_n)
-    video_calculated_at, video_rows = _fetch_latest_rankings(video_table, top_n=top_n)
+    shorts_calculated_at: datetime | None = None
+    video_calculated_at: datetime | None = None
+    shorts_rows: list[dict] = []
+    video_rows: list[dict] = []
+    if normalized_scope in {"all", "shorts"}:
+        shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table, top_n=top_n)
+    if normalized_scope in {"all", "video"}:
+        video_calculated_at, video_rows = _fetch_latest_rankings(video_table, top_n=top_n)
 
     provisional_shorts_rows: list[dict] = []
     provisional_video_rows: list[dict] = []
-    if period_key == "daily":
+    if period_key == "daily" and normalized_scope in {"all", "shorts"}:
         provisional_shorts_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
+    if period_key == "daily" and normalized_scope in {"all", "video"}:
         provisional_video_rows = _fetch_daily_provisional_rows("video", top_n=top_n)
 
     grouped_shorts: dict[str, list[dict]] = defaultdict(list)
@@ -927,6 +942,7 @@ def _build_period_payload_item(period_key: str, is_admin: bool = False) -> dict 
     return {
         "table": period_key,
         "label": label,
+        "content_scope": normalized_scope,
         "calculated_at": _fmt_datetime(calculated_at),
         "groups": {
             group_name: _render_group_content(
@@ -947,7 +963,7 @@ def _build_period_payload_item(period_key: str, is_admin: bool = False) -> dict 
 def _build_period_payload(is_admin: bool = False) -> list[dict]:
     payload: list[dict] = []
     for period_key, _, _, _ in PERIODS:
-        item = _build_period_payload_item(period_key, is_admin=is_admin)
+        item = _build_period_payload_item(period_key, is_admin=is_admin, content_scope="all")
         if item is not None:
             payload.append(item)
     return payload
@@ -2771,15 +2787,20 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         throw new Error("copy_failed");
       }}
     }}
-    function jumpToVideoCard(videoId, contentType = "shorts", period = "daily") {{
+    async function jumpToVideoCard(videoId, contentType = "shorts", period = "daily") {{
       if (!videoId) return;
+      if (!loadedContentScopes.has(contentType)) {{
+        await fetchContentBundle(contentType);
+        builtPeriodPanels.clear();
+        periodRoot.innerHTML = "";
+      }}
 
       if (activePeriod !== period || activeContentType !== contentType) {{
         activePeriod = period;
         activeContentType = contentType;
         rankingIcon.textContent = typeConfig[contentType]?.icon || typeConfig.shorts.icon;
         rankingLabel.textContent = typeConfig[contentType]?.label || typeConfig.shorts.label;
-        render();
+        await render();
       }}
 
       const selector = `.period-panel[data-period="${{period}}"] .content-panel[data-content-panel="${{contentType}}"] .card[data-video-id="${{videoId}}"]`;
@@ -2894,27 +2915,64 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     const periodMetaMap = new Map(periodOptions.map((p) => [p.table, p]));
     const periodMap = new Map();
-    const periodLoadingMap = new Map();
+    const loadedContentScopes = new Set();
+    const contentBundleLoadingMap = new Map();
     const builtPeriodPanels = new Set();
-    function upsertPeriodPayload(period) {{
+    function mergeGroupHtml(existingHtml, incomingHtml, contentType) {{
+      if (!existingHtml) return incomingHtml || "";
+      if (!incomingHtml) return existingHtml;
+      const targetSelector = `.content-panel[data-content-panel="${{contentType}}"]`;
+      const existingRoot = document.createElement("div");
+      existingRoot.innerHTML = existingHtml;
+      const incomingRoot = document.createElement("div");
+      incomingRoot.innerHTML = incomingHtml;
+      const existingPanel = existingRoot.querySelector(targetSelector);
+      const incomingPanel = incomingRoot.querySelector(targetSelector);
+      if (!incomingPanel) return existingHtml;
+      if (existingPanel) {{
+        existingPanel.replaceWith(incomingPanel);
+      }} else {{
+        existingRoot.appendChild(incomingPanel);
+      }}
+      return existingRoot.innerHTML;
+    }}
+    function upsertPeriodPayload(period, contentScope = "all") {{
       if (!period || !period.table) return;
       const idx = payload.findIndex((item) => item.table === period.table);
       if (idx >= 0) {{
-        payload[idx] = period;
+        const existing = payload[idx];
+        if (contentScope === "all") {{
+          payload[idx] = period;
+        }} else {{
+          const mergedGroups = {{ ...(existing.groups || {{}}) }};
+          const incomingGroups = period.groups || {{}};
+          Object.keys(incomingGroups).forEach((groupName) => {{
+            mergedGroups[groupName] = mergeGroupHtml(
+              mergedGroups[groupName] || "",
+              incomingGroups[groupName] || "",
+              contentScope
+            );
+          }});
+          payload[idx] = {{
+            ...existing,
+            ...period,
+            groups: mergedGroups,
+            available_groups: period.available_groups || existing.available_groups || ["all"],
+          }};
+        }}
       }} else {{
         payload.push(period);
       }}
-      periodMap.set(period.table, period);
+      periodMap.set(period.table, payload.find((item) => item.table === period.table));
       if (period.table === "daily") {{
         cachedNewPickPool = null;
       }}
     }}
-    async function fetchPeriodPayload(periodTable) {{
-      if (periodMap.has(periodTable)) return periodMap.get(periodTable);
-      if (periodLoadingMap.has(periodTable)) return periodLoadingMap.get(periodTable);
+    async function fetchPeriodPayload(periodTable, contentScope = "all") {{
       const task = (async () => {{
         const params = new URLSearchParams();
         if (showAdminMeta && adminToken) params.set("admin_token", adminToken);
+        if (contentScope && contentScope !== "all") params.set("content", contentScope);
         const endpoint = `/api/ranking/${{encodeURIComponent(periodTable)}}`;
         const url = params.toString() ? `${{endpoint}}?${{params.toString()}}` : endpoint;
         const response = await fetch(url, {{
@@ -2924,14 +2982,26 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         if (!response.ok || !data?.ok || !data?.period) {{
           throw new Error(data?.error || `api_error_${{response.status}}`);
         }}
-        upsertPeriodPayload(data.period);
+        upsertPeriodPayload(data.period, contentScope);
         return data.period;
       }})();
-      periodLoadingMap.set(periodTable, task);
+      return await task;
+    }}
+    async function fetchContentBundle(contentType) {{
+      if (loadedContentScopes.has(contentType)) return;
+      if (contentBundleLoadingMap.has(contentType)) {{
+        await contentBundleLoadingMap.get(contentType);
+        return;
+      }}
+      const task = Promise.all(
+        periodOptions.map((period) => fetchPeriodPayload(period.table, contentType))
+      );
+      contentBundleLoadingMap.set(contentType, task);
       try {{
-        return await task;
+        await task;
+        loadedContentScopes.add(contentType);
       }} finally {{
-        periodLoadingMap.delete(periodTable);
+        contentBundleLoadingMap.delete(contentType);
       }}
     }}
     function setPeriodTabLoading(periodTable, loading) {{
@@ -2953,9 +3023,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         btn.textContent = type === "shorts" ? "Shorts" : "\u52d5\u753b";
         btn.type = "button";
         btn.dataset.type = type;
-        btn.addEventListener("click", () => {{
+        btn.addEventListener("click", async () => {{
           activeContentType = type;
-          render();
+          if (!loadedContentScopes.has(type)) {{
+            periodRoot.innerHTML = '<div class="loading-note">ランキングを読み込み中...</div>';
+            await fetchContentBundle(type);
+            builtPeriodPanels.clear();
+            periodRoot.innerHTML = "";
+          }}
+          await render();
         }});
         typeTabs.appendChild(btn);
       }});
@@ -2975,9 +3051,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         btn.textContent = period.label;
         btn.type = "button";
         btn.dataset.period = period.table;
-        btn.addEventListener("click", () => {{
+        btn.addEventListener("click", async () => {{
           activePeriod = period.table;
-          render();
+          await render();
         }});
         periodTabs.appendChild(btn);
       }});
@@ -2987,7 +3063,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       if (builtPeriodPanels.has(periodTable)) return;
       setPeriodTabLoading(periodTable, true);
       if (!periodMap.has(periodTable)) {{
-        await fetchPeriodPayload(periodTable);
+        await fetchPeriodPayload(periodTable, activeContentType);
       }}
       const period = periodMap.get(periodTable);
       if (!period) {{
@@ -3085,11 +3161,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     periodRoot.addEventListener("click", handlePlayerTrigger);
     const newListRoot = document.getElementById("new-list");
     if (newListRoot) {{
-      newListRoot.addEventListener("click", (event) => {{
+      newListRoot.addEventListener("click", async (event) => {{
         const trigger = event.target.closest(".pickup-thumb-card");
         if (!trigger || !trigger.dataset.videoId) return;
         event.preventDefault();
-        jumpToVideoCard(
+        await jumpToVideoCard(
           trigger.dataset.videoId,
           trigger.dataset.contentType || "shorts",
           trigger.dataset.period || "daily",
@@ -3120,13 +3196,20 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       }}
     }});
 
-    buildHeroStats();
-    buildNewPicks();
-    render();
-    if (showAdminMeta) {{
-      bindAdminTargetToggle();
-      renderAdminTrendingPicker();
+    async function initPage() {{
+      buildHeroStats();
+      if (showAdminMeta) {{
+        bindAdminTargetToggle();
+      }}
+      periodRoot.innerHTML = '<div class="loading-note">ランキングを読み込み中...</div>';
+      await fetchContentBundle("shorts");
+      await render();
+      buildNewPicks();
+      if (showAdminMeta) {{
+        renderAdminTrendingPicker();
+      }}
     }}
+    initPage();
   </script>
 </body>
 </html>
@@ -4179,6 +4262,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
                 period_key = _normalize_period_key(path_only.rsplit("/", 1)[-1])
             else:
                 period_key = _normalize_period_key((query.get("period") or ["daily"])[0])
+            content_scope = _normalize_content_scope((query.get("content") or ["all"])[0])
             token = (query.get("admin_token") or [""])[0].strip()
             is_admin = False
             if ADMIN_TOKEN:
@@ -4186,7 +4270,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
                     _json_response(self, 403, {"ok": False, "error": "admin_token_required"})
                     return
                 is_admin = token == ADMIN_TOKEN
-            item = _build_period_payload_item(period_key, is_admin=is_admin)
+            item = _build_period_payload_item(period_key, is_admin=is_admin, content_scope=content_scope)
             if item is None:
                 _json_response(self, 400, {"ok": False, "error": "invalid_period"})
                 return
