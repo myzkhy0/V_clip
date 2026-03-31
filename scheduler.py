@@ -12,6 +12,7 @@ Usage:
 """
 
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timedelta
@@ -29,11 +30,22 @@ from config import (
 from db import init_db
 from ranking import run_rankings
 from stats_collector import run_stats_collector
+from test_site import (
+    _fetch_daily_provisional_rows,
+    _fetch_latest_rankings,
+    _fetch_public_hero_stats,
+    _merge_ranking_rows,
+    _post_text_to_x_api,
+)
 
 logger = logging.getLogger(__name__)
 JST = ZoneInfo("Asia/Tokyo")
 _scheduler: BlockingScheduler | None = None
 _STATS_RETRY_JOB_ID = "vclip_stats_ranking_retry_once"
+ENABLE_X_AUTO_POST = os.getenv("ENABLE_X_AUTO_POST", "0").strip() == "1"
+X_AUTO_POST_CONTENT_TYPE = os.getenv("X_AUTO_POST_CONTENT_TYPE", "shorts").strip().lower()
+X_AUTO_POST_TARGET_LABEL = "動画" if X_AUTO_POST_CONTENT_TYPE == "video" else "Shorts"
+X_AUTO_POST_TABLE = "daily_ranking_video" if X_AUTO_POST_CONTENT_TYPE == "video" else "daily_ranking_shorts"
 
 
 def _parse_primary_search_hour(value: str) -> int:
@@ -153,6 +165,140 @@ def stats_ranking_pipeline(trigger_label: str = "stats/ranking schedule") -> Non
     logger.info("======== Stats/Ranking pipeline end ========")
 
 
+def _truncate_text_for_x(value: str, max_len: int = 60) -> str:
+    text = (value or "").strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"
+
+
+def _detail_url(video_id: str) -> str:
+    return f"https://vclipranking.com/video/{video_id}"
+
+
+def _daily_rows_for_x(top_n: int = 200) -> list[dict]:
+    _, strict_rows = _fetch_latest_rankings(X_AUTO_POST_TABLE, top_n=top_n)
+    provisional_rows: list[dict] = []
+    if X_AUTO_POST_CONTENT_TYPE == "shorts":
+        provisional_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
+    return _merge_ranking_rows(strict_rows, provisional_rows, top_n=top_n)
+
+
+def _build_overall_text() -> str:
+    stats = _fetch_public_hero_stats()
+    tracking = int(stats.get("tracking_videos") or 0)
+    growth = int(stats.get("daily_growth_total") or 0)
+    fresh = int(stats.get("new_24h") or 0)
+    return (
+        f"📊VCLIP全体データ（24h / {X_AUTO_POST_TARGET_LABEL}投稿）\n\n"
+        f"トラッキング動画数: {tracking:,}\n"
+        f"総再生増加: +{growth:,} / 新着動画: {fresh:,}\n"
+        "#VCLIP"
+    )
+
+
+def _build_trending_text() -> str:
+    rows = _daily_rows_for_x(top_n=200)
+    new_rows = [row for row in rows if bool(row.get("is_new"))]
+    if not new_rows:
+        raise RuntimeError("急上昇候補（NEW）が見つかりません")
+    best = sorted(new_rows, key=lambda r: int(r.get("rank") or 999999))[0]
+    title = _truncate_text_for_x(str(best.get("title") or ""), 60)
+    rank = int(best.get("rank") or 0)
+    return (
+        f"🔥現在、急上昇中の{X_AUTO_POST_TARGET_LABEL}です。\n\n"
+        f"「{title}」\n"
+        f"{_detail_url(str(best.get('video_id') or ''))}\n"
+        f"24h {rank}位 再生増加数 #VCLIP"
+    )
+
+
+def _build_top3_text() -> str:
+    rows = _daily_rows_for_x(top_n=10)
+    top3 = [row for row in rows if int(row.get("rank") or 0) in {1, 2, 3}]
+    if len(top3) < 3:
+        top3 = sorted(rows, key=lambda r: int(r.get("rank") or 999999))[:3]
+    if not top3:
+        raise RuntimeError("TOP3候補が見つかりません")
+    rank_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}
+    parts: list[str] = [f"🏆本日の{X_AUTO_POST_TARGET_LABEL} TOP3", ""]
+    for row in sorted(top3, key=lambda r: int(r.get("rank") or 999999)):
+        rank = int(row.get("rank") or 0)
+        title = _truncate_text_for_x(str(row.get("title") or ""), 40)
+        parts.append(f"{rank_emoji.get(rank, '🏅')}{rank}位: {title}")
+        parts.append(_detail_url(str(row.get("video_id") or "")))
+        parts.append("")
+    parts.append("#VCLIP")
+    return "\n".join(parts)
+
+
+def _build_likes_text() -> str:
+    rows = _daily_rows_for_x(top_n=200)
+    if not rows:
+        raise RuntimeError("like候補が見つかりません")
+    best = sorted(
+        rows,
+        key=lambda r: (int(r.get("like_growth") or 0), int(r.get("view_growth") or 0)),
+        reverse=True,
+    )[0]
+    like_growth = int(best.get("like_growth") or 0)
+    title = _truncate_text_for_x(str(best.get("title") or ""), 60)
+    return (
+        f"❤️like数が伸びている{X_AUTO_POST_TARGET_LABEL}です。\n\n"
+        f"「{title}」\n"
+        f"{_detail_url(str(best.get('video_id') or ''))}\n"
+        f"24h like +{like_growth:,} #VCLIP"
+    )
+
+
+def _build_comments_text() -> str:
+    rows = _daily_rows_for_x(top_n=200)
+    if not rows:
+        raise RuntimeError("コメント候補が見つかりません")
+    best = sorted(
+        rows,
+        key=lambda r: (int(r.get("comment_growth") or 0), int(r.get("view_growth") or 0)),
+        reverse=True,
+    )[0]
+    comment_growth = int(best.get("comment_growth") or 0)
+    title = _truncate_text_for_x(str(best.get("title") or ""), 60)
+    return (
+        f"💬コメント数が伸びている{X_AUTO_POST_TARGET_LABEL}です。\n\n"
+        f"「{title}」\n"
+        f"{_detail_url(str(best.get('video_id') or ''))}\n"
+        f"24h コメント +{comment_growth:,} #VCLIP"
+    )
+
+
+def _build_x_post_text(category: str) -> str:
+    key = (category or "").strip().lower()
+    if key == "overall":
+        return _build_overall_text()
+    if key == "trending":
+        return _build_trending_text()
+    if key == "top3":
+        return _build_top3_text()
+    if key == "likes":
+        return _build_likes_text()
+    if key == "comments":
+        return _build_comments_text()
+    raise ValueError(f"Unsupported category: {category}")
+
+
+def x_auto_post_job(category: str) -> None:
+    logger.info("======== X auto post start (%s) ========", category)
+    try:
+        text = _build_x_post_text(category)
+        ok, status, result = _post_text_to_x_api(text)
+        if not ok:
+            raise RuntimeError(f"X API post failed ({status}): {result}")
+        logger.info("X auto post succeeded (%s): %s", category, result.get("tweet_id") or "no_tweet_id")
+    except Exception:
+        logger.exception("X auto post failed (%s)", category)
+    finally:
+        logger.info("======== X auto post end (%s) ========", category)
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -220,6 +366,35 @@ def main() -> None:
         )
     else:
         logger.warning("Stats/ranking cron disabled after excluding search hour.")
+
+    if ENABLE_X_AUTO_POST:
+        # Requested JST schedule:
+        # 07:00 trending / 12:00 top3 / 19:00 likes / 00:00 comments / 03:00 overall
+        x_jobs = [
+            ("trending", 7, 0),
+            ("top3", 12, 0),
+            ("likes", 19, 0),
+            ("comments", 0, 0),
+            ("overall", 3, 0),
+        ]
+        for category, hour, minute in x_jobs:
+            scheduler.add_job(
+                x_auto_post_job,
+                "cron",
+                hour=hour,
+                minute=minute,
+                id=f"vclip_x_auto_post_{category}",
+                kwargs={"category": category},
+                max_instances=1,
+                coalesce=True,
+                misfire_grace_time=900,
+            )
+        logger.info(
+            "X auto post enabled (type=%s): trending=07:00, top3=12:00, likes=19:00, comments=00:00, overall=03:00 (JST).",
+            X_AUTO_POST_TARGET_LABEL,
+        )
+    else:
+        logger.info("X auto post disabled (ENABLE_X_AUTO_POST!=1).")
 
     # Run stats/ranking immediately at startup; search and channel update wait for schedule.
     stats_ranking_pipeline()

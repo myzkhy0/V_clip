@@ -47,6 +47,8 @@ cp .env.example .env
 | `X_API_USER_BEARER_TOKEN` | X投稿に使う Bearer Token（ユーザー文脈） |
 | `X_API_POST_URL` | 投稿APIエンドポイント（既定 `https://api.x.com/2/tweets`） |
 | `X_API_TIMEOUT_SECONDS` | X API呼び出しタイムアウト秒（既定 `10`） |
+| `ENABLE_X_AUTO_POST` | `1` で scheduler のX自動投稿を有効化（既定 `0`） |
+| `X_AUTO_POST_CONTENT_TYPE` | 自動投稿対象（`shorts` または `video`、既定 `shorts`） |
 
 ### 3. Create Database
 
