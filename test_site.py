@@ -704,7 +704,7 @@ def _render_cards(
             f"{share_prefix}\n\n"
             f"{share_title}\n"
             f"{share_detail_url}\n"
-            f"24h {row['rank']}位 再生増加数 #VCLIP"
+            "#VCLIP"
         )
         share_url = "https://twitter.com/intent/tweet?text=" + quote(share_text, safe="")
         content_type = html.escape((row.get("content_type") or "").lower())
