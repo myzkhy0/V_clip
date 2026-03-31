@@ -44,6 +44,9 @@ cp .env.example .env
 | `COLD_MIN_OBSERVED_VIDEOS` | cold 判定の最小観測動画本数（既定 `1`） |
 | `COLD_MIN_CHANNEL_AGE_DAYS` | 観測不足時の代替条件となるチャンネル経過日数（既定 `14`） |
 | `COLD_MANUAL_PROTECT_FILE` | cold 対象から除外する channel_id リストファイル |
+| `X_API_USER_BEARER_TOKEN` | X投稿に使う Bearer Token（ユーザー文脈） |
+| `X_API_POST_URL` | 投稿APIエンドポイント（既定 `https://api.x.com/2/tweets`） |
+| `X_API_TIMEOUT_SECONDS` | X API呼び出しタイムアウト秒（既定 `10`） |
 
 ### 3. Create Database
 

@@ -14,7 +14,9 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlparse
+from urllib.request import Request, urlopen
 
 from config import EXCLUDED_CHANNELS_FILE, GROUP_KEYWORDS
 from db import fetchall
@@ -35,6 +37,9 @@ GA_MEASUREMENT_ID = os.getenv("GA_MEASUREMENT_ID", "").strip()
 SITE_BASE_URL = os.getenv("TEST_SITE_BASE_URL", "").strip()
 YOUTUBE_DAILY_SEARCH_UNIT_LIMIT = int(os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT", "8000"))
 YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json")
+X_API_USER_BEARER_TOKEN = os.getenv("X_API_USER_BEARER_TOKEN", "").strip()
+X_API_POST_URL = os.getenv("X_API_POST_URL", "https://api.x.com/2/tweets").strip() or "https://api.x.com/2/tweets"
+X_API_TIMEOUT_SECONDS = float(os.getenv("X_API_TIMEOUT_SECONDS", "10"))
 JST = timezone(timedelta(hours=9))
 
 PERIODS: list[tuple[str, str, str, str]] = [
@@ -955,6 +960,58 @@ def _quota_status(used: int, limit: int) -> tuple[str, str]:
     if ratio >= 0.8:
         return "注意", "warn"
     return "通常", "ok"
+
+
+def _json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json; charset=utf-8")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+def _post_text_to_x_api(text: str) -> tuple[bool, int, dict]:
+    normalized_text = (text or "").strip()
+    if not normalized_text:
+        return False, 400, {"error": "text is required"}
+    if len(normalized_text) > 280:
+        return False, 400, {"error": "text is too long (max 280 chars)"}
+    if not X_API_USER_BEARER_TOKEN:
+        return False, 503, {"error": "X API token is not configured (X_API_USER_BEARER_TOKEN)"}
+
+    payload = json.dumps({"text": normalized_text}, ensure_ascii=False).encode("utf-8")
+    req = Request(
+        X_API_POST_URL,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {X_API_USER_BEARER_TOKEN}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=max(1.0, X_API_TIMEOUT_SECONDS)) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            data = json.loads(raw) if raw else {}
+            tweet_id = ((data.get("data") or {}).get("id") or "").strip()
+            if tweet_id:
+                return True, 200, {"tweet_id": tweet_id, "raw": data}
+            return True, 200, {"raw": data}
+    except HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        detail: dict
+        try:
+            detail = json.loads(raw) if raw else {}
+        except ValueError:
+            detail = {"raw": raw}
+        return False, int(exc.code or 502), {"error": "x_api_http_error", "detail": detail}
+    except URLError as exc:
+        return False, 502, {"error": "x_api_connection_error", "detail": str(exc.reason)}
+    except Exception as exc:
+        logger.exception("Failed to post to X API")
+        return False, 500, {"error": "x_api_post_failed", "detail": str(exc)}
 
 
 def _fetch_admin_board_data() -> dict:
@@ -2473,6 +2530,30 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const shareUrl = `https://twitter.com/intent/tweet?${{params.toString()}}`;
       window.open(shareUrl, "_blank", "noopener,noreferrer");
     }}
+    async function postShareViaXApi(text) {{
+      const payload = {{ text: String(text || "") }};
+      const headers = {{ "Content-Type": "application/json" }};
+      const adminToken = new URLSearchParams(window.location.search).get("admin_token") || "";
+      if (adminToken) {{
+        headers["X-Admin-Token"] = adminToken;
+      }}
+      const response = await fetch("/api/admin/post-x", {{
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      }});
+      let data = {{}};
+      try {{
+        data = await response.json();
+      }} catch (_err) {{
+        data = {{}};
+      }}
+      if (!response.ok || !data.ok) {{
+        const err = data.error || `HTTP ${{response.status}}`;
+        throw new Error(err);
+      }}
+      return data;
+    }}
     function renderAdminTrendingPicker() {{
       const root = document.getElementById("admin-trending-picker");
       if (!root) return;
@@ -2509,6 +2590,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         openBtn.type = "button";
         openBtn.className = "admin-picker-btn";
         openBtn.textContent = "Xで開く";
+        const postBtn = document.createElement("button");
+        postBtn.type = "button";
+        postBtn.className = "admin-picker-btn";
+        postBtn.textContent = "X API投稿";
         let items = [];
         function refillCandidates() {{
           items = getAdminCategoryCandidates(spec.key, adminShareTargetType);
@@ -2525,6 +2610,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           empty.style.display = hasItems ? "none" : "";
           copyBtn.disabled = !hasItems;
           openBtn.disabled = !hasItems;
+          postBtn.disabled = !hasItems;
           if (hasItems) select.value = "0";
         }}
         function getSelectedItem() {{
@@ -2548,10 +2634,34 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           const selected = getSelectedItem();
           openShareDraft(selected && selected.text ? selected.text : "");
         }});
+        postBtn.addEventListener("click", async () => {{
+          const selected = getSelectedItem();
+          const text = selected && selected.text ? selected.text : "";
+          if (!text) {{
+            window.alert("投稿文が空です。");
+            return;
+          }}
+          if (!window.confirm("この文面をX APIで投稿しますか？")) return;
+          postBtn.disabled = true;
+          try {{
+            const result = await postShareViaXApi(text);
+            const tweetId = ((result || {{}}).tweet_id || "").trim();
+            if (tweetId) {{
+              window.alert(`投稿しました。tweet_id: ${{tweetId}}`);
+            }} else {{
+              window.alert("投稿しました。");
+            }}
+          }} catch (error) {{
+            window.alert(`X API投稿に失敗しました: ${{error && error.message ? error.message : "unknown_error"}}`);
+          }} finally {{
+            postBtn.disabled = false;
+          }}
+        }});
         refillCandidates();
         updatePreview();
         actions.appendChild(copyBtn);
         actions.appendChild(openBtn);
+        actions.appendChild(postBtn);
         card.appendChild(select);
         card.appendChild(empty);
         card.appendChild(preview);
@@ -3674,6 +3784,49 @@ class TestSiteHandler(BaseHTTPRequestHandler):
         scheme = forwarded_proto if forwarded_proto in {"http", "https"} else "http"
         host = (self.headers.get("Host") or f"{HOST}:{PORT}").strip()
         return _normalize_base_url(f"{scheme}://{host}")
+
+    def _resolve_admin_token(self, query: dict[str, list[str]], body_token: str = "") -> str:
+        header_token = (self.headers.get("X-Admin-Token") or "").strip()
+        if header_token:
+            return header_token
+        query_token = (query.get("admin_token") or [""])[0].strip()
+        if query_token:
+            return query_token
+        return (body_token or "").strip()
+
+    def do_POST(self) -> None:
+        parsed = urlparse(self.path)
+        path_only = parsed.path
+        query = parse_qs(parsed.query)
+
+        if path_only != "/api/admin/post-x":
+            self.send_error(404, "Not found")
+            return
+
+        content_length_raw = self.headers.get("Content-Length") or "0"
+        try:
+            content_length = max(0, int(content_length_raw))
+        except ValueError:
+            content_length = 0
+        body_raw = self.rfile.read(content_length) if content_length > 0 else b""
+        try:
+            body_data = json.loads(body_raw.decode("utf-8")) if body_raw else {}
+        except ValueError:
+            _json_response(self, 400, {"ok": False, "error": "invalid_json"})
+            return
+
+        if ADMIN_TOKEN:
+            token = self._resolve_admin_token(query, str(body_data.get("admin_token") or ""))
+            if token != ADMIN_TOKEN:
+                _json_response(self, 403, {"ok": False, "error": "admin_token_required"})
+                return
+
+        text = str(body_data.get("text") or "")
+        ok, status, result = _post_text_to_x_api(text)
+        if not ok:
+            _json_response(self, status, {"ok": False, **result})
+            return
+        _json_response(self, 200, {"ok": True, **result})
 
     def do_HEAD(self) -> None:
         parsed = urlparse(self.path)
