@@ -1674,7 +1674,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
     .card-info-top {{ margin-bottom:6px;justify-content:space-between; }}
-    .card-info-bottom {{ justify-content:space-between;margin-bottom:8px;font-size:0.84rem; }}
+    .card-info-bottom {{ justify-content:space-between;align-items:flex-end;margin-bottom:8px;font-size:0.84rem; }}
     .card-date {{ color:var(--text-dim);white-space:nowrap; }}
     .card-actions {{ display:flex;justify-content:flex-start;align-items:center;gap:12px;font-size:0.82rem; }}
     .card-action-link {{ color:#8ad7ff;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;display:inline-flex;align-items:center;gap:4px; }}
