@@ -222,13 +222,12 @@ def _daily_rows_for_x(content_type: str, top_n: int = 200) -> list[dict]:
 
 def _build_overall_text(content_type: str) -> str:
     stats = _fetch_public_hero_stats()
-    label = _target_label(content_type)
     month_day = _jst_month_day()
     tracking = int(stats.get("tracking_videos") or 0)
     growth = int(stats.get("daily_growth_total") or 0)
     fresh = int(stats.get("new_24h") or 0)
     return (
-        f"📊VCLIP全体データ（24h {month_day} / {label}投稿）\n"
+        f"📊VCLIP全体データ（24h {month_day}）\n"
         f"トラッキング動画数: {tracking:,}\n"
         f"総再生増加: +{growth:,} / 新着動画: {fresh:,}\n"
         "#VCLIP"
@@ -420,11 +419,11 @@ def main() -> None:
 
     if ENABLE_X_AUTO_POST:
         # Requested JST schedule:
-        # 07:00 top3 (shorts) / 12:00 top3 (video) / 19:00 trending pickup / 00:00 overall
+        # 07:00 trending (shorts) / 12:00 trending (video) / 19:00 likes (video) / 00:00 overall
         x_jobs = [
-            ("top3", "shorts", 7, 0),
-            ("top3", "video", 12, 0),
-            ("trending", "shorts", 19, 0),
+            ("trending", "shorts", 7, 0),
+            ("trending", "video", 12, 0),
+            ("likes", "video", 19, 0),
             ("overall", "shorts", 0, 0),
         ]
         for category, content_type, hour, minute in x_jobs:
@@ -440,7 +439,7 @@ def main() -> None:
                 misfire_grace_time=900,
             )
         logger.info(
-            "X auto post enabled: top3/shorts=07:00, top3/video=12:00, trending/shorts=19:00, overall/shorts=00:00 (JST).",
+            "X auto post enabled: trending/shorts=07:00, trending/video=12:00, likes/video=19:00, overall=00:00 (JST).",
         )
     else:
         logger.info("X auto post disabled (ENABLE_X_AUTO_POST!=1).")

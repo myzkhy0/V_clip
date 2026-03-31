@@ -55,10 +55,10 @@ cp .env.example .env
 
 `ENABLE_X_AUTO_POST=1` の場合、JSTで以下を自動投稿します。
 
-- 07:00 `TOP3 shorts`
-- 12:00 `TOP3 動画`
-- 19:00 `急上昇ピックアップ（shorts）`
-- 00:00 `全体データ（shorts）`
+- 07:00 `急上昇ピックアップ（shorts）`
+- 12:00 `急上昇ピックアップ（動画）`
+- 19:00 `like数が伸びている動画`
+- 00:00 `全体データ`
 
 ### 3. Create Database
 
