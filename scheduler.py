@@ -185,6 +185,11 @@ def _detail_url(video_id: str) -> str:
     return f"https://vclipranking.com/video/{video_id}"
 
 
+def _jst_month_day() -> str:
+    now = datetime.now(JST)
+    return f"{now.month}/{now.day}"
+
+
 def _daily_rows_for_x(content_type: str, top_n: int = 200) -> list[dict]:
     normalized = _normalize_content_type(content_type)
     _, strict_rows = _fetch_latest_rankings(_ranking_table_for(normalized), top_n=top_n)
@@ -197,11 +202,12 @@ def _daily_rows_for_x(content_type: str, top_n: int = 200) -> list[dict]:
 def _build_overall_text(content_type: str) -> str:
     stats = _fetch_public_hero_stats()
     label = _target_label(content_type)
+    month_day = _jst_month_day()
     tracking = int(stats.get("tracking_videos") or 0)
     growth = int(stats.get("daily_growth_total") or 0)
     fresh = int(stats.get("new_24h") or 0)
     return (
-        f"📊VCLIP全体データ（24h / {label}投稿）\n\n"
+        f"📊VCLIP全体データ（24h {month_day} / {label}投稿）\n"
         f"トラッキング動画数: {tracking:,}\n"
         f"総再生増加: +{growth:,} / 新着動画: {fresh:,}\n"
         "#VCLIP"
@@ -210,6 +216,7 @@ def _build_overall_text(content_type: str) -> str:
 
 def _build_trending_text(content_type: str) -> str:
     label = _target_label(content_type)
+    month_day = _jst_month_day()
     rows = _daily_rows_for_x(content_type=content_type, top_n=200)
     new_rows = [row for row in rows if bool(row.get("is_new"))]
     if not new_rows:
@@ -217,16 +224,18 @@ def _build_trending_text(content_type: str) -> str:
     best = sorted(new_rows, key=lambda r: int(r.get("rank") or 999999))[0]
     title = _truncate_text_for_x(str(best.get("title") or ""), 60)
     rank = int(best.get("rank") or 0)
+    growth = int(best.get("view_growth") or 0)
     return (
-        f"🔥現在、急上昇中の{label}です。\n\n"
+        f"🔥現在({month_day})、急上昇中の{label}です。\n\n"
         f"「{title}」\n"
         f"{_detail_url(str(best.get('video_id') or ''))}\n"
-        f"24h {rank}位 再生増加数 #VCLIP"
+        f"24h {rank}位 再生増加 +{growth:,} #VCLIP"
     )
 
 
 def _build_top3_text(content_type: str) -> str:
     label = _target_label(content_type)
+    month_day = _jst_month_day()
     rows = _daily_rows_for_x(content_type=content_type, top_n=10)
     top3 = [row for row in rows if int(row.get("rank") or 0) in {1, 2, 3}]
     if len(top3) < 3:
@@ -234,7 +243,7 @@ def _build_top3_text(content_type: str) -> str:
     if not top3:
         raise RuntimeError("TOP3候補が見つかりません")
     rank_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}
-    parts: list[str] = [f"🏆本日の{label} TOP3", ""]
+    parts: list[str] = [f"🏆本日({month_day})の{label} TOP3", ""]
     for row in sorted(top3, key=lambda r: int(r.get("rank") or 999999)):
         rank = int(row.get("rank") or 0)
         title = _truncate_text_for_x(str(row.get("title") or ""), 40)
