@@ -34,7 +34,7 @@ from test_site import (
     _fetch_daily_provisional_rows,
     _fetch_latest_rankings,
     _fetch_public_hero_stats,
-    _merge_ranking_rows,
+    _merge_daily_rows,
     _post_text_to_x_api,
 )
 
@@ -191,7 +191,7 @@ def _daily_rows_for_x(content_type: str, top_n: int = 200) -> list[dict]:
     provisional_rows: list[dict] = []
     if normalized == "shorts":
         provisional_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
-    return _merge_ranking_rows(strict_rows, provisional_rows, top_n=top_n)
+    return _merge_daily_rows(strict_rows, provisional_rows, top_n=top_n)
 
 
 def _build_overall_text(content_type: str) -> str:
