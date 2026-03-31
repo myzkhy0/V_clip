@@ -3157,7 +3157,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
             """,
             (video_id,),
         )
-    current_rank_table = _ranking_table_for_content(video.get("content_type") or "", "daily")
+    current_rank_table = _ranking_table_for_content(video.get("content_type") or "", normalized_period)
     current_rank_rows = fetchall(
         f"""
         SELECT rank, calculated_at
@@ -3450,7 +3450,12 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     latest_view_count = int(payload.get("latest_view_count") or 0)
     latest_like_count = int(payload.get("latest_like_count") or 0)
     like_rate_label = "-" if latest_view_count <= 0 else f"{(latest_like_count / latest_view_count) * 100:.2f}%"
-    current_rank_title = "現在順位（24h）"
+    current_rank_title_map = {
+        "daily": "現在順位（24h）",
+        "weekly": "現在順位（weekly）",
+        "monthly": "現在順位（monthly）",
+    }
+    current_rank_title = current_rank_title_map.get(normalized_period, "現在順位（24h）")
     content_type = (payload.get("content_type") or "").strip().lower()
     top3_heading = "本日のShortsランキング TOP3" if content_type == "shorts" else "本日の動画ランキング TOP3"
     detail_query_suffix = "" if normalized_period == "daily" else f"?period={normalized_period}"
