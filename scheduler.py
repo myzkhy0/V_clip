@@ -276,6 +276,7 @@ def _build_top3_text(content_type: str) -> str:
 
 def _build_likes_text(content_type: str) -> str:
     label = _target_label(content_type)
+    month_day = _jst_month_day()
     rows = _daily_rows_for_x(content_type=content_type, top_n=200)
     if not rows:
         raise RuntimeError("like候補が見つかりません")
@@ -287,7 +288,7 @@ def _build_likes_text(content_type: str) -> str:
     like_growth = int(best.get("like_growth") or 0)
     title = _truncate_text_for_x(str(best.get("title") or ""), 60)
     return (
-        f"❤️like数が伸びている{label}です。\n\n"
+        f"❤️現在({month_day})like数が伸びている{label}です。\n\n"
         f"「{title}」\n"
         f"{_detail_url(str(best.get('video_id') or ''))}\n"
         f"24h like +{like_growth:,} #VCLIP"

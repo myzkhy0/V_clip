@@ -2390,13 +2390,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function buildLikesCategoryText(contentType = "shorts") {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const label = targetLabelFromType(normalized);
+      const now = new Date();
+      const monthDay = `${{now.getMonth() + 1}}/${{now.getDate()}}`;
       const items = getDailyCardMetrics(normalized);
       if (!items.length) return `${{label}}のいいね数データがありません。 #VCLIP`;
       items.sort((a, b) => (b.likeGrowth - a.likeGrowth) || (b.viewGrowth - a.viewGrowth));
       const best = items[0];
       const detailUrl = `${{window.location.origin}}/video/${{best.videoId}}`;
       return [
-        `❤️like数が伸びている${{label}}です。`,
+        `❤️現在(${{monthDay}})like数が伸びている${{label}}です。`,
         "",
         `「${{truncateShareTitle(best.title, 60)}}」`,
         detailUrl,
@@ -2489,6 +2491,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function buildLikesCategoryCandidates(contentType = "shorts") {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const label = targetLabelFromType(normalized);
+      const now = new Date();
+      const monthDay = `${{now.getMonth() + 1}}/${{now.getDate()}}`;
       const items = getDailyCardMetrics(normalized);
       items.sort((a, b) => (b.likeGrowth - a.likeGrowth) || (b.viewGrowth - a.viewGrowth));
       const candidates = items.slice(0, 3).map((item, idx) => {{
@@ -2496,7 +2500,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         return {{
           label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
           text: [
-            `❤️like数が伸びている${{label}}です。`,
+            `❤️現在(${{monthDay}})like数が伸びている${{label}}です。`,
             "",
             `「${{truncateShareTitle(item.title, 60)}}」`,
             detailUrl,
