@@ -2913,9 +2913,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       if (periodMap.has(periodTable)) return periodMap.get(periodTable);
       if (periodLoadingMap.has(periodTable)) return periodLoadingMap.get(periodTable);
       const task = (async () => {{
-        const params = new URLSearchParams({{ period: periodTable }});
+        const params = new URLSearchParams();
         if (showAdminMeta && adminToken) params.set("admin_token", adminToken);
-        const response = await fetch(`/api/ranking?${{params.toString()}}`, {{
+        const endpoint = `/api/ranking/${{encodeURIComponent(periodTable)}}`;
+        const url = params.toString() ? `${{endpoint}}?${{params.toString()}}` : endpoint;
+        const response = await fetch(url, {{
           headers: {{ "Accept": "application/json" }},
         }});
         const data = await response.json();
@@ -4171,8 +4173,12 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if path_only == "/api/ranking":
-            period_key = _normalize_period_key((query.get("period") or ["daily"])[0])
+        if path_only == "/api/ranking" or path_only.startswith("/api/ranking/"):
+            period_key = "daily"
+            if path_only.startswith("/api/ranking/"):
+                period_key = _normalize_period_key(path_only.rsplit("/", 1)[-1])
+            else:
+                period_key = _normalize_period_key((query.get("period") or ["daily"])[0])
             token = (query.get("admin_token") or [""])[0].strip()
             is_admin = False
             if ADMIN_TOKEN:
