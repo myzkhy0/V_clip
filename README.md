@@ -48,7 +48,13 @@ cp .env.example .env
 | `X_API_POST_URL` | 投稿APIエンドポイント（既定 `https://api.x.com/2/tweets`） |
 | `X_API_TIMEOUT_SECONDS` | X API呼び出しタイムアウト秒（既定 `10`） |
 | `ENABLE_X_AUTO_POST` | `1` で scheduler のX自動投稿を有効化（既定 `0`） |
-| `X_AUTO_POST_CONTENT_TYPE` | 自動投稿対象（`shorts` または `video`、既定 `shorts`） |
+
+`ENABLE_X_AUTO_POST=1` の場合、JSTで以下を自動投稿します。
+
+- 07:00 `TOP3 shorts`
+- 12:00 `TOP3 動画`
+- 19:00 `急上昇ピックアップ（shorts）`
+- 00:00 `全体データ（shorts）`
 
 ### 3. Create Database
 
