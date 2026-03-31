@@ -1609,6 +1609,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .type-tab:hover,.period-tab:hover {{ color:var(--text);background:rgba(255,255,255,0.06); }}
     .type-tab.active {{ background:rgba(167,139,250,0.2);color:#fff;box-shadow:0 0 12px rgba(167,139,250,0.15); }}
     .period-tab.active {{ background:rgba(167,139,250,0.2);color:#fff;box-shadow:0 0 12px rgba(167,139,250,0.15); }}
+    .period-tab.loading {{ opacity:0.72;pointer-events:none; }}
     /* ── Ranking panel display ── */
     .ranking-panel {{ display:none; }}
     .ranking-panel.active {{ display:block; }}
@@ -1733,6 +1734,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .arrow {{ font-style:normal;color:#34d399; }}
     .pill {{ border:1px solid var(--glass-border);border-radius:999px;padding:2px 8px;white-space:nowrap;font-size:0.72rem;color:var(--text-dim);margin-left:auto;flex:0 0 auto; }}
     .empty {{ padding:20px;border:1px dashed var(--glass-border);color:var(--text-dim);background:rgba(255,255,255,0.03); }}
+    .loading-note {{
+      padding:20px;border:1px solid var(--glass-border);border-radius:14px;
+      color:var(--text-dim);background:rgba(255,255,255,0.03);text-align:center;
+    }}
     /* ── Pagination tabs ── */
     .page-tabs {{ display:none;gap:4px;flex-wrap:wrap;margin-top:12px;margin-bottom:10px; }}
     .page-tabs.bottom {{ margin-top:16px;margin-bottom:0;justify-content:center; }}
@@ -2927,6 +2932,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         periodLoadingMap.delete(periodTable);
       }}
     }}
+    function setPeriodTabLoading(periodTable, loading) {{
+      const btn = periodTabs.querySelector(`.period-tab[data-period="${{periodTable}}"]`);
+      if (!btn) return;
+      btn.classList.toggle("loading", !!loading);
+    }}
     function ensureTypeTabs() {{
       if (typeTabs.dataset.ready === "1") {{
         typeTabs.querySelectorAll(".type-tab").forEach((btn) => {{
@@ -2973,11 +2983,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     async function ensurePeriodPanel(periodTable) {{
       if (builtPeriodPanels.has(periodTable)) return;
+      setPeriodTabLoading(periodTable, true);
       if (!periodMap.has(periodTable)) {{
         await fetchPeriodPayload(periodTable);
       }}
       const period = periodMap.get(periodTable);
-      if (!period) return;
+      if (!period) {{
+        setPeriodTabLoading(periodTable, false);
+        return;
+      }}
       const panel = document.createElement("section");
       panel.className = "period-panel";
       panel.dataset.period = period.table;
@@ -3023,6 +3037,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 
       periodRoot.appendChild(panel);
       builtPeriodPanels.add(periodTable);
+      setPeriodTabLoading(periodTable, false);
       if (periodTable === "daily") {{
         buildNewPicks();
         if (showAdminMeta) renderAdminTrendingPicker();
@@ -3035,10 +3050,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       }}
       ensureTypeTabs();
       ensurePeriodTabs();
+      if (!builtPeriodPanels.has(activePeriod)) {{
+        periodRoot.innerHTML = '<div class="loading-note">ランキングを読み込み中...</div>';
+      }}
       try {{
         await ensurePeriodPanel(activePeriod);
       }} catch (error) {{
         periodRoot.innerHTML = '<div class="empty">ランキングの読み込みに失敗しました。時間をおいて再試行してください。</div>';
+      }} finally {{
+        setPeriodTabLoading(activePeriod, false);
       }}
 
       rankingIcon.textContent = typeConfig[activeContentType]?.icon || typeConfig.shorts.icon;
