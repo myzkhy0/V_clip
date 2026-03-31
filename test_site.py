@@ -2338,15 +2338,18 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function buildTrendingTemplateText(item) {{
       const isVideo = item?.contentType === "video";
       const label = isVideo ? "動画" : "Shorts";
+      const now = new Date();
+      const monthDay = `${{now.getMonth() + 1}}/${{now.getDate()}}`;
       const detailUrl = item?.videoId ? `${{window.location.origin}}/video/${{item.videoId}}` : "詳細URL";
       const title = item ? truncateShareTitle(item.title, 60) : "動画タイトル";
       const rankText = item && item.rank > 0 ? `${{item.rank}}位` : "順位データなし";
+      const growthText = item ? `+${{Number(item.viewGrowth || 0).toLocaleString("ja-JP")}}` : "+0";
       return [
-        `🔥現在、急上昇中の${{label}}です。`,
+        `🔥現在(${{monthDay}})、急上昇中の${{label}}です。`,
         "",
         `「${{title}}」`,
         detailUrl,
-        `24h ${{rankText}} 再生増加数 #VCLIP`,
+        `24h ${{rankText}} 再生増加 ${{growthText}} #VCLIP`,
       ].join("\\n");
     }}
     function targetLabelFromType(contentType) {{
@@ -2357,8 +2360,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const growth = Number(heroStats?.daily_growth_total || 0);
       const fresh = Number(heroStats?.new_24h || 0);
       const label = targetLabelFromType(contentType);
+      const now = new Date();
+      const monthDay = `${{now.getMonth() + 1}}/${{now.getDate()}}`;
       return [
-        `📊VCLIP全体データ（24h / ${{label}}投稿）`,
+        `📊VCLIP全体データ（24h ${{monthDay}} / ${{label}}投稿）`,
         `トラッキング動画数: ${{tracking.toLocaleString("ja-JP")}}`,
         `総再生増加: +${{growth.toLocaleString("ja-JP")}} / 新着動画: ${{fresh.toLocaleString("ja-JP")}}`,
         "#VCLIP",
@@ -2367,11 +2372,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function buildTop3CategoryText(contentType = "shorts") {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const label = normalized === "video" ? "動画" : "Shorts";
+      const now = new Date();
+      const monthDay = `${{now.getMonth() + 1}}/${{now.getDate()}}`;
       const top3 = getDailyTop3Items(normalized);
-      if (!top3.length) return `本日の${{label}}TOP3データがありません。 #VCLIP`;
+      if (!top3.length) return `本日(${{monthDay}})の${{label}}TOP3データがありません。 #VCLIP`;
       const rankEmojis = ["🥇", "🥈", "🥉"];
       return [
-        `🏆本日の${{label}} TOP3`,
+        `🏆本日(${{monthDay}})の${{label}} TOP3`,
         "",
         ...top3.flatMap((item, idx) => [
           `${{rankEmojis[idx] || "🏅"}}${{item.rank}}位: ${{truncateShareTitle(item.title, 40)}}`,
@@ -2454,27 +2461,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     function buildOverallCategoryCandidates(contentType = "shorts") {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
-      const label = targetLabelFromType(normalized);
-      const tracking = Number(heroStats?.tracking_videos || 0);
-      const growth = Number(heroStats?.daily_growth_total || 0);
-      const fresh = Number(heroStats?.new_24h || 0);
+      const baseText = buildOverallDataShareText(normalized);
       const picks = getDailyTopItems(normalized, 3);
       const candidates = picks.map((item, idx) => {{
-        const detailUrl = `${{window.location.origin}}/video/${{item.videoId}}`;
         return {{
           label: `${{idx + 1}}件目 | ${{truncateShareTitle(item.title, 28)}}`,
-          text: [
-            `📊VCLIP全体データ（24h / ${{label}}投稿）`,
-            `トラッキング動画数: ${{tracking.toLocaleString("ja-JP")}}`,
-            `総再生増加: +${{growth.toLocaleString("ja-JP")}} / 新着動画: ${{fresh.toLocaleString("ja-JP")}}`,
-            "",
-            `注目: 「${{truncateShareTitle(item.title, 52)}}」`,
-            detailUrl,
-            "#VCLIP",
-          ].join("\\n"),
+          text: baseText,
         }};
       }});
-      return ensureThreeCandidates(candidates, buildOverallDataShareText(normalized));
+      return ensureThreeCandidates(candidates, baseText);
     }}
     function buildTrendingCategoryCandidates(contentType = "shorts") {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
