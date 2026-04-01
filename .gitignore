@@ -6,3 +6,5 @@ __pycache__/
 *.pyc
 *.pyo
 *.log
+.keyword_rotation_state.json
+.youtube_quota_state.json

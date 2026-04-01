@@ -115,6 +115,7 @@ open_test_site.bat
 run_test_site_once.bat
 
 # 個別モジュールの実行
+run_collector_once.bat      # DB確認/起動込みで収集を1回実行（Windows）
 python collector.py          # 動画収集のみ
 python stats_collector.py    # 統計スナップショットのみ
 python ranking.py            # ランキング計算のみ
@@ -141,6 +142,7 @@ V_clip/
 ├── start_local_postgres.bat # 同梱したローカル PostgreSQL を起動
 ├── stop_local_postgres.bat  # 同梱したローカル PostgreSQL を停止
 ├── run_test_site_once.bat # 互換ランチャー（open_test_site.bat を呼び出し）
+├── run_collector_once.bat # DB確認/起動込みで collector.py を1回実行
 ├── schema.sql             # PostgreSQL DDL
 ├── requirements.txt       # Python 依存パッケージ
 ├── cron_example.txt       # cron 設定例
