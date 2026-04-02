@@ -4178,19 +4178,19 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     top3_html_parts: list[str] = []
     for item in payload.get("top3_cards", []):
         rank_value = int(item.get("rank") or 0)
-        rank_label = "Not ranked" if rank_value <= 0 or rank_value > 100 else f"#{rank_value}"
+        rank_label = "1" if rank_value == 1 else ("2" if rank_value == 2 else ("3" if rank_value == 3 else str(max(0, rank_value))))
+        rank_class = "gold" if rank_value == 1 else ("silver" if rank_value == 2 else ("bronze" if rank_value == 3 else ""))
         top3_id = html.escape(item.get("video_id") or "")
         top3_title = html.escape(item.get("title") or "")
-        top3_channel = html.escape(item.get("channel_name") or "-")
-        top3_day = html.escape(item.get("calculated_at") or "-")
         top3_html_parts.append(
             f"""
-            <a class="top3-item" href="/video/{top3_id}{detail_query_suffix}">
-              <img src="{_thumbnail_url(top3_id)}" alt="{top3_title}" loading="lazy">
-              <div class="top3-meta">
-                <div class="top3-kicker">{rank_label} ・ {top3_day}</div>
-                <div class="top3-title">{top3_title}</div>
-                <div class="top3-channel">{top3_channel}</div>
+            <a class="hero-top3-card" href="/video/{top3_id}{detail_query_suffix}">
+              <div class="hero-top3-thumb-wrap">
+                <img class="hero-top3-thumb" src="{_thumbnail_url(top3_id)}" alt="{top3_title}" loading="lazy">
+                <span class="hero-top3-rank {rank_class}">{rank_label}</span>
+              </div>
+              <div class="hero-top3-body">
+                <p class="hero-top3-title">{top3_title}</p>
               </div>
             </a>
             """
@@ -4207,8 +4207,8 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
             f"""
             <a class="related-item" href="/video/{rid}{detail_query_suffix}">
               <img src="{_thumbnail_url(rid)}" alt="{rtitle}" loading="lazy">
-              <div class="related-meta">
-                <div class="related-rank">最高順位 {rbest} ・ 初回 {rfirst}</div>
+              <div class="related-body">
+                <div class="related-meta"><span>Best: {rbest}</span><span>{rfirst}</span></div>
                 <div class="related-title">{rtitle}</div>
               </div>
             </a>
@@ -4228,10 +4228,12 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         },
         ensure_ascii=False,
     )
+    detail_share_text = f"{payload['title']}\n{canonical_url}\n#VCLIP"
+    detail_share_url = "https://twitter.com/intent/tweet?text=" + quote(detail_share_text, safe="")
 
     body = f"""
 <!doctype html>
-<html lang="ja">
+<html lang="ja" id="top">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -4239,205 +4241,233 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
   {head_meta}
   <style>
     :root {{
-      --bg-base:#0b0f1a;--bg-panel:rgba(15,20,35,0.72);--glass-border:rgba(100,160,240,0.10);
-      --text:#e8edf4;--text-dim:rgba(232,237,244,0.62);--accent-gradient:linear-gradient(135deg,#a78bfa,#f472b6);
-      --accent-a:#63d0ff;--good:#34d399;--warn:#fbbf24;
+      --bg: #ffffff;
+      --header-bg: rgba(11, 17, 28, 0.92);
+      --header-border: rgba(99, 177, 230, 0.22);
+      --text-main: #111827;
+      --text-sub: #475569;
+      --text-soft: #64748b;
+      --panel: #ffffff;
+      --panel-border: #d3dde8;
+      --accent-a: #63d0ff;
+      --accent-b: #60a5fa;
+      --gradient-start: #63d0ff;
+      --gradient-end: #a78bfa;
+      --accent-c: #1f3b6f;
+      --ok: #10b981;
+      --growth-green: #10b981;
+      --like: #db2777;
+      --new: #f472b6;
+      --border: rgba(100, 160, 240, 0.18);
+      --text-primary: #e8edf4;
+      --text-secondary: rgba(232, 237, 244, 0.90);
+      --shadow-sm: 0 8px 18px rgba(15, 23, 42, 0.10);
+      --shadow-md: 0 14px 30px rgba(15, 23, 42, 0.16);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }}
-    *,*::before,*::after {{ box-sizing:border-box; }}
+    * {{ box-sizing: border-box; }}
     body {{
-      margin:0;font-family:"Noto Sans JP Local","Hiragino Kaku Gothic ProN",sans-serif;color:var(--text);min-height:100vh;
+      margin: 0;
+      font-family: "Noto Sans JP Local","Hiragino Kaku Gothic ProN",sans-serif;
+      color: var(--text-main);
       background:
-        radial-gradient(ellipse 900px 500px at 15% 10%, rgba(167, 139, 250, 0.15), transparent 60%),
-        radial-gradient(ellipse 700px 500px at 85% 5%, rgba(244, 114, 182, 0.12), transparent 55%),
-        radial-gradient(ellipse 600px 400px at 50% 80%, rgba(34, 211, 238, 0.06), transparent 50%),
-        var(--bg-base);
+        radial-gradient(900px 420px at 10% -10%, rgba(99, 208, 255, 0.08), transparent 60%),
+        radial-gradient(760px 380px at 92% -12%, rgba(96, 165, 250, 0.06), transparent 58%),
+        var(--bg);
+      line-height: 1.6;
     }}
-    .shell {{ width:min(1080px,calc(100% - 24px)); margin:0 auto; padding:20px 0 36px; display:grid; gap:12px; }}
-    .panel {{ border:1px solid var(--glass-border); border-radius:16px; background:var(--bg-panel); padding:14px; backdrop-filter:blur(14px); }}
-    .topbar {{
-      display:flex;align-items:center;justify-content:space-between;padding:14px 24px;
-      background:var(--bg-panel);border:1px solid var(--glass-border);border-radius:16px;
+    .header {{
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(11, 17, 28, 0.92);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      border-top: 2px solid rgba(99, 208, 255, 0.34);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
     }}
-    .topbar-brand {{ display:flex;align-items:center;gap:10px;font-weight:900;font-size:clamp(1.15rem,2vw,1.55rem);letter-spacing:-0.01em; }}
-    .topbar-logo {{
-      display:flex;align-items:center;justify-content:center;flex:0 0 auto;line-height:1;
-      padding:6px 12px;border-radius:10px;
-      background:linear-gradient(135deg,#cf7de8,#8b8dff);
-      border:1px solid rgba(255,255,255,0.18);
-      font-size:0.88rem;font-weight:900;letter-spacing:0.04em;color:#fff;
-      box-shadow:0 6px 16px rgba(113,87,196,0.22);
+    .header-inner {{
+      height: 60px; padding: 0 24px; display:flex; align-items:center; justify-content:space-between;
     }}
-    .topbar-title {{ color:var(--text);text-decoration:none; }}
-    .topbar-accent {{ background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }}
-    .title {{ margin:0;font-size:clamp(1.05rem,2vw,1.35rem);line-height:1.4; }}
-    .meta {{ margin-top:6px;color:var(--text-dim);font-size:.84rem;display:flex;gap:10px;flex-wrap:wrap; }}
-    .channel-meta {{ display:inline-flex;align-items:center;gap:8px; }}
-    .channel-meta-icon {{
-      width:18px;height:18px;border-radius:50%;object-fit:cover;flex:0 0 18px;
-      border:1px solid var(--glass-border);background:rgba(255,255,255,0.08);
+    .brand {{ display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--text-primary); }}
+    .brand-logo {{
+      display:inline-flex; align-items:center; justify-content:center; width:44px; height:30px;
+      border-radius:8px; background:linear-gradient(135deg,var(--gradient-start),var(--gradient-end));
+      color:#fff; font-weight:900; font-size:.72rem; letter-spacing:.04em;
     }}
-    .player-wrap {{ border:1px solid var(--glass-border); border-radius:14px; overflow:hidden; background:#000; aspect-ratio:16/9; margin-top:10px; }}
-    .player-wrap iframe {{ width:100%;height:100%;border:0;display:block; }}
-    .player-note {{ margin-top:10px; }}
-    .yt-open-btn {{
-      display:inline-flex;align-items:center;justify-content:center;padding:9px 14px;border-radius:10px;border:1px solid var(--glass-border);
-      background:rgba(255,255,255,.04);color:var(--text);text-decoration:none;font-size:.82rem;font-weight:700;
+    .brand-text {{ font-weight:800; font-size:1.05rem; }}
+    .brand-accent {{
+      background: linear-gradient(135deg,var(--gradient-start),var(--gradient-end));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
     }}
-    .cards {{ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }}
-    .card {{ border:1px solid var(--glass-border);border-radius:12px;background:rgba(255,255,255,.03);padding:12px;min-height:88px; }}
-    .card-label {{ margin:0;color:var(--text-dim);font-size:.75rem; }}
-    .card-value {{ margin:8px 0 0;font-size:1.24rem;font-weight:900;line-height:1.1; }}
-    .card-sub {{ margin:6px 0 0;color:var(--text-dim);font-size:.74rem; }}
-    .a {{ color:var(--accent-a); }} .g {{ color:var(--good); }} .w {{ color:var(--warn); }}
-    .head {{ display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px; }}
-    .tabs {{ display:inline-flex;border:1px solid var(--glass-border);border-radius:10px;overflow:hidden; }}
-    .tab-groups {{ display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end; }}
-    .tab {{ border:0;background:transparent;color:var(--text-dim);padding:6px 10px;font-size:.76rem;font-weight:700;cursor:pointer; }}
-    .tab.active {{ color:#fff;background:linear-gradient(135deg, rgba(99,208,255,.24), rgba(139,92,246,.24)); }}
-    .chart-box {{ border:1px solid var(--glass-border);border-radius:10px;background:rgba(255,255,255,.02);padding:7px; }}
-    .legend {{ display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--text-dim);font-size:.74rem;margin-top:6px; }}
-    .top3-list {{ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }}
-    .top3-item {{ display:block;text-decoration:none;color:var(--text);border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03); }}
-    .top3-item img {{ width:100%;aspect-ratio:16/9;object-fit:cover;display:block; }}
-    .top3-meta {{ padding:9px 10px; }}
-    .top3-kicker {{ font-size:.72rem;color:var(--accent-a);font-weight:700; }}
-    .top3-title {{ margin-top:4px;font-size:.84rem;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }}
-    .top3-channel {{ margin-top:4px;font-size:.74rem;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }}
-    .related-list {{ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px; }}
-    .related-item {{ display:block;text-decoration:none;color:var(--text);border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03); }}
-    .related-item img {{ width:100%;aspect-ratio:16/9;object-fit:cover;display:block; }}
-    .related-meta {{ padding:9px 10px; }}
-    .related-rank {{ font-size:.72rem;color:var(--accent-a);font-weight:700; }}
-    .related-title {{ margin-top:4px;font-size:.84rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }}
-    .empty-note {{ margin:0;color:var(--text-dim);font-size:.84rem; }}
-    .back-wrap {{ text-align:center; }}
-    .back-btn {{
-      display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:12px;border:1px solid var(--glass-border);
-      background:rgba(255,255,255,.04);color:var(--text);text-decoration:none;font-weight:700;
+    .header-meta {{ color: var(--text-secondary); font-size: .82rem; }}
+    .live-dot {{ display:inline-flex; align-items:center; gap:6px; color:var(--growth-green); font-weight:600; }}
+    .live-dot::before {{
+      content:''; width:7px; height:7px; border-radius:50%; background:var(--growth-green); animation:pulse-dot 2s ease-in-out infinite;
     }}
-    .footer {{
-      text-align:center;color:var(--text-dim);font-size:.78rem;letter-spacing:.02em;margin-top:8px;opacity:.8;padding-bottom:14px;
-      display:flex;flex-direction:column;gap:6px;align-items:center;
-    }}
-    .footer-links {{ display:flex;gap:16px; }}
-    .footer a {{ color:var(--text-dim);text-decoration:none; }}
-    @media (max-width:900px) {{
-      .cards{{grid-template-columns:repeat(2,minmax(0,1fr));}}
-      .top3-list{{grid-template-columns:repeat(2,minmax(0,1fr));}}
-      .related-list{{grid-template-columns:repeat(2,minmax(0,1fr));}}
-    }}
+    @keyframes pulse-dot {{ 0%,100%{{opacity:1;transform:scale(1);}} 50%{{opacity:.5;transform:scale(.8);}} }}
+    .main {{ max-width:1180px; margin:0 auto; padding:22px 24px 48px; display:grid; gap:16px; }}
+    .hero-note {{ margin:0; text-align:center; color:#1f3b6f; font-size:.9rem; font-weight:600; }}
+    .panel {{ background:var(--panel); border:1px solid var(--panel-border); border-radius:var(--radius-md); box-shadow:var(--shadow-sm); padding:14px; }}
+    .top3-section {{ padding:12px; }}
+    .top3-head {{ margin:0 0 10px; display:flex; align-items:center; gap:8px; font-size:1.05rem; font-weight:800; color:#0f294f; }}
+    .top3-icon {{ width:24px; height:24px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; background:#dff4ff; font-size:.82rem; }}
+    .hero-top3 {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }}
+    .hero-top3-card {{ border:1px solid var(--panel-border); background:#fff; border-radius:12px; box-shadow:var(--shadow-sm); overflow:hidden; text-decoration:none; color:inherit; transition:transform var(--transition), box-shadow var(--transition); }}
+    .hero-top3-card:hover {{ transform:translateY(-2px); box-shadow:var(--shadow-md); }}
+    .hero-top3-thumb-wrap {{ position:relative; }}
+    .hero-top3-thumb {{ width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }}
+    .hero-top3-body {{ padding:8px 10px 9px; }}
+    .hero-top3-rank {{ position:absolute; top:8px; left:8px; z-index:2; min-width:24px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:800; box-shadow:0 2px 8px rgba(15,23,42,.24); }}
+    .hero-top3-rank.gold {{ background:linear-gradient(135deg,#f59e0b,#facc15); color:#3b2a00; }}
+    .hero-top3-rank.silver {{ background:linear-gradient(135deg,#94a3b8,#e2e8f0); color:#1f2937; }}
+    .hero-top3-rank.bronze {{ background:linear-gradient(135deg,#b45309,#d6a77a); color:#fff8ef; }}
+    .hero-top3-title {{ margin:0; font-size:.88rem; line-height:1.35; color:#0f172a; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }}
+    .content {{ display:grid; grid-template-columns:minmax(0,2fr) minmax(300px,1fr); gap:14px; align-items:start; }}
+    .video-title {{ margin:0; font-size:clamp(1.05rem,2vw,1.3rem); line-height:1.45; font-weight:600; }}
+    .video-meta {{ margin-top:6px; color:var(--text-sub); font-size:.86rem; display:flex; gap:10px; flex-wrap:wrap; }}
+    .player {{ margin-top:10px; border-radius:12px; overflow:hidden; border:1px solid var(--panel-border); background:#000; aspect-ratio:16/9; }}
+    .player iframe {{ width:100%; height:100%; border:0; display:block; }}
+    .action-row {{ margin-top:10px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }}
+    .action-btn {{ display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:8px; border:1px solid #c8d2dd; background:#e5eaf0; color:#334155; text-decoration:none; font-size:.82rem; font-weight:700; padding:8px 10px; }}
+    .info-list {{ display:grid; gap:8px; }}
+    .info-row {{ display:flex; justify-content:space-between; gap:8px; font-size:.84rem; color:var(--text-sub); }}
+    .info-row strong {{ color:#0f172a; font-weight:700; }}
+    .info-row .growth {{ color:var(--ok); font-size:.95rem; font-weight:800; }}
+    .info-row .like {{ color:var(--like); font-size:.95rem; font-weight:800; }}
+    .section-head {{ margin:0 0 8px; display:flex; justify-content:space-between; align-items:center; gap:8px; color:#1f3344; font-size:1rem; font-weight:800; }}
+    .tabs {{ display:inline-flex; border:1px solid var(--panel-border); border-radius:10px; overflow:hidden; }}
+    .tab {{ border:0; background:transparent; color:#64748b; padding:6px 10px; font-size:.76rem; font-weight:700; cursor:pointer; }}
+    .tab.active {{ color:#fff; background:linear-gradient(135deg, rgba(99,208,255,.72), rgba(96,165,250,.82)); }}
+    .tab-groups {{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }}
+    .chart-box {{ border:1px solid var(--panel-border); border-radius:10px; background:#f8fbff; padding:8px; }}
+    .legend {{ margin-top:6px; color:var(--text-soft); font-size:.78rem; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }}
+    .side-stack {{ display:grid; gap:14px; }}
+    .rank-chip {{ min-width:34px; height:34px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:.9rem; font-weight:800; color:#fff; background:rgba(26,32,44,.82); }}
+    .rank-chip.gold {{ background:linear-gradient(135deg,#f59e0b,#facc15); color:#3b2a00; border:1px solid rgba(180,120,0,.45); }}
+    .related-list {{ display:grid; gap:10px; }}
+    .related-item {{ display:grid; grid-template-columns:108px 1fr; gap:9px; text-decoration:none; color:inherit; background:#fff; border:1px solid var(--panel-border); border-radius:10px; overflow:hidden; box-shadow:var(--shadow-sm); transition:transform var(--transition), box-shadow var(--transition); }}
+    .related-item:hover {{ transform:translateY(-2px); box-shadow:var(--shadow-md); }}
+    .related-item img {{ width:100%; height:100%; object-fit:cover; display:block; aspect-ratio:16/9; }}
+    .related-body {{ padding:8px 10px 8px 0; min-width:0; }}
+    .related-meta {{ margin-top:5px; font-size:.76rem; color:var(--text-soft); display:flex; gap:8px; flex-wrap:wrap; }}
+    .related-title {{ margin:0; font-size:.88rem; line-height:1.4; color:#0f172a; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }}
+    .empty-note {{ margin:0; color:var(--text-soft); font-size:.84rem; }}
+    .back-top-wrap {{ text-align:center; margin-top:2px; }}
+    .back-top-btn {{ display:inline-flex; align-items:center; justify-content:center; padding:9px 18px; border-radius:999px; border:1px solid #c8d2dd; background:#eef3f8; color:var(--accent-c); text-decoration:none; font-size:.84rem; font-weight:700; }}
+    .footer {{ width:100%; margin:0; padding:18px 24px 22px; text-align:center; font-size:.76rem; color:#dbeafe; border-top:1px solid var(--header-border); background:var(--header-bg); }}
+    .footer-links {{ display:flex; justify-content:center; gap:14px; margin-bottom:8px; font-size:.82rem; }}
+    .footer-links a {{ color:#cfe0ff; text-decoration:none; }}
+    @media (max-width:980px) {{ .content {{ grid-template-columns:1fr; }} }}
     @media (max-width:760px) {{
-      .shell{{width:calc(100% - 16px);}} .panel{{padding:12px;border-radius:14px;}}
-      .topbar{{padding:10px 14px;border-radius:12px;}} .topbar-brand{{gap:8px;font-size:.9rem;}}
-      .topbar-logo{{padding:4px 9px;border-radius:8px;font-size:.72rem;font-weight:800;letter-spacing:.03em;border-color:rgba(255,255,255,.14);box-shadow:none;}}
-      .topbar-title{{font-size:.94rem;font-weight:900;line-height:1.2;}}
-      .top3-list{{grid-template-columns:1fr;gap:8px;}}
-      .top3-item{{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:stretch;}}
-      .top3-item img{{width:96px;height:100%;min-height:64px;aspect-ratio:auto;object-fit:cover;object-position:center;}}
-      .top3-meta{{padding:7px 8px;}}
-      .top3-title{{font-size:.8rem;line-height:1.3;-webkit-line-clamp:2;}}
-      .top3-channel{{font-size:.7rem;}}
-      .top3-kicker{{font-size:.68rem;}}
+      .header-inner {{ padding:0 14px; height:54px; }} .header-meta {{ display:none; }}
+      .main {{ padding:16px 14px 34px; }}
+      .hero-top3 {{ grid-template-columns:1fr; }}
+      .action-row {{ grid-template-columns:1fr; }}
+      .related-item {{ grid-template-columns:96px 1fr; }}
     }}
-    @media (max-width:560px) {{ .topbar-title{{font-size:.84rem;font-weight:900;line-height:1.2;}} .cards{{grid-template-columns:1fr;}} .top3-list{{grid-template-columns:1fr;}} .related-list{{grid-template-columns:1fr;}} .card-value{{font-size:1.14rem;}} }}
   </style>
 </head>
 <body>
-  <main class="shell">
-    <nav class="topbar">
-      <div class="topbar-brand">
-        <div class="topbar-logo">VCLIP</div>
-        <a class="topbar-title" href="/">VTuber切り抜き<span class="topbar-accent">ランキング</span></a>
-      </div>
-    </nav>
-
-    <section class="panel">
-      <div class="head"><strong>{html.escape(top3_heading)}</strong></div>
-      <div class="top3-list">
-        {top3_html}
-      </div>
+  <header class="header">
+    <div class="header-inner">
+      <a class="brand" href="/">
+        <span class="brand-logo">VCLIP</span>
+        <span class="brand-text">VTuber切り抜き<span class="brand-accent">ランキング</span></span>
+      </a>
+      <div class="header-meta"><span class="live-dot">リアルタイム更新中</span></div>
+    </div>
+  </header>
+  <main class="main">
+    <p class="hero-note">詳細ページは現在、試験運用中です。</p>
+    <section class="panel top3-section">
+      <h2 class="top3-head"><span class="top3-icon">✦</span>{html.escape(top3_heading)}</h2>
+      <div class="hero-top3">{top3_html}</div>
     </section>
-
-    <section class="panel">
-      <h1 class="title">{title_escaped}｜動画詳細（試験運用中…）</h1>
-      <div class="meta">
-        <span class="channel-meta">チャンネル:
-          {'<img class="channel-meta-icon" src="' + channel_icon_escaped + '" alt="" loading="lazy" referrerpolicy="no-referrer">' if channel_icon_escaped else ''}
-          <span>{channel_escaped}</span>
-        </span>
-        <span>公開日: {published_escaped}</span>
-        <span>video_id: {video_id_escaped}</span>
-      </div>
-      <div class="player-wrap">
-        <iframe src="https://www.youtube-nocookie.com/embed/{video_id_escaped}?rel=0&playsinline=1" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
-      </div>
-      <div class="player-note">
-        <a id="yt-link" class="yt-open-btn" href="{yt_url}" target="_blank" rel="noopener noreferrer">YouTubeで開く</a>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="cards">
-        <article class="card"><p class="card-label">初回ランクイン日</p><p class="card-value">{html.escape(payload["first_ranked_at"])}</p></article>
-        <article class="card"><p class="card-label">最高順位</p><p class="card-value a">{html.escape(best_rank_label)}</p><p class="card-sub">記録日: {html.escape(best_rank_at_label or "-")}</p></article>
-        <article class="card"><p class="card-label">{html.escape(current_rank_title)}</p><p class="card-value g">{html.escape(current_rank_label)}</p><p class="card-sub">時点: {html.escape(current_rank_at_label or "-")}</p></article>
-        <article class="card"><p class="card-label">like率（like/view）</p><p class="card-value">{html.escape(like_rate_label)}</p></article>
-        <article class="card"><p class="card-label">24h 再生増加</p><p class="card-value w">+{payload["views_delta_24h"]:,}</p></article>
-        <article class="card"><p class="card-label">合計再生数</p><p class="card-value">{latest_view_count:,}</p></article>
-        <article class="card"><p class="card-label">24h like増加</p><p class="card-value w">+{payload["likes_delta_24h"]:,}</p></article>
-        <article class="card"><p class="card-label">合計like</p><p class="card-value">{latest_like_count:,}</p></article>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="head">
-        <strong>再生・like推移（軽量）</strong>
-        <div class="tab-groups">
-          <div class="tabs">
-            <button class="tab active" data-metric="views">再生</button>
-            <button class="tab" data-metric="likes">like</button>
+    <section class="content">
+      <div class="left-stack" style="display:grid; gap:14px;">
+        <article class="panel">
+          <h1 class="video-title">{title_escaped}</h1>
+          <div class="video-meta">
+            <span>チャンネル: {channel_escaped}</span>
+            <span>公開日: {published_escaped}</span>
+            <span>video_id: {video_id_escaped}</span>
           </div>
-          <div class="tabs">
-            <button class="tab active" data-range="7">7日</button>
-            <button class="tab" data-range="30">30日</button>
+          <div class="player">
+            <iframe src="https://www.youtube-nocookie.com/embed/{video_id_escaped}?rel=0&playsinline=1" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
           </div>
-        </div>
+          <div class="action-row">
+            <a class="action-btn" href="{yt_url}" target="_blank" rel="noopener noreferrer">YouTube</a>
+            <a class="action-btn" href="{detail_share_url}" target="_blank" rel="noopener noreferrer">シェア</a>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="section-head">
+            <span>再生・like推移（軽量）</span>
+            <div class="tab-groups">
+              <div class="tabs">
+                <button class="tab active" data-metric="views">再生</button>
+                <button class="tab" data-metric="likes">like</button>
+              </div>
+              <div class="tabs">
+                <button class="tab active" data-range="7">7日</button>
+                <button class="tab" data-range="30">30日</button>
+              </div>
+            </div>
+          </div>
+          <div class="chart-box">
+            <svg viewBox="0 0 900 220" width="100%" height="220">
+              <defs><linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#63d0ff" /><stop offset="100%" stop-color="#60a5fa" /></linearGradient></defs>
+              <g stroke="rgba(100,116,139,0.26)" stroke-width="1">
+                <line x1="30" y1="30" x2="30" y2="190" /><line x1="30" y1="190" x2="870" y2="190" /><line x1="30" y1="150" x2="870" y2="150" />
+                <line x1="30" y1="110" x2="870" y2="110" /><line x1="30" y1="70" x2="870" y2="70" />
+              </g>
+              <polyline id="line" fill="none" stroke="url(#lineGrad)" stroke-width="4" points="30,170 870,60" />
+              <g id="y-axis-labels"></g>
+              <g id="x-axis-labels"></g>
+              <g id="dots"></g>
+            </svg>
+          </div>
+          <div class="legend"><span id="legendL"></span><span id="legendR"></span></div>
+        </article>
       </div>
-      <div class="chart-box">
-        <svg viewBox="0 0 900 220" width="100%" height="220">
-          <defs><linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#63d0ff" /><stop offset="100%" stop-color="#8b5cf6" /></linearGradient></defs>
-          <g stroke="rgba(232,237,244,0.14)" stroke-width="1">
-            <line x1="30" y1="30" x2="30" y2="190" /><line x1="30" y1="190" x2="870" y2="190" /><line x1="30" y1="150" x2="870" y2="150" />
-            <line x1="30" y1="110" x2="870" y2="110" /><line x1="30" y1="70" x2="870" y2="70" />
-          </g>
-          <polyline id="line" fill="none" stroke="url(#lineGrad)" stroke-width="4" points="30,170 870,60" />
-          <g id="y-axis-labels"></g>
-          <g id="x-axis-labels"></g>
-          <g id="dots"></g>
-        </svg>
-      </div>
-      <div class="legend"><span id="legendL"></span><span id="legendR"></span></div>
+      <aside class="side-stack">
+        <article class="panel">
+          <div class="section-head"><span>現在のランキング情報</span></div>
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+            <span class="rank-chip gold">{html.escape(current_rank_label.replace('#', '') if current_rank_label.startswith('#') else '1')}</span>
+            <div style="min-width:0;">
+              <div style="font-size:.86rem; color:var(--text-soft);">カテゴリ</div>
+              <div style="font-size:.94rem; font-weight:700; color:#0f172a;">{html.escape('Shorts / 24時間' if content_type == 'shorts' else '動画 / 24時間')}</div>
+            </div>
+          </div>
+          <div class="info-list">
+            <div class="info-row"><span>Current Rank</span><strong>{html.escape(current_rank_label)}</strong></div>
+            <div class="info-row"><span>Best Rank</span><strong>{html.escape(best_rank_label)}</strong></div>
+            <div class="info-row"><span>24h Views</span><strong class="growth">▶ +{payload["views_delta_24h"]:,}</strong></div>
+            <div class="info-row"><span>Total Views</span><strong>{latest_view_count:,}</strong></div>
+            <div class="info-row"><span>24h Likes</span><strong class="like">❤ +{payload["likes_delta_24h"]:,}</strong></div>
+            <div class="info-row"><span>Total Likes</span><strong>{latest_like_count:,}</strong></div>
+            <div class="info-row"><span>初回ランクイン</span><strong>{html.escape(payload["first_ranked_at"])}</strong></div>
+            <div class="info-row"><span>最高順位日時</span><strong>{html.escape(best_rank_at_label or "-")}</strong></div>
+            <div class="info-row"><span>更新日時</span><strong>{html.escape(current_rank_at_label or "-")}</strong></div>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="section-head"><span>同チャンネル関連動画</span></div>
+          <div class="related-list">{related_html}</div>
+        </article>
+      </aside>
     </section>
-
-    <section class="panel">
-      <div class="head"><strong>同じチャンネルの過去ランクイン動画</strong></div>
-      <div class="related-list">
-        {related_html}
-      </div>
-    </section>
-
-    <section class="back-wrap">
-      <a class="back-btn" href="https://vclipranking.com/">← ランキングに戻る</a>
-    </section>
-
-    <footer class="footer">
-      <div class="footer-links">
-        <a href="/policy">プライバシーポリシー</a>
-        <a href="https://x.com/Vcliprank" target="_blank" rel="noopener noreferrer">お問い合わせ</a>
-      </div>
-      <span>VCLIP | VTuber切り抜きランキング &copy; 2026</span>
-    </footer>
+    <div class="back-top-wrap"><a class="back-top-btn" href="https://vclipranking.com/">TOPに戻る</a></div>
   </main>
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="/policy">プライバシーポリシー</a>
+      <a href="https://x.com/Vcliprank" target="_blank" rel="noopener noreferrer">お問い合わせ</a>
+    </div>
+    <span>VCLIP | VTuber切り抜きランキング &copy; 2026</span>
+  </footer>
   <script>
     const trendPayload = {payload_json};
     const tabs = Array.from(document.querySelectorAll(".tab"));
