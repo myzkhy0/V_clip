@@ -1788,13 +1788,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .player-frame iframe {{ width:100%;height:100%;border:0; }}
     /* ── Admin ── */
     .admin-board {{ border:1px solid var(--glass-border);background:linear-gradient(180deg,#121a25,#0f161f);box-shadow:0 24px 60px rgba(0,0,0,0.35);margin-top:12px;padding:14px;border-radius:16px; }}
-    .admin-board-head h2 {{ font-size:1rem;margin:0; }}
-    .admin-board-head p {{ color:var(--text-dim);margin-top:4px;font-size:0.82rem; }}
+    .admin-board-head h2 {{ font-size:1rem;margin:0;color:#e7f2ff; }}
+    .admin-board-head p {{ color:#a9bed6;margin-top:4px;font-size:0.82rem; }}
     .admin-metric-grid {{ margin-top:10px;display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr)); }}
     .admin-metric-card {{ border:1px solid var(--glass-border);background:linear-gradient(180deg,#172232,#121a25);padding:9px 10px;min-height:62px;display:grid;align-content:center;gap:4px;border-radius:10px; }}
-    .admin-metric-card span {{ color:var(--text-dim);font-size:0.75rem; }}
-    .admin-metric-card strong {{ font-size:1rem;font-weight:800; }}
-    .admin-quota {{ display:inline-flex;align-items:center;gap:10px;font-size:0.88rem;color:var(--text-dim); }}
+    .admin-metric-card span {{ color:#afc3db;font-size:0.75rem; }}
+    .admin-metric-card strong {{ font-size:1rem;font-weight:800;color:#eaf3ff; }}
+    .admin-quota {{ display:inline-flex;align-items:center;gap:10px;font-size:0.88rem;color:#b8cade; }}
     .admin-pill {{ border-radius:999px;padding:4px 10px;font-weight:700;color:#081017; }}
     .admin-pill.ok {{ background:#5ee0b0; }}
     .admin-pill.warn {{ background:#f4b942; }}
