@@ -4334,16 +4334,16 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     .top3-head {{ margin:0 0 10px; display:flex; align-items:center; gap:8px; font-size:1.05rem; font-weight:800; color:#0f294f; }}
     .top3-icon {{ width:24px; height:24px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; background:#dff4ff; font-size:.82rem; }}
     .hero-top3 {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }}
-    .hero-top3-card {{ border:1px solid var(--panel-border); background:#fff; border-radius:12px; box-shadow:var(--shadow-sm); overflow:hidden; text-decoration:none; color:inherit; transition:transform var(--transition), box-shadow var(--transition); }}
+    .hero-top3-card {{ display:grid; grid-template-columns:108px 1fr; gap:9px; border:1px solid var(--panel-border); background:#fff; border-radius:10px; box-shadow:var(--shadow-sm); overflow:hidden; text-decoration:none; color:inherit; transition:transform var(--transition), box-shadow var(--transition); }}
     .hero-top3-card:hover {{ transform:translateY(-2px); box-shadow:var(--shadow-md); }}
-    .hero-top3-thumb-wrap {{ position:relative; }}
-    .hero-top3-thumb {{ width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }}
-    .hero-top3-body {{ padding:8px 10px 9px; }}
+    .hero-top3-thumb-wrap {{ position:relative; width:108px; }}
+    .hero-top3-thumb {{ width:100%; height:100%; aspect-ratio:16/9; object-fit:cover; display:block; }}
+    .hero-top3-body {{ padding:8px 10px 8px 0; min-width:0; display:flex; align-items:center; }}
     .hero-top3-rank {{ position:absolute; top:8px; left:8px; z-index:2; min-width:24px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; font-size:.75rem; font-weight:800; box-shadow:0 2px 8px rgba(15,23,42,.24); }}
     .hero-top3-rank.gold {{ background:linear-gradient(135deg,#f59e0b,#facc15); color:#3b2a00; }}
     .hero-top3-rank.silver {{ background:linear-gradient(135deg,#94a3b8,#e2e8f0); color:#1f2937; }}
     .hero-top3-rank.bronze {{ background:linear-gradient(135deg,#b45309,#d6a77a); color:#fff8ef; }}
-    .hero-top3-title {{ margin:0; font-size:.88rem; line-height:1.35; color:#0f172a; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }}
+    .hero-top3-title {{ margin:0; font-size:.88rem; line-height:1.4; color:#0f172a; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }}
     .content {{ display:grid; grid-template-columns:minmax(0,2fr) minmax(300px,1fr); gap:14px; align-items:start; }}
     .video-title {{ margin:0; font-size:clamp(1.05rem,2vw,1.3rem); line-height:1.45; font-weight:600; }}
     .video-meta {{ margin-top:6px; color:var(--text-sub); font-size:.86rem; display:flex; gap:10px; flex-wrap:wrap; }}
@@ -4384,6 +4384,8 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       .header-inner {{ padding:0 14px; height:54px; }} .header-meta {{ display:none; }}
       .main {{ padding:16px 14px 34px; }}
       .hero-top3 {{ grid-template-columns:1fr; }}
+      .hero-top3-card {{ grid-template-columns:96px 1fr; }}
+      .hero-top3-thumb-wrap {{ width:96px; }}
       .action-row {{ grid-template-columns:1fr; }}
       .related-item {{ grid-template-columns:96px 1fr; }}
     }}
