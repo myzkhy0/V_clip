@@ -2361,14 +2361,19 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       color: #fff8ef;
       border: 1px solid rgba(120, 63, 4, 0.45);
     }}
-    .thumb-new-badge .new-badge {{
+    .thumb-new-badge {{
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 2;
       font-size: 0.72rem;
+      font-weight: 800;
+      color: #fff;
+      background: #f472b6;
       padding: 4px 10px;
       border-radius: 7px;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      background: #f472b6;
-      color: #fff;
     }}
     .page-tab {{
       min-width: 36px;
@@ -2487,7 +2492,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       border: 1px solid rgba(99, 208, 255, 0.24);
       border-radius: 16px;
       padding: 26px 28px;
-      margin-bottom: 22px;
+      margin-bottom: 10px;
       box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
     }}
     .hero-title {{
@@ -2537,7 +2542,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       display:flex;
       align-items:center;
       justify-content:space-between;
-      margin-bottom:12px;
+      margin-bottom:6px;
       gap:16px;
       flex-wrap:wrap;
     }}
@@ -2558,7 +2563,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font-size:0.9rem;
       font-style:normal;
     }}
-    .pickup-section {{ margin-bottom: 22px; }}
+    .pickup-section {{ margin-bottom: 12px; }}
     .pickup-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }}
     .ranking-section {{ margin-top: 8px; }}
     .filter-bar {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
@@ -2595,6 +2600,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       align-items: center;
       flex-wrap: wrap;
     }}
+    #page-tabs-top.pagination {{ margin: 0 0 10px; }}
+    #page-tabs-bottom.pagination {{ margin: 20px 0 8px; }}
     .page-btn {{
       min-width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;
       font-size:0.94rem;font-weight:700;color:#1f3b6f;background:#f8fafc;
