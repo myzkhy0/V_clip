@@ -4425,6 +4425,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
               <polyline id="line" fill="none" stroke="url(#lineGrad)" stroke-width="4" points="30,170 870,60" />
               <g id="y-axis-labels"></g>
               <g id="x-axis-labels"></g>
+              <g id="point-labels"></g>
               <g id="dots"></g>
             </svg>
           </div>
@@ -4488,6 +4489,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       const points = mapPoints(values);
       const line = document.getElementById("line");
       const dots = document.getElementById("dots");
+      const pointLabels = document.getElementById("point-labels");
       const yLabels = document.getElementById("y-axis-labels");
       const xLabels = document.getElementById("x-axis-labels");
       const legendL = document.getElementById("legendL");
@@ -4496,6 +4498,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         line.setAttribute("points", "");
         line.setAttribute("stroke", "#f472b6");
         dots.innerHTML = "";
+        pointLabels.innerHTML = "";
         yLabels.innerHTML = "";
         xLabels.innerHTML = "";
         legendL.textContent = "No data";
@@ -4505,6 +4508,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       if (!points.length) {{
         line.setAttribute("points", "");
         dots.innerHTML = "";
+        pointLabels.innerHTML = "";
         yLabels.innerHTML = "";
         xLabels.innerHTML = "";
         legendL.textContent = "No data";
@@ -4514,11 +4518,33 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       line.setAttribute("stroke", metricKey === "likes" ? "#f472b6" : "url(#lineGrad)");
       line.setAttribute("points", points.map(([x,y]) => `${{x.toFixed(1)}},${{y.toFixed(1)}}`).join(" "));
       dots.innerHTML = "";
+      pointLabels.innerHTML = "";
       points.forEach(([x,y]) => {{
         const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); c.setAttribute("r", "3.5");
         c.setAttribute("fill", metricKey === "likes" ? "#f472b6" : "#63d0ff");
         dots.appendChild(c);
+      }});
+      const labelIndexes = [];
+      if (values.length <= 10) {{
+        for (let i = 0; i < values.length; i++) labelIndexes.push(i);
+      }} else {{
+        const step = Math.max(1, Math.floor(values.length / 6));
+        for (let i = 0; i < values.length; i += step) labelIndexes.push(i);
+        if (!labelIndexes.includes(values.length - 1)) labelIndexes.push(values.length - 1);
+      }}
+      labelIndexes.forEach((idx) => {{
+        const p = points[idx];
+        if (!p) return;
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", p[0].toFixed(1));
+        t.setAttribute("y", Math.max(14, p[1] - 8).toFixed(1));
+        t.setAttribute("text-anchor", "middle");
+        t.setAttribute("fill", metricKey === "likes" ? "#be185d" : "#0369a1");
+        t.setAttribute("font-size", "10");
+        t.setAttribute("font-weight", "700");
+        t.textContent = Number(values[idx] || 0).toLocaleString("ja-JP");
+        pointLabels.appendChild(t);
       }});
 
       const min = Math.min(...values);
