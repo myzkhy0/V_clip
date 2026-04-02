@@ -2288,7 +2288,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .card-metrics-stack {{ gap: 4px; }}
     .card-views {{
       color: #10b981;
-      font-size: 1rem;
+      font-size: 0.92rem;
       font-weight: 700;
       line-height: 1.15;
     }}
@@ -2296,7 +2296,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .arrow {{ color: #10b981; }}
     .card-likes {{
       color: #db2777;
-      font-size: 1rem;
+      font-size: 0.92rem;
       font-weight: 700;
       line-height: 1.15;
     }}
