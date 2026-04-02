@@ -2643,8 +2643,25 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .stat-label {{ font-size: 0.62rem; line-height: 1.2; margin-top: 2px; }}
       .cards {{ grid-template-columns:1fr; }}
       .pickup-grid {{ grid-template-columns: 1fr; }}
-      .section-head {{ flex-direction:column; align-items:flex-start; }}
+      .ranking-section {{ margin-top: 4px; }}
+      .section-head {{
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+        gap: 8px;
+      }}
+      .section-title {{
+        font-size: 1.03rem;
+        gap: 8px;
+      }}
+      .section-icon {{
+        width: 28px;
+        height: 28px;
+        font-size: 0.82rem;
+      }}
       .filter-bar {{ width:100%; overflow-x:auto; }}
+      #page-tabs-top.pagination {{ margin: 8px 0 10px; }}
       .footer {{ margin: 18px -14px 0; }}
     }}
   </style>
