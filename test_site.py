@@ -2265,7 +2265,59 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .card-info {{ color: var(--v2-sub); }}
     .card-date {{ color: var(--v2-muted); }}
+    .card-info-top,
+    .card-info-bottom {{ color: var(--v2-sub); }}
+    .channel-link {{
+      color: var(--v2-sub);
+      text-decoration: none;
+    }}
+    .channel-name {{
+      color: var(--v2-sub);
+      font-size: 0.84rem;
+      font-weight: 500;
+    }}
+    .pill {{
+      color: #1f2937;
+      background: #dbe7f3;
+      border: 0;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }}
+    .card-metrics-stack {{ gap: 4px; }}
+    .card-views {{
+      color: #10b981;
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1.15;
+    }}
+    .card-views .view-growth {{ color: #10b981; }}
+    .arrow {{ color: #10b981; }}
+    .card-likes {{
+      color: #db2777;
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1.15;
+    }}
+    .card-date {{
+      color: var(--v2-muted);
+      font-size: 0.9rem;
+      line-height: 1.15;
+    }}
+    .card-actions {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(100,160,240,0.12);
+    }}
     .card-action-link {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
       font-size: 0.8rem;
       font-weight: 700;
       color: var(--v2-sub);
@@ -2273,12 +2325,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       border: 1px solid #c8d2dd;
       border-radius: 6px;
       padding: 7px 10px;
+      white-space: nowrap;
+      text-decoration: none;
     }}
     .card-action-link:hover {{
       background: #e5eaf0;
       color: var(--v2-sub);
       border-color: #c8d2dd;
     }}
+    .card-detail-link {{ margin-left: 0; }}
+    .card-action-icon {{ width: 14px; height: 14px; }}
     .rank-badge {{
       top: 8px;
       left: 8px;
@@ -2352,7 +2408,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       margin-top: 18px;
       padding: 18px 24px 22px;
       border-top: 1px solid rgba(100, 160, 240, 0.18);
-      background: var(--v2-header);
+      border-top-color: rgba(100, 160, 240, 0.18);
+      background: rgba(11, 17, 28, 0.92);
       color: #dbeafe;
       border-radius: 0;
       box-shadow: none;
@@ -2530,11 +2587,22 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     .filter-sep {{ width:1px; height:24px; background: rgba(100,160,240,0.18); }}
     .cards {{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }}
-    .pagination {{ display:flex; gap:6px; margin-top:18px; }}
+    .pagination {{
+      display:flex;
+      gap:10px;
+      margin: 0 0 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }}
     .page-btn {{
       min-width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;
       font-size:0.94rem;font-weight:700;color:#1f3b6f;background:#f8fafc;
       border:1px solid #b8c8de;border-radius:8px;cursor:pointer;font-family:inherit;
+    }}
+    .page-btn:hover {{
+      border-color: #b8c8de;
+      color: #1f3b6f;
+      background: #f8fafc;
     }}
     .page-btn.active {{
       background: linear-gradient(135deg, #63d0ff, #60a5fa);
