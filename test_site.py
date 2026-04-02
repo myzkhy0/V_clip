@@ -787,7 +787,7 @@ def _render_cards(
                 </div>
                 <div class="card-info card-info-bottom">
                     <span class="card-metrics-stack">
-                      <span class="card-views"><em class="arrow">↑</em><span class="view-growth">+{view_growth_value:,}</span></span>
+                    <span class="card-views"><em class="arrow">▶</em><span class="view-growth">+{view_growth_value:,}</span></span>
                     <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
                   </span>
                   <span class="card-date">{html.escape(published_label)}</span>
@@ -2134,6 +2134,128 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       grid-template-columns: repeat(4,minmax(0,1fr));
       gap: 12px;
     }}
+    .pickup-thumb-card {{
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: #ffffff;
+      border: 1px solid var(--v2-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--v2-shadow-sm);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }}
+    .pickup-thumb-card:hover {{
+      transform: translateY(-2px);
+      box-shadow: var(--v2-shadow-md);
+    }}
+    .pickup-thumb-card .pickup-thumb-wrap {{
+      position: relative;
+      aspect-ratio: 16 / 9;
+      background: #1a1e30;
+      overflow: hidden;
+    }}
+    .pickup-thumb-card img {{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }}
+    .pickup-thumb-rank {{
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      min-width: 34px;
+      height: 34px;
+      border-radius: 7px;
+      background: rgba(26, 32, 44, 0.82);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.88rem;
+      font-weight: 800;
+      z-index: 2;
+    }}
+    .pickup-thumb-card .pickup-thumb-new {{
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 2;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #fff;
+      background: #f472b6;
+      padding: 4px 10px;
+      border-radius: 7px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }}
+    .pickup-thumb-card .pickup-body {{
+      padding: 10px 12px;
+    }}
+    .pickup-thumb-card .pickup-title {{
+      margin: 0 0 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--v2-text);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }}
+    .pickup-thumb-card .pickup-info {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }}
+    .pickup-thumb-card .pickup-channel {{
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      flex: 1;
+    }}
+    .pickup-thumb-card .pickup-channel .channel-icon {{
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      border: 1px solid #c8d2dd;
+    }}
+    .pickup-thumb-card .pickup-channel .channel-icon-fallback,
+    .pickup-thumb-card .pickup-channel .channel-avatar {{
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #dbe7f3;
+      color: #1f2937;
+      font-size: 0.62rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }}
+    .pickup-thumb-card .pickup-channel-name {{
+      font-size: 0.74rem;
+      color: var(--v2-sub);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+    .pickup-thumb-card .pickup-group {{
+      flex-shrink: 0;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #1f2937;
+      background: #dbe7f3;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }}
     .card {{
       background: var(--v2-surface);
       border: 1px solid var(--v2-border);
@@ -2492,9 +2614,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const growth = Number(heroStats?.daily_growth_total || 0);
       const fresh = Number(heroStats?.new_24h || 0);
       statsEl.innerHTML = `
-        <div class="stat-item"><span class="stat-value">${{tracking.toLocaleString("ja-JP")}}</span><span class="stat-label">トラッキング動画数</span></div>
-        <div class="stat-item"><span class="stat-value">${{growth.toLocaleString("ja-JP")}}</span><span class="stat-label">本日の総再生増加</span></div>
-        <div class="stat-item"><span class="stat-value">${{fresh.toLocaleString("ja-JP")}}</span><span class="stat-label">新着（24h）</span></div>
+        <div class="stat-item"><span class="stat-value">${{tracking.toLocaleString("ja-JP")}}</span><span class="stat-label">Tracking Videos</span></div>
+        <div class="stat-item"><span class="stat-value">${{growth.toLocaleString("ja-JP")}}</span><span class="stat-label">Daily View Growth</span></div>
+        <div class="stat-item"><span class="stat-value">${{fresh.toLocaleString("ja-JP")}}</span><span class="stat-label">New (24h)</span></div>
       `;
     }}
     function getDailyTop3Items(contentType) {{
@@ -3112,6 +3234,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           thumbAlt: imgEl ? (imgEl.getAttribute("alt") || "") : "",
           rank: rankEl ? (rankEl.textContent || "").trim() : "",
           title: titleEl ? (titleEl.textContent || "").trim() : "",
+          channelName: (card.querySelector(".channel-name")?.textContent || "").trim(),
+          groupName: (card.querySelector(".pill")?.textContent || "").trim(),
+          channelIcon: card.querySelector(".channel-icon")?.getAttribute("src") || "",
         }});
       }});
 
@@ -3150,6 +3275,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const rankLabel = pick.rank || "-";
         const thumbSrc = pick.thumbSrc || "";
         const thumbAlt = pick.title || pick.thumbAlt || "";
+        const channelName = pick.channelName || "";
+        const groupName = pick.groupName || "";
+        const channelIcon = pick.channelIcon || "";
+        const thumbWrap = document.createElement("div");
+        thumbWrap.className = "pickup-thumb-wrap";
         const img = document.createElement("img");
         img.src = thumbSrc;
         img.alt = thumbAlt;
@@ -3158,15 +3288,60 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         rank.className = "pickup-thumb-rank";
         rank.textContent = rankLabel;
         const badge = document.createElement("span");
-        badge.className = "new-badge pickup-thumb-new";
+        badge.className = "pickup-thumb-new";
         badge.textContent = "NEW";
+        thumbWrap.appendChild(img);
+        thumbWrap.appendChild(rank);
+        thumbWrap.appendChild(badge);
+
+        const body = document.createElement("div");
+        body.className = "pickup-body";
         const title = document.createElement("p");
-        title.className = "pickup-thumb-title";
+        title.className = "pickup-title";
         title.textContent = truncatePickupTitle(pick.title || pick.thumbAlt || "", 34);
-        link.appendChild(img);
-        link.appendChild(rank);
-        link.appendChild(badge);
-        link.appendChild(title);
+        const info = document.createElement("div");
+        info.className = "pickup-info";
+        const channel = document.createElement("div");
+        channel.className = "pickup-channel";
+        if (channelIcon) {{
+          const icon = document.createElement("img");
+          icon.className = "channel-icon";
+          icon.src = channelIcon;
+          icon.alt = "";
+          icon.loading = "lazy";
+          icon.referrerPolicy = "no-referrer";
+          const fallback = document.createElement("span");
+          fallback.className = "channel-icon-fallback";
+          fallback.style.display = "none";
+          fallback.textContent = "ch";
+          icon.onerror = () => {{
+            icon.style.display = "none";
+            fallback.style.display = "inline-flex";
+          }};
+          channel.appendChild(icon);
+          channel.appendChild(fallback);
+        }} else {{
+          const avatar = document.createElement("span");
+          avatar.className = "channel-avatar";
+          avatar.textContent = "ch";
+          channel.appendChild(avatar);
+        }}
+        const channelText = document.createElement("span");
+        channelText.className = "pickup-channel-name";
+        channelText.textContent = channelName;
+        channel.appendChild(channelText);
+        info.appendChild(channel);
+        if (groupName) {{
+          const group = document.createElement("span");
+          group.className = "pickup-group";
+          group.textContent = groupName;
+          info.appendChild(group);
+        }}
+        body.appendChild(title);
+        body.appendChild(info);
+
+        link.appendChild(thumbWrap);
+        link.appendChild(body);
         listEl.appendChild(link);
       }});
     }}
