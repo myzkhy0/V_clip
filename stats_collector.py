@@ -81,13 +81,35 @@ def _bulk_insert_stats(stats_rows: list[tuple]) -> None:
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.executemany(
+            cur.execute(
                 """
-                INSERT INTO video_stats (video_id, view_count, like_count, comment_count)
-                VALUES (%s, %s, %s, %s)
-                """,
-                stats_rows,
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'video_stats'
+                  AND column_name = 'comment_count'
+                LIMIT 1
+                """
             )
+            has_comment_count = cur.fetchone() is not None
+
+            if has_comment_count:
+                cur.executemany(
+                    """
+                    INSERT INTO video_stats (video_id, view_count, like_count, comment_count)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    stats_rows,
+                )
+            else:
+                legacy_rows = [(vid, views, likes) for vid, views, likes, _comments in stats_rows]
+                cur.executemany(
+                    """
+                    INSERT INTO video_stats (video_id, view_count, like_count)
+                    VALUES (%s, %s, %s)
+                    """,
+                    legacy_rows,
+                )
         conn.commit()
     finally:
         conn.close()
