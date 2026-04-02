@@ -2260,8 +2260,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       color: var(--v2-text);
       font-size: 1rem;
       font-weight: 600;
+      line-height: 1.45;
       margin-bottom: 8px;
-      min-height: unset;
+      min-height: calc(1.45em * 2);
     }}
     .card-info {{ color: var(--v2-sub); }}
     .card-date {{ color: var(--v2-muted); }}
