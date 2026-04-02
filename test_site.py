@@ -2134,7 +2134,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       grid-template-columns: repeat(4,minmax(0,1fr));
       gap: 12px;
     }}
-    .pickup-thumb-card {{
+    .pickup-card {{
       display: block;
       text-decoration: none;
       color: inherit;
@@ -2145,39 +2145,23 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       box-shadow: var(--v2-shadow-sm);
       transition: transform 0.2s, box-shadow 0.2s;
     }}
-    .pickup-thumb-card:hover {{
+    .pickup-card:hover {{
       transform: translateY(-2px);
       box-shadow: var(--v2-shadow-md);
     }}
-    .pickup-thumb-card .pickup-thumb-wrap {{
+    .pickup-card .pickup-thumb {{
       position: relative;
       aspect-ratio: 16 / 9;
       background: #1a1e30;
       overflow: hidden;
     }}
-    .pickup-thumb-card img {{
+    .pickup-card img {{
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
     }}
-    .pickup-thumb-rank {{
-      position: absolute;
-      top: 8px;
-      left: 8px;
-      min-width: 34px;
-      height: 34px;
-      border-radius: 7px;
-      background: rgba(26, 32, 44, 0.82);
-      color: #fff;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.88rem;
-      font-weight: 800;
-      z-index: 2;
-    }}
-    .pickup-thumb-card .pickup-thumb-new {{
+    .pickup-card .new-badge {{
       position: absolute;
       top: 8px;
       right: 8px;
@@ -2191,10 +2175,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       letter-spacing: 0.06em;
       text-transform: uppercase;
     }}
-    .pickup-thumb-card .pickup-body {{
+    .pickup-card .pickup-body {{
       padding: 10px 12px;
     }}
-    .pickup-thumb-card .pickup-title {{
+    .pickup-card .pickup-title {{
       margin: 0 0 6px;
       font-size: 0.9rem;
       font-weight: 600;
@@ -2205,20 +2189,20 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       -webkit-box-orient: vertical;
       overflow: hidden;
     }}
-    .pickup-thumb-card .pickup-info {{
+    .pickup-card .pickup-info {{
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 6px;
     }}
-    .pickup-thumb-card .pickup-channel {{
+    .pickup-card .pickup-channel {{
       display: flex;
       align-items: center;
       gap: 5px;
       min-width: 0;
       flex: 1;
     }}
-    .pickup-thumb-card .pickup-channel .channel-icon {{
+    .pickup-card .pickup-channel .ch-icon {{
       width: 16px;
       height: 16px;
       border-radius: 50%;
@@ -2226,8 +2210,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       flex-shrink: 0;
       border: 1px solid #c8d2dd;
     }}
-    .pickup-thumb-card .pickup-channel .channel-icon-fallback,
-    .pickup-thumb-card .pickup-channel .channel-avatar {{
+    .pickup-card .pickup-channel .channel-icon-fallback,
+    .pickup-card .pickup-channel .channel-avatar {{
       width: 16px;
       height: 16px;
       border-radius: 50%;
@@ -2240,14 +2224,14 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font-weight: 700;
       flex-shrink: 0;
     }}
-    .pickup-thumb-card .pickup-channel-name {{
+    .pickup-card .pickup-channel .ch-name {{
       font-size: 0.74rem;
       color: var(--v2-sub);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }}
-    .pickup-thumb-card .pickup-group {{
+    .pickup-card .group-tag {{
       flex-shrink: 0;
       font-size: 0.68rem;
       font-weight: 600;
@@ -2374,92 +2358,277 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       box-shadow: none;
     }}
     .footer-links a {{ color: #cfe0ff; }}
+    /* sample structure bindings */
+    .header {{
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(11, 17, 28, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(100, 160, 240, 0.18);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+      border-top: 2px solid rgba(99, 208, 255, 0.34);
+      width: 100%;
+    }}
+    .header-inner {{
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }}
+    .brand {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #e8edf4;
+    }}
+    .brand-logo {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 30px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #63d0ff, #a78bfa);
+      color: #fff;
+      font-weight: 900;
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+    }}
+    .brand-text {{ font-weight: 800; font-size: 1.05rem; }}
+    .brand-accent {{
+      background: linear-gradient(135deg,#63d0ff,#a78bfa);
+      -webkit-background-clip:text;
+      -webkit-text-fill-color:transparent;
+      background-clip:text;
+    }}
+    .header-meta {{ color: rgba(232,237,244,0.9); font-size: 0.82rem; }}
+    .live-dot {{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      color:#10b981;
+      font-weight:600;
+      font-size:0.78rem;
+    }}
+    .live-dot::before {{
+      content:'';
+      width:7px;height:7px;border-radius:50%;background:#10b981;
+      animation:pulse 2s ease-in-out infinite;
+    }}
+    .main {{
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 24px 60px;
+    }}
+    .hero-banner {{
+      background: linear-gradient(135deg, rgba(11, 17, 28, 0.97), rgba(9, 18, 46, 0.95));
+      border: 1px solid rgba(99, 208, 255, 0.24);
+      border-radius: 16px;
+      padding: 26px 28px;
+      margin-bottom: 22px;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+    }}
+    .hero-title {{
+      margin: 0;
+      color: #e0edff;
+      font-size: clamp(1.35rem, 3.1vw, 2.15rem);
+      line-height: 1.25;
+      font-weight: 600;
+    }}
+    .hero-title-accent {{
+      background: linear-gradient(135deg, #7dd3fc, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }}
+    .hero-desc {{
+      margin-top: 10px;
+      color: rgba(208, 226, 255, 0.88);
+      font-size: 1.02rem;
+      line-height: 1.75;
+      max-width: 760px;
+      font-weight: 500;
+    }}
+    .stats-strip {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0;
+      margin-bottom: 28px;
+      border: 1px solid rgba(99, 208, 255, 0.22);
+      border-radius: 16px;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(11, 17, 28, 0.96), rgba(9, 18, 46, 0.94));
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    }}
+    .stat-card {{ padding: 18px 20px; }}
+    .stat-card + .stat-card {{ border-left: 1px solid rgba(99, 208, 255, 0.20); }}
+    .stat-label {{ font-size: 0.76rem; color: rgba(232, 237, 244, 0.72); margin-top: 4px; }}
+    .stat-value {{
+      font-size: 1.4rem;
+      font-weight: 900;
+      background: linear-gradient(135deg,#63d0ff,#a78bfa);
+      -webkit-background-clip:text;
+      -webkit-text-fill-color:transparent;
+      background-clip:text;
+    }}
+    .section-head {{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:18px;
+      gap:16px;
+      flex-wrap:wrap;
+    }}
+    .section-title {{
+      font-size:1.15rem;
+      font-weight:800;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:#1f3344;
+    }}
+    .section-icon {{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:32px;height:32px;border-radius:8px;
+      background:rgba(99,208,255,0.14);
+      font-size:0.9rem;
+      font-style:normal;
+    }}
+    .pickup-section {{ margin-bottom: 32px; }}
+    .pickup-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }}
+    .ranking-section {{ margin-top: 8px; }}
+    .filter-bar {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
+    .tab-group {{
+      display:inline-flex;
+      gap:2px;
+      background:#eef3f8;
+      border:1px solid #d5dee9;
+      border-radius:10px;
+      padding:3px;
+    }}
+    .tab-btn {{
+      border:0;
+      border-radius:8px;
+      background:transparent;
+      color:#334155;
+      font-size:0.9rem;
+      padding:7px 16px;
+      font-weight:700;
+      cursor:pointer;
+      font-family:inherit;
+    }}
+    .tab-btn.active {{
+      background: linear-gradient(135deg, #63d0ff, #a78bfa);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(99, 208, 255, 0.24);
+    }}
+    .filter-sep {{ width:1px; height:24px; background: rgba(100,160,240,0.18); }}
+    .cards {{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }}
+    .pagination {{ display:flex; gap:6px; margin-top:18px; }}
+    .page-btn {{
+      min-width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;
+      font-size:0.94rem;font-weight:700;color:#1f3b6f;background:#f8fafc;
+      border:1px solid #b8c8de;border-radius:8px;cursor:pointer;font-family:inherit;
+    }}
+    .page-btn.active {{
+      background: linear-gradient(135deg, #63d0ff, #60a5fa);
+      color: #fff;
+      border-color: #63b1e6;
+      box-shadow: 0 2px 8px rgba(96, 165, 250, 0.30);
+    }}
+    .back-top-wrap {{ text-align:center; margin:18px 0 10px; }}
+    .back-top-btn {{
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:9px 18px; border-radius:999px; border:1px solid #c8d2dd;
+      background:#eef3f8; color:#1f3b6f; text-decoration:none; font-size:0.84rem; font-weight:700;
+    }}
     @media (max-width: 1024px) {{
-      .cards.new-list {{ grid-template-columns: repeat(2,minmax(0,1fr)); }}
+      .pickup-grid {{ grid-template-columns: repeat(2,minmax(0,1fr)); }}
+      .cards {{ grid-template-columns: repeat(2,1fr); }}
     }}
     @media (max-width: 760px) {{
-      .shell {{ padding: 0 14px 36px; }}
-      .topbar {{ margin: 0 -14px; padding: 0 14px; height: 54px; }}
-      .topbar-title {{ font-size: 0.94rem; }}
-      .pickup-panel, .content {{ padding: 14px; }}
-      .cards.new-list {{ grid-template-columns: 1fr 1fr; }}
+      .header-inner {{ padding: 0 14px; height: 52px; }}
+      .header-meta {{ display:none; }}
+      .main {{ padding: 16px 14px 40px; }}
+      .hero-banner {{ padding: 18px 16px; }}
+      .hero-desc {{ font-size: 0.93rem; }}
+      .stats-strip {{ grid-template-columns: 1fr; }}
+      .stat-card {{ padding: 12px 14px; }}
+      .stat-card + .stat-card {{ border-left:0; border-top:1px solid rgba(99,208,255,0.20); }}
+      .cards {{ grid-template-columns:1fr; }}
+      .pickup-grid {{ grid-template-columns: 1fr 1fr; }}
+      .section-head {{ flex-direction:column; align-items:flex-start; }}
+      .filter-bar {{ width:100%; overflow-x:auto; }}
       .footer {{ margin: 18px -14px 0; }}
     }}
   </style>
 </head>
-<body class="{body_class}">
-  <div class="bg-canvas"></div>
-  <main class="shell">
-    <!-- ── Topbar ── -->
-    <nav class="topbar animate-in">
-      <div class="topbar-brand">
-        <div class="topbar-logo">VCLIP</div>
-        <a class="topbar-title" href="/">VTuber\u5207\u308a\u629c\u304d<span class="topbar-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></a>
-      </div>
+<body class="{body_class}" id="top">
+  <header class="header">
+    <div class="header-inner">
+      <a class="brand" href="/">
+        <span class="brand-logo">VCLIP</span>
+        <span class="brand-text">VTuber\u5207\u308a\u629c\u304d<span class="brand-accent">\u30e9\u30f3\u30ad\u30f3\u30b0</span></span>
+      </a>
+      <div class="header-meta"><span class="live-dot">\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0\u4e2d</span></div>
+    </div>
+  </header>
 
-    </nav>
-
-    <!-- ── Hero ── -->
-    <section class="hero">
-      <section class="glass-panel hero-main animate-in delay-1">
-        <div class="hero-eyebrow">
-          <span class="dot"></span>
-          <span>LIVE \u30fb \u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0\u4e2d</span>
-        </div>
-        <h1 class="hero-heading">
-          VTuber\u5207\u308a\u629c\u304d\u306e<br>
-          <span class="gradient-text">\u30c8\u30ec\u30f3\u30c9\u3092\u4e00\u76ee\u3067\u30c1\u30a7\u30c3\u30af</span>
-        </h1>
-        <p class="hero-desc">
-          Shorts\u30fb\u52d5\u753b\u306e\u518d\u751f\u6570\u5897\u52a0\u3092\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u3067\u96c6\u8a08\u3002<br>
-          \u3044\u307e\u8a71\u984c\u306e\u5207\u308a\u629c\u304d\u3092\u30e9\u30f3\u30ad\u30f3\u30b0\u5f62\u5f0f\u3067\u304a\u5c4a\u3051\u3057\u307e\u3059\u3002
-        </p>
-        <div class="hero-stats" id="hero-stats"></div>
-        {admin_html}
-      </section>
-
+  <main class="main">
+    <section class="hero-banner">
+      <h1 class="hero-title">
+        VTuber\u5207\u308a\u629c\u304d\u306e<br>
+        <span class="hero-title-accent">\u30c8\u30ec\u30f3\u30c9\u3092\u4e00\u76ee\u3067\u30c1\u30a7\u30c3\u30af</span>
+      </h1>
+      <p class="hero-desc">
+        Shorts\u30fb\u52d5\u753b\u306e\u518d\u751f\u6570\u5897\u52a0\u3092\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u3067\u96c6\u8a08\u3002<br>
+        \u3044\u307e\u8a71\u984c\u306e\u5207\u308a\u629c\u304d\u3092\u30e9\u30f3\u30ad\u30f3\u30b0\u5f62\u5f0f\u3067\u304a\u5c4a\u3051\u3057\u307e\u3059\u3002
+      </p>
+      {admin_html}
     </section>
 
-    <section class="glass-panel pickup-panel animate-in delay-2">
-      <div class="side-header">
-        <div class="side-header-icon">\u2728</div>
-        <h2 class="side-title">\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
+    <section class="pickup-section">
+      <div class="section-head">
+        <h2 class="section-title"><span class="section-icon">\u2728</span>\u65b0\u7740\u30d4\u30c3\u30af\u30a2\u30c3\u30d7</h2>
       </div>
-      <div id="new-list" class="cards new-list"></div>
+      <div id="new-list" class="pickup-grid"></div>
     </section>
 
+    <section class="stats-strip" id="hero-stats"></section>
     {admin_board_html}
 
-    <!-- ── Ranking ── -->
-    <section class="glass-panel content animate-in delay-3" id="ranking-section">
-      <div class="content-head">
-        <h2 class="content-title">
-          <em class="section-icon" id="ranking-icon">▶</em><span id="ranking-label">Shorts \u30e9\u30f3\u30ad\u30f3\u30b0</span>
-        </h2>
-        <div class="filter-row">
-          <div class="type-tabs" id="type-tabs"></div>
-          <div class="filter-divider"></div>
-          <div class="period-tabs" id="period-tabs"></div>
+    <section class="ranking-section" id="ranking-section">
+      <div class="section-head">
+        <h2 class="section-title"><span class="section-icon" id="ranking-icon">▶</span><span id="ranking-label">Shorts \u30e9\u30f3\u30ad\u30f3\u30b0</span></h2>
+        <div class="filter-bar">
+          <div class="tab-group" id="type-tabs"></div>
+          <div class="filter-sep"></div>
+          <div class="tab-group" id="period-tabs"></div>
         </div>
       </div>
-      <div class="page-tabs" id="page-tabs-top"></div>
+      <div class="pagination" id="page-tabs-top"></div>
       <div id="period-root"></div>
-      <div class="page-tabs bottom" id="page-tabs-bottom"></div>
+      <div class="pagination" id="page-tabs-bottom"></div>
     </section>
 
-    <!-- ── Back to top ── -->
-    <div class="back-to-top animate-in">
-      <a id="back-to-top" href="#top"><em class="arrow-up">\u2191</em>TOP\u3078</a>
+    <div class="back-top-wrap">
+      <a id="back-to-top" class="back-top-btn" href="#top">TOP\u306b\u623b\u308b</a>
     </div>
-
-    <footer class="footer animate-in">
-      <div class="footer-links">
-        <a href="/policy">\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc</a>
-        <a href="https://x.com/Vcliprank" target="_blank" rel="noopener noreferrer">\u304a\u554f\u3044\u5408\u308f\u305b</a>
-      </div>
-      <span>VCLIP | VTuber\u5207\u308a\u629c\u304d\u30e9\u30f3\u30ad\u30f3\u30b0 &copy; 2026</span>
-    </footer>
   </main>
+
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="/policy">\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc</a>
+      <a href="https://x.com/Vcliprank" target="_blank" rel="noopener noreferrer">\u304a\u554f\u3044\u5408\u308f\u305b</a>
+    </div>
+    <span>VCLIP | VTuber\u5207\u308a\u629c\u304d\u30e9\u30f3\u30ad\u30f3\u30b0 &copy; 2026</span>
+  </footer>
   <div id="player-modal" class="player-modal" aria-hidden="true">
     <div class="player-sheet" role="dialog" aria-modal="true" aria-label="\u52d5\u753b\u30d7\u30ec\u30a4\u30e4\u30fc">
       <div class="player-topbar">
@@ -2591,7 +2760,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         for (let p = 1; p <= ranges.length; p++) {{
           const range = ranges[p - 1];
           const btn = document.createElement("button");
-          btn.className = "page-tab" + (p === currentPage ? " active" : "");
+          btn.className = "page-btn" + (p === currentPage ? " active" : "");
           btn.textContent = String(p);
           btn.type = "button";
           const page = p;
@@ -2614,9 +2783,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       const growth = Number(heroStats?.daily_growth_total || 0);
       const fresh = Number(heroStats?.new_24h || 0);
       statsEl.innerHTML = `
-        <div class="stat-item"><span class="stat-value">${{tracking.toLocaleString("ja-JP")}}</span><span class="stat-label">Tracking Videos</span></div>
-        <div class="stat-item"><span class="stat-value">${{growth.toLocaleString("ja-JP")}}</span><span class="stat-label">Daily View Growth</span></div>
-        <div class="stat-item"><span class="stat-value">${{fresh.toLocaleString("ja-JP")}}</span><span class="stat-label">New (24h)</span></div>
+        <article class="stat-card"><div class="stat-value">${{tracking.toLocaleString("ja-JP")}}</div><div class="stat-label">Tracking Videos</div></article>
+        <article class="stat-card"><div class="stat-value">${{growth.toLocaleString("ja-JP")}}</div><div class="stat-label">Daily View Growth</div></article>
+        <article class="stat-card"><div class="stat-value">${{fresh.toLocaleString("ja-JP")}}</div><div class="stat-label">New (24h)</div></article>
       `;
     }}
     function getDailyTop3Items(contentType) {{
@@ -3256,7 +3425,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function buildNewPicks() {{
       const listEl = document.getElementById("new-list");
       if (!listEl) return;
-      const maxPickCount = window.innerWidth <= MOBILE_BREAKPOINT ? 1 : 4;
+      const maxPickCount = 4;
       const pool = getNewPickPool();
       const picks = pool.slice(0, maxPickCount);
       if (!picks.length) {{
@@ -3266,7 +3435,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       listEl.innerHTML = "";
       picks.forEach((pick, i) => {{
         const link = document.createElement("a");
-        link.className = "pickup-thumb-card animate-in";
+        link.className = "pickup-card animate-in";
         link.style.animationDelay = `${{0.3 + i * 0.1}}s`;
         link.href = "#ranking-section";
         link.dataset.videoId = pick.videoId;
@@ -3279,16 +3448,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const groupName = pick.groupName || "";
         const channelIcon = pick.channelIcon || "";
         const thumbWrap = document.createElement("div");
-        thumbWrap.className = "pickup-thumb-wrap";
+        thumbWrap.className = "pickup-thumb";
         const img = document.createElement("img");
         img.src = thumbSrc;
         img.alt = thumbAlt;
         img.loading = "lazy";
         const rank = document.createElement("span");
-        rank.className = "pickup-thumb-rank";
+        rank.className = "rank-badge";
         rank.textContent = rankLabel;
         const badge = document.createElement("span");
-        badge.className = "pickup-thumb-new";
+        badge.className = "new-badge";
         badge.textContent = "NEW";
         thumbWrap.appendChild(img);
         thumbWrap.appendChild(rank);
@@ -3305,13 +3474,13 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         channel.className = "pickup-channel";
         if (channelIcon) {{
           const icon = document.createElement("img");
-          icon.className = "channel-icon";
+          icon.className = "ch-icon";
           icon.src = channelIcon;
           icon.alt = "";
           icon.loading = "lazy";
           icon.referrerPolicy = "no-referrer";
           const fallback = document.createElement("span");
-          fallback.className = "channel-icon-fallback";
+          fallback.className = "channel-icon-fallback ch-icon";
           fallback.style.display = "none";
           fallback.textContent = "ch";
           icon.onerror = () => {{
@@ -3322,18 +3491,18 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           channel.appendChild(fallback);
         }} else {{
           const avatar = document.createElement("span");
-          avatar.className = "channel-avatar";
+          avatar.className = "channel-avatar ch-icon";
           avatar.textContent = "ch";
           channel.appendChild(avatar);
         }}
         const channelText = document.createElement("span");
-        channelText.className = "pickup-channel-name";
+        channelText.className = "ch-name";
         channelText.textContent = channelName;
         channel.appendChild(channelText);
         info.appendChild(channel);
         if (groupName) {{
           const group = document.createElement("span");
-          group.className = "pickup-group";
+          group.className = "group-tag";
           group.textContent = groupName;
           info.appendChild(group);
         }}
@@ -3349,7 +3518,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const builtPeriodPanels = new Set();
     function ensureTypeTabs() {{
       if (typeTabs.dataset.ready === "1") {{
-        typeTabs.querySelectorAll(".type-tab").forEach((btn) => {{
+        typeTabs.querySelectorAll(".tab-btn").forEach((btn) => {{
           btn.classList.toggle("active", btn.dataset.type === activeContentType);
         }});
         return;
@@ -3357,7 +3526,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       typeTabs.innerHTML = "";
       ["shorts", "video"].forEach((type) => {{
         const btn = document.createElement("button");
-        btn.className = "type-tab" + (type === activeContentType ? " active" : "");
+        btn.className = "tab-btn" + (type === activeContentType ? " active" : "");
         btn.textContent = type === "shorts" ? "Shorts" : "\u52d5\u753b";
         btn.type = "button";
         btn.dataset.type = type;
@@ -3371,7 +3540,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     function ensurePeriodTabs() {{
       if (periodTabs.dataset.ready === "1") {{
-        periodTabs.querySelectorAll(".period-tab").forEach((btn) => {{
+        periodTabs.querySelectorAll(".tab-btn").forEach((btn) => {{
           btn.classList.toggle("active", btn.dataset.period === activePeriod);
         }});
         return;
@@ -3379,7 +3548,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       periodTabs.innerHTML = "";
       payload.forEach((period) => {{
         const btn = document.createElement("button");
-        btn.className = "period-tab" + (period.table === activePeriod ? " active" : "");
+        btn.className = "tab-btn" + (period.table === activePeriod ? " active" : "");
         btn.textContent = period.label;
         btn.type = "button";
         btn.dataset.period = period.table;
@@ -3404,7 +3573,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 
       let groupTabsHtml = "";
       if (showAdminMeta && groupsForRender.length > 1) {{
-        groupTabsHtml = '<div class="type-tabs" style="margin-bottom:12px;" id="group-tabs-' + period.table + '"></div>';
+        groupTabsHtml = '<div class="tab-group" style="margin-bottom:12px;" id="group-tabs-' + period.table + '"></div>';
       }}
 
       panel.innerHTML = groupTabsHtml + '<div class="group-root"></div>';
@@ -3423,11 +3592,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         if (gTabs) {{
           groupsForRender.forEach((groupName) => {{
             const gBtn = document.createElement("button");
-            gBtn.className = "type-tab" + (groupName === defaultGroup ? " active" : "");
+            gBtn.className = "tab-btn" + (groupName === defaultGroup ? " active" : "");
             gBtn.textContent = groupLabels[groupName] || groupName;
             gBtn.type = "button";
             gBtn.addEventListener("click", () => {{
-              gTabs.querySelectorAll(".type-tab").forEach((b) => b.classList.remove("active"));
+              gTabs.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
               groupRoot.querySelectorAll(".group-panel").forEach((p) => p.classList.remove("active"));
               gBtn.classList.add("active");
               groupRoot.querySelector(`[data-group="${{groupName}}"]`).classList.add("active");
@@ -3473,7 +3642,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const newListRoot = document.getElementById("new-list");
     if (newListRoot) {{
       newListRoot.addEventListener("click", (event) => {{
-        const trigger = event.target.closest(".pickup-thumb-card");
+        const trigger = event.target.closest(".pickup-card");
         if (!trigger || !trigger.dataset.videoId) return;
         event.preventDefault();
         jumpToVideoCard(
