@@ -2661,7 +2661,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         height: 28px;
         font-size: 0.82rem;
       }}
-      .filter-bar {{ width:100%; overflow-x:auto; }}
+      .filter-bar {{ width:100%; overflow-x:hidden; }}
       #page-tabs-top.pagination {{ margin: 8px 0 10px; }}
       .footer {{ margin: 18px -14px 0; }}
     }}
