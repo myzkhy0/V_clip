@@ -4442,10 +4442,10 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
             <svg viewBox="0 0 900 220" width="100%" height="220">
               <defs><linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#63d0ff" /><stop offset="100%" stop-color="#60a5fa" /></linearGradient></defs>
               <g stroke="rgba(100,116,139,0.26)" stroke-width="1">
-                <line x1="30" y1="30" x2="30" y2="190" /><line x1="30" y1="190" x2="870" y2="190" /><line x1="30" y1="150" x2="870" y2="150" />
-                <line x1="30" y1="110" x2="870" y2="110" /><line x1="30" y1="70" x2="870" y2="70" />
+                <line x1="88" y1="30" x2="88" y2="190" /><line x1="88" y1="190" x2="860" y2="190" /><line x1="88" y1="150" x2="860" y2="150" />
+                <line x1="88" y1="110" x2="860" y2="110" /><line x1="88" y1="70" x2="860" y2="70" />
               </g>
-              <polyline id="line" fill="none" stroke="url(#lineGrad)" stroke-width="4" points="30,170 870,60" />
+              <polyline id="line" fill="none" stroke="url(#lineGrad)" stroke-width="4" points="88,170 860,60" />
               <g id="y-axis-labels"></g>
               <g id="x-axis-labels"></g>
               <g id="point-labels"></g>
@@ -4500,7 +4500,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     function mapPoints(values) {{
       if (!values.length) return [];
       const min = Math.min(...values), max = Math.max(...values), r = Math.max(1, max - min);
-      const left = 30, right = 870, top = 40, bottom = 190;
+      const left = 88, right = 860, top = 40, bottom = 190;
       return values.map((v, i) => [left + i * (right - left) / Math.max(1, values.length - 1), bottom - ((v - min) / r) * (bottom - top)]);
     }}
     function renderTrend() {{
@@ -4581,7 +4581,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       yLabels.innerHTML = "";
         yTicks.forEach((tick) => {{
           const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          t.setAttribute("x", "24");
+          t.setAttribute("x", "78");
           t.setAttribute("y", String(tick.y));
           t.setAttribute("text-anchor", "end");
           t.setAttribute("dominant-baseline", "middle");
