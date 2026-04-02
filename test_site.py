@@ -4388,6 +4388,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       .hero-top3-thumb-wrap {{ width:96px; }}
       .action-row {{ grid-template-columns:1fr; }}
       .related-item {{ grid-template-columns:96px 1fr; }}
+      .chart-box {{ overflow-x:auto; padding:10px; }}
+      .trend-svg {{ min-width:640px; height:238px; }}
+      .legend {{ font-size:.84rem; color:#334155; }}
     }}
   </style>
 </head>
@@ -4439,7 +4442,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
             </div>
           </div>
           <div class="chart-box">
-            <svg viewBox="0 0 900 220" width="100%" height="220">
+            <svg class="trend-svg" viewBox="0 0 900 220" width="100%" height="220">
               <defs><linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#63d0ff" /><stop offset="100%" stop-color="#60a5fa" /></linearGradient></defs>
               <g stroke="rgba(100,116,139,0.26)" stroke-width="1">
                 <line x1="30" y1="30" x2="30" y2="190" /><line x1="30" y1="190" x2="870" y2="190" /><line x1="30" y1="150" x2="870" y2="150" />
@@ -4504,6 +4507,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       return values.map((v, i) => [left + i * (right - left) / Math.max(1, values.length - 1), bottom - ((v - min) / r) * (bottom - top)]);
     }}
     function renderTrend() {{
+      const isMobile = window.matchMedia("(max-width: 760px)").matches;
       const metricKey = activeMetric === "likes" ? "likes" : "views";
       const values = metricKey === "likes"
         ? (activeRange === "30" ? (trendPayload.like_trend_30 || []) : (trendPayload.like_trend_7 || []))
@@ -4544,12 +4548,20 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       pointLabels.innerHTML = "";
       points.forEach(([x,y]) => {{
         const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); c.setAttribute("r", "3.5");
+        c.setAttribute("cx", x.toFixed(1)); c.setAttribute("cy", y.toFixed(1)); c.setAttribute("r", isMobile ? "4" : "3.5");
         c.setAttribute("fill", metricKey === "likes" ? "#f472b6" : "#63d0ff");
         dots.appendChild(c);
       }});
       const labelIndexes = [];
-      if (values.length <= 10) {{
+      if (isMobile) {{
+        if (values.length <= 4) {{
+          for (let i = 0; i < values.length; i++) labelIndexes.push(i);
+        }} else {{
+          [0, Math.floor((values.length - 1) / 2), values.length - 1].forEach((idx) => {{
+            if (idx >= 0 && idx < values.length && !labelIndexes.includes(idx)) labelIndexes.push(idx);
+          }});
+        }}
+      }} else if (values.length <= 10) {{
         for (let i = 0; i < values.length; i++) labelIndexes.push(i);
       }} else {{
         const step = Math.max(1, Math.floor(values.length / 6));
@@ -4563,8 +4575,8 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         t.setAttribute("x", p[0].toFixed(1));
         t.setAttribute("y", Math.max(14, p[1] - 8).toFixed(1));
         t.setAttribute("text-anchor", "middle");
-        t.setAttribute("fill", metricKey === "likes" ? "#be185d" : "#0369a1");
-        t.setAttribute("font-size", "10");
+        t.setAttribute("fill", metricKey === "likes" ? "#9d174d" : "#075985");
+        t.setAttribute("font-size", isMobile ? "11" : "10");
         t.setAttribute("font-weight", "700");
         t.textContent = Number(values[idx] || 0).toLocaleString("ja-JP");
         pointLabels.appendChild(t);
@@ -4585,15 +4597,28 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
           t.setAttribute("y", String(tick.y));
           t.setAttribute("text-anchor", "end");
           t.setAttribute("dominant-baseline", "middle");
-          t.setAttribute("fill", "rgba(71,85,105,0.92)");
-          t.setAttribute("font-size", "10");
+          t.setAttribute("fill", "rgba(51,65,85,0.98)");
+          t.setAttribute("font-size", isMobile ? "11" : "10");
+          t.setAttribute("font-weight", isMobile ? "700" : "600");
           t.textContent = Number(tick.v || 0).toLocaleString("ja-JP");
           yLabels.appendChild(t);
         }});
 
       xLabels.innerHTML = "";
       const xTickIndexes = [];
-      if (values.length <= 7) {{
+      if (isMobile) {{
+        if (values.length <= 4) {{
+          for (let i = 0; i < values.length; i++) xTickIndexes.push(i);
+        }} else if (values.length <= 14) {{
+          [0, Math.floor((values.length - 1) / 2), values.length - 1].forEach((idx) => {{
+            if (idx >= 0 && idx < values.length && !xTickIndexes.includes(idx)) xTickIndexes.push(idx);
+          }});
+        }} else {{
+          [0, Math.floor((values.length - 1) / 3), Math.floor(((values.length - 1) * 2) / 3), values.length - 1].forEach((idx) => {{
+            if (idx >= 0 && idx < values.length && !xTickIndexes.includes(idx)) xTickIndexes.push(idx);
+          }});
+        }}
+      }} else if (values.length <= 7) {{
         for (let i = 0; i < values.length; i++) xTickIndexes.push(i);
       }} else {{
         [0, 4, 9, 14, 19, 24, values.length - 1].forEach((idx) => {{
@@ -4608,8 +4633,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         t.setAttribute("x", point[0].toFixed(1));
         t.setAttribute("y", "206");
         t.setAttribute("text-anchor", "middle");
-        t.setAttribute("fill", "rgba(71,85,105,0.92)");
-        t.setAttribute("font-size", "10");
+        t.setAttribute("fill", "rgba(51,65,85,0.98)");
+        t.setAttribute("font-size", isMobile ? "11" : "10");
+        t.setAttribute("font-weight", isMobile ? "700" : "600");
         t.textContent = d;
         xLabels.appendChild(t);
       }});
@@ -4631,6 +4657,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       }}
       renderTrend();
     }}));
+    window.addEventListener("resize", renderTrend);
     renderTrend();
   </script>
 </body>
