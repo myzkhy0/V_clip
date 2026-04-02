@@ -1119,7 +1119,7 @@ def _fetch_admin_board_data() -> dict:
             """
             SELECT COUNT(*) AS c
             FROM videos
-            WHERE (published_at + interval '9 hours')::date = CURRENT_DATE
+            WHERE (published_at + interval '9 hours')::date = ((NOW() AT TIME ZONE 'Asia/Tokyo')::date)
             """
         )
         if rows:
@@ -1207,7 +1207,7 @@ def _fetch_public_hero_stats() -> dict:
             """
             SELECT COUNT(*) AS c
             FROM videos
-            WHERE published_at >= (NOW() AT TIME ZONE 'UTC') - interval '24 hours'
+            WHERE (published_at + interval '9 hours')::date = ((NOW() AT TIME ZONE 'Asia/Tokyo')::date)
             """
         )
         if rows:
