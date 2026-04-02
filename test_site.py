@@ -2411,6 +2411,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       border-top-color: rgba(100, 160, 240, 0.18);
       background: rgba(11, 17, 28, 0.92);
       color: #dbeafe;
+      opacity: 1;
       border-radius: 0;
       box-shadow: none;
     }}
@@ -2479,7 +2480,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .main {{
       max-width: 1280px;
       margin: 0 auto;
-      padding: 24px 24px 60px;
+      padding: 14px 24px 60px;
     }}
     .hero-banner {{
       background: linear-gradient(135deg, rgba(11, 17, 28, 0.97), rgba(9, 18, 46, 0.95));
@@ -2536,7 +2537,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       display:flex;
       align-items:center;
       justify-content:space-between;
-      margin-bottom:18px;
+      margin-bottom:12px;
       gap:16px;
       flex-wrap:wrap;
     }}
@@ -2557,7 +2558,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       font-size:0.9rem;
       font-style:normal;
     }}
-    .pickup-section {{ margin-bottom: 32px; }}
+    .pickup-section {{ margin-bottom: 22px; }}
     .pickup-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }}
     .ranking-section {{ margin-top: 8px; }}
     .filter-bar {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
