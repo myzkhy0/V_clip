@@ -4556,17 +4556,17 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         {{ y: 40, v: max }},
       ];
       yLabels.innerHTML = "";
-      yTicks.forEach((tick) => {{
-        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.setAttribute("x", "24");
-        t.setAttribute("y", String(tick.y));
-        t.setAttribute("text-anchor", "end");
-        t.setAttribute("dominant-baseline", "middle");
-        t.setAttribute("fill", "rgba(232,237,244,0.62)");
-        t.setAttribute("font-size", "10");
-        t.textContent = Number(tick.v || 0).toLocaleString("ja-JP");
-        yLabels.appendChild(t);
-      }});
+        yTicks.forEach((tick) => {{
+          const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          t.setAttribute("x", "24");
+          t.setAttribute("y", String(tick.y));
+          t.setAttribute("text-anchor", "end");
+          t.setAttribute("dominant-baseline", "middle");
+          t.setAttribute("fill", "rgba(71,85,105,0.92)");
+          t.setAttribute("font-size", "10");
+          t.textContent = Number(tick.v || 0).toLocaleString("ja-JP");
+          yLabels.appendChild(t);
+        }});
 
       xLabels.innerHTML = "";
       const xTickIndexes = [];
@@ -4585,7 +4585,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         t.setAttribute("x", point[0].toFixed(1));
         t.setAttribute("y", "206");
         t.setAttribute("text-anchor", "middle");
-        t.setAttribute("fill", "rgba(232,237,244,0.62)");
+        t.setAttribute("fill", "rgba(71,85,105,0.92)");
         t.setAttribute("font-size", "10");
         t.textContent = d;
         xLabels.appendChild(t);
