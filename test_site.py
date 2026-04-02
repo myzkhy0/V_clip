@@ -2633,12 +2633,16 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .header-meta {{ display:none; }}
       .main {{ padding: 16px 14px 40px; }}
       .hero-banner {{ padding: 18px 16px; }}
-      .hero-desc {{ font-size: 0.93rem; }}
-      .stats-strip {{ grid-template-columns: 1fr; }}
-      .stat-card {{ padding: 12px 14px; }}
-      .stat-card + .stat-card {{ border-left:0; border-top:1px solid rgba(99,208,255,0.20); }}
+      .hero-title {{ font-size: clamp(1.02rem, 5.4vw, 1.24rem); line-height: 1.28; }}
+      .hero-title br, .hero-desc br {{ display: none; }}
+      .hero-desc {{ font-size: 0.82rem; line-height: 1.45; margin-top: 6px; }}
+      .stats-strip {{ grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px; }}
+      .stat-card {{ padding: 8px 8px; text-align: center; }}
+      .stat-card + .stat-card {{ border-left:1px solid rgba(99,208,255,0.20); border-top:0; }}
+      .stat-value {{ font-size: 0.98rem; line-height: 1.2; }}
+      .stat-label {{ font-size: 0.62rem; line-height: 1.2; margin-top: 2px; }}
       .cards {{ grid-template-columns:1fr; }}
-      .pickup-grid {{ grid-template-columns: 1fr 1fr; }}
+      .pickup-grid {{ grid-template-columns: 1fr; }}
       .section-head {{ flex-direction:column; align-items:flex-start; }}
       .filter-bar {{ width:100%; overflow-x:auto; }}
       .footer {{ margin: 18px -14px 0; }}
@@ -3501,7 +3505,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function buildNewPicks() {{
       const listEl = document.getElementById("new-list");
       if (!listEl) return;
-      const maxPickCount = 4;
+      const maxPickCount = window.innerWidth <= MOBILE_BREAKPOINT ? 1 : 4;
       const pool = getNewPickPool();
       const picks = pool.slice(0, maxPickCount);
       if (!picks.length) {{
