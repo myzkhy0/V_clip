@@ -420,12 +420,14 @@ def main() -> None:
 
     if ENABLE_X_AUTO_POST:
         # Requested JST schedule:
-        # 07:00 trending (shorts) / 12:00 trending (video) / 19:00 likes (video) / 00:00 overall
+        # 07:00 trending (shorts) / 12:00 trending (video) / 17:00 likes (shorts)
+        # 22:00 likes (video) / 03:00 overall
         x_jobs = [
             ("trending", "shorts", 7, 0),
             ("trending", "video", 12, 0),
-            ("likes", "video", 19, 0),
-            ("overall", "shorts", 0, 0),
+            ("likes", "shorts", 17, 0),
+            ("likes", "video", 22, 0),
+            ("overall", "shorts", 3, 0),
         ]
         for category, content_type, hour, minute in x_jobs:
             scheduler.add_job(
@@ -440,7 +442,7 @@ def main() -> None:
                 misfire_grace_time=900,
             )
         logger.info(
-            "X auto post enabled: trending/shorts=07:00, trending/video=12:00, likes/video=19:00, overall=00:00 (JST).",
+            "X auto post enabled: trending/shorts=07:00, trending/video=12:00, likes/shorts=17:00, likes/video=22:00, overall=03:00 (JST).",
         )
     else:
         logger.info("X auto post disabled (ENABLE_X_AUTO_POST!=1).")
