@@ -1445,6 +1445,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       --rank-bronze: rgba(205,127,50,0.6);
     }}
     *,*::before,*::after {{ box-sizing:border-box; }}
+    html {{ overflow-x: hidden; }}
     body {{
       margin:0;
       font-family:"Noto Sans JP Local","Hiragino Kaku Gothic ProN",sans-serif;
@@ -2664,7 +2665,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       }}
       .filter-bar {{ width:100%; overflow-x:hidden; }}
       #page-tabs-top.pagination {{ margin: 8px 0 10px; }}
-      .footer {{ margin: 18px -14px 0; }}
+      .footer {{ margin: 18px 0 0; }}
     }}
   </style>
 </head>
