@@ -3483,7 +3483,26 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       if (!daily || !daily.groups || !daily.groups["all"]) return [];
       const tmpDiv = document.createElement("div");
       tmpDiv.innerHTML = daily.groups["all"];
-      const cards = Array.from(tmpDiv.querySelectorAll(".card")).filter((card) => card.querySelector(".new-badge"));
+      const allCards = Array.from(tmpDiv.querySelectorAll(".card"));
+      const newCards = allCards.filter((card) => card.querySelector(".new-badge"));
+      const nowMs = Date.now();
+      const fallbackWindowMs = 48 * 60 * 60 * 1000;
+      const fallbackCards = newCards.length ? [] : allCards
+        .filter((card) => {{
+          const iso = String(card.dataset.publishedAt || "").trim();
+          if (!iso) return false;
+          const publishedAt = new Date(iso);
+          if (Number.isNaN(publishedAt.getTime())) return false;
+          const diff = nowMs - publishedAt.getTime();
+          return diff >= 0 && diff <= fallbackWindowMs;
+        }})
+        .sort((a, b) => {{
+          const at = new Date(String(a.dataset.publishedAt || "")).getTime();
+          const bt = new Date(String(b.dataset.publishedAt || "")).getTime();
+          return bt - at;
+        }});
+      const cards = newCards.length ? newCards : fallbackCards;
+      const badgeLabel = newCards.length ? "NEW" : "";
 
       const dedup = new Map();
       cards.forEach((card) => {{
@@ -3504,6 +3523,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
           channelName: (card.querySelector(".channel-name")?.textContent || "").trim(),
           groupName: (card.querySelector(".pill")?.textContent || "").trim(),
           channelIcon: card.querySelector(".channel-icon")?.getAttribute("src") || "",
+          pickupBadge: badgeLabel,
         }});
       }});
 
@@ -3554,12 +3574,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const rank = document.createElement("span");
         rank.className = "rank-badge";
         rank.textContent = rankLabel;
-        const badge = document.createElement("span");
-        badge.className = "new-badge";
-        badge.textContent = "NEW";
+        const badgeText = String(pick.pickupBadge || "").trim();
+        if (badgeText) {{
+          const badge = document.createElement("span");
+          badge.className = "new-badge";
+          badge.textContent = badgeText;
+          thumbWrap.appendChild(badge);
+        }}
         thumbWrap.appendChild(img);
         thumbWrap.appendChild(rank);
-        thumbWrap.appendChild(badge);
 
         const body = document.createElement("div");
         body.className = "pickup-body";
