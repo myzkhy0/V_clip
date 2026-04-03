@@ -3552,10 +3552,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         return;
       }}
       listEl.innerHTML = "";
-      picks.forEach((pick, i) => {{
+      picks.forEach((pick) => {{
         const link = document.createElement("a");
-        link.className = "pickup-card animate-in";
-        link.style.animationDelay = `${{0.3 + i * 0.1}}s`;
+        link.className = "pickup-card";
         link.href = "#ranking-section";
         link.dataset.videoId = pick.videoId;
         link.dataset.contentType = pick.contentType === "video" ? "video" : "shorts";
