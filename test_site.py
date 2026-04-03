@@ -3891,7 +3891,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
     delta_rows = fetchall(
         """
         WITH latest AS (
-            SELECT view_count, like_count
+            SELECT view_count, like_count, comment_count
             FROM video_stats
             WHERE video_id = %s
             ORDER BY timestamp DESC
