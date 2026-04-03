@@ -2145,7 +2145,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       box-shadow: var(--v2-shadow-sm);
       transition: transform 0.2s, box-shadow 0.2s;
     }}
-    .pickup-card:hover {{
+    .pickup-card:hover,
+    .pickup-card:focus-visible {{
       transform: translateY(-2px);
       box-shadow: var(--v2-shadow-md);
     }}
@@ -2179,7 +2180,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       padding: 10px 12px;
     }}
     .pickup-card .pickup-title {{
-      margin: 0 0 6px;
+      margin: 0;
       font-size: 0.9rem;
       font-weight: 600;
       line-height: 1.4;
@@ -3562,9 +3563,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const rankLabel = pick.rank || "-";
         const thumbSrc = pick.thumbSrc || "";
         const thumbAlt = pick.title || pick.thumbAlt || "";
-        const channelName = pick.channelName || "";
-        const groupName = pick.groupName || "";
-        const channelIcon = pick.channelIcon || "";
         const thumbWrap = document.createElement("div");
         thumbWrap.className = "pickup-thumb";
         const img = document.createElement("img");
@@ -3589,46 +3587,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const title = document.createElement("p");
         title.className = "pickup-title";
         title.textContent = truncatePickupTitle(pick.title || pick.thumbAlt || "", 34);
-        const info = document.createElement("div");
-        info.className = "pickup-info";
-        const channel = document.createElement("div");
-        channel.className = "pickup-channel";
-        if (channelIcon) {{
-          const icon = document.createElement("img");
-          icon.className = "ch-icon";
-          icon.src = channelIcon;
-          icon.alt = "";
-          icon.loading = "lazy";
-          icon.referrerPolicy = "no-referrer";
-          const fallback = document.createElement("span");
-          fallback.className = "channel-icon-fallback ch-icon";
-          fallback.style.display = "none";
-          fallback.textContent = "ch";
-          icon.onerror = () => {{
-            icon.style.display = "none";
-            fallback.style.display = "inline-flex";
-          }};
-          channel.appendChild(icon);
-          channel.appendChild(fallback);
-        }} else {{
-          const avatar = document.createElement("span");
-          avatar.className = "channel-avatar ch-icon";
-          avatar.textContent = "ch";
-          channel.appendChild(avatar);
-        }}
-        const channelText = document.createElement("span");
-        channelText.className = "ch-name";
-        channelText.textContent = channelName;
-        channel.appendChild(channelText);
-        info.appendChild(channel);
-        if (groupName) {{
-          const group = document.createElement("span");
-          group.className = "group-tag";
-          group.textContent = groupName;
-          info.appendChild(group);
-        }}
         body.appendChild(title);
-        body.appendChild(info);
 
         link.appendChild(thumbWrap);
         link.appendChild(body);
