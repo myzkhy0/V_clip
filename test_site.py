@@ -4363,6 +4363,8 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     .side-stack {{ display:grid; gap:14px; }}
     .rank-chip {{ min-width:34px; height:34px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:.9rem; font-weight:800; color:#fff; background:rgba(26,32,44,.82); }}
     .rank-chip.gold {{ background:linear-gradient(135deg,#f59e0b,#facc15); color:#3b2a00; border:1px solid rgba(180,120,0,.45); }}
+    .rank-chip.silver {{ background:linear-gradient(135deg,#94a3b8,#e2e8f0); color:#1f2937; border:1px solid rgba(148,163,184,.5); }}
+    .rank-chip.bronze {{ background:linear-gradient(135deg,#b45309,#d6a77a); color:#fff8ef; border:1px solid rgba(180,83,9,.45); }}
     .related-list {{ display:grid; gap:10px; }}
     .related-item {{ display:grid; grid-template-columns:108px 1fr; gap:9px; text-decoration:none; color:inherit; background:#fff; border:1px solid var(--panel-border); border-radius:10px; overflow:hidden; box-shadow:var(--shadow-sm); transition:transform var(--transition), box-shadow var(--transition); }}
     .related-item:hover {{ transform:translateY(-2px); box-shadow:var(--shadow-md); }}
