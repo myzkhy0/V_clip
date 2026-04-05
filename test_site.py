@@ -4176,12 +4176,19 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     latest_view_count = int(payload.get("latest_view_count") or 0)
     latest_like_count = int(payload.get("latest_like_count") or 0)
     like_rate_label = "-" if latest_view_count <= 0 else f"{(latest_like_count / latest_view_count) * 100:.2f}%"
-    current_rank_title_map = {
-        "daily": "現在順位（24h）",
-        "weekly": "現在順位（weekly）",
-        "monthly": "現在順位（monthly）",
-    }
-    current_rank_title = current_rank_title_map.get(normalized_period, "現在順位（24h）")
+    period_category_label = {
+        "daily": "24時間",
+        "weekly": "7日間",
+        "monthly": "30日間",
+    }.get(normalized_period, "24時間")
+    if isinstance(payload.get("current_rank"), int):
+        rank_chip_value = str(int(payload["current_rank"]))
+    else:
+        rank_chip_value = "-"
+    rank_chip_class = (
+        "gold" if rank_chip_value == "1"
+        else ("silver" if rank_chip_value == "2" else ("bronze" if rank_chip_value == "3" else ""))
+    )
     content_type = (payload.get("content_type") or "").strip().lower()
     top3_heading = "本日のShortsランキング TOP3" if content_type == "shorts" else "本日の動画ランキング TOP3"
     detail_query_suffix = "" if normalized_period == "daily" else f"?period={normalized_period}"
@@ -4449,10 +4456,10 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         <article class="panel">
           <div class="section-head"><span>現在のランキング情報</span></div>
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-            <span class="rank-chip gold">{html.escape(current_rank_label.replace('#', '') if current_rank_label.startswith('#') else '1')}</span>
+            <span class="rank-chip {rank_chip_class}">{html.escape(rank_chip_value)}</span>
             <div style="min-width:0;">
               <div style="font-size:.86rem; color:var(--text-soft);">カテゴリ</div>
-              <div style="font-size:.94rem; font-weight:700; color:#0f172a;">{html.escape('Shorts / 24時間' if content_type == 'shorts' else '動画 / 24時間')}</div>
+              <div style="font-size:.94rem; font-weight:700; color:#0f172a;">{html.escape(('Shorts' if content_type == 'shorts' else '動画') + ' / ' + period_category_label)}</div>
             </div>
           </div>
           <div class="info-list">
