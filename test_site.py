@@ -273,6 +273,13 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
         period_key = "monthly"
     cutoff = datetime.now(timezone.utc) - timedelta(hours=period_hours_map.get(period_key, 24))
     limit = max(1, int(top_n))
+    excluded_channel_ids = _load_excluded_channel_ids()
+    exclude_clause = ""
+    ranking_params: list[object] = [cutoff, cutoff, cutoff, calculated_at]
+    if excluded_channel_ids:
+        exclude_clause = " AND NOT (v.channel_id = ANY(%s))"
+        ranking_params.append(excluded_channel_ids)
+    ranking_params.append(limit)
     rows = fetchall(
         f"""
         SELECT
@@ -361,10 +368,11 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
             LIMIT 1
         ) fc ON TRUE
         WHERE r.calculated_at = %s
+          {exclude_clause}
         ORDER BY r.rank
         LIMIT %s
         """,
-        (cutoff, cutoff, cutoff, calculated_at, limit),
+        tuple(ranking_params),
     )
 
     prev_rank_map: dict[str, int] = {}
