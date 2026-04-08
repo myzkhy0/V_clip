@@ -16,6 +16,7 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -43,6 +44,10 @@ JST = ZoneInfo("Asia/Tokyo")
 _scheduler: BlockingScheduler | None = None
 _STATS_RETRY_JOB_ID = "vclip_stats_ranking_retry_once"
 ENABLE_X_AUTO_POST = os.getenv("ENABLE_X_AUTO_POST", "0").strip() == "1"
+X_AUTO_POST_EXCLUDED_CHANNELS_FILE = os.getenv(
+    "X_AUTO_POST_EXCLUDED_CHANNELS_FILE",
+    str(Path(__file__).resolve().parent / "tweet_excluded_channels.txt"),
+).strip()
 
 
 def _normalize_content_type(content_type: str) -> str:
@@ -211,6 +216,19 @@ def _jst_month_day() -> str:
     return f"{now.month}/{now.day}"
 
 
+def _load_x_auto_post_excluded_channel_ids() -> set[str]:
+    path = Path(X_AUTO_POST_EXCLUDED_CHANNELS_FILE)
+    if not path.exists():
+        return set()
+    excluded: set[str] = set()
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        excluded.add(line)
+    return excluded
+
+
 def _daily_rows_for_x(content_type: str, top_n: int = 200) -> list[dict]:
     normalized = _normalize_content_type(content_type)
     _, strict_rows = _fetch_latest_rankings(_ranking_table_for(normalized), top_n=top_n)
@@ -238,8 +256,17 @@ def _build_trending_text(content_type: str) -> str:
     label = _target_label(content_type)
     month_day = _jst_month_day()
     rows = _daily_rows_for_x(content_type=content_type, top_n=200)
+    excluded_channel_ids = _load_x_auto_post_excluded_channel_ids()
+    if excluded_channel_ids:
+        rows = [
+            row
+            for row in rows
+            if str(row.get("channel_id") or "").strip() not in excluded_channel_ids
+        ]
     new_rows = [row for row in rows if bool(row.get("is_new"))]
     if not new_rows:
+        if excluded_channel_ids:
+            raise RuntimeError("急上昇候補（NEW）が見つかりません（除外チャンネル適用後）")
         raise RuntimeError("急上昇候補（NEW）が見つかりません")
     best = sorted(new_rows, key=lambda r: int(r.get("rank") or 999999))[0]
     title = _truncate_text_for_x(str(best.get("title") or ""), 60)

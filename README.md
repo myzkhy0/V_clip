@@ -52,6 +52,7 @@ cp .env.example .env
 | `X_API_OAUTH1_ACCESS_TOKEN` | OAuth 1.0a Access Token（任意） |
 | `X_API_OAUTH1_ACCESS_TOKEN_SECRET` | OAuth 1.0a Access Token Secret（任意） |
 | `ENABLE_X_AUTO_POST` | `1` で scheduler のX自動投稿を有効化（既定 `0`） |
+| `X_AUTO_POST_EXCLUDED_CHANNELS_FILE` | 急上昇投稿で除外する channel_id リストファイル（既定 `tweet_excluded_channels.txt`） |
 
 `ENABLE_X_AUTO_POST=1` の場合、JSTで以下を自動投稿します。
 
@@ -60,6 +61,8 @@ cp .env.example .env
 - 17:00 `like数が伸びているshorts`
 - 22:00 `like数が伸びている動画`
 - 03:00 `全体データ`
+
+急上昇投稿だけ除外したいチャンネルは `tweet_excluded_channels.txt` に `channel_id` を1行ずつ追加してください。
 
 ### 3. Create Database
 

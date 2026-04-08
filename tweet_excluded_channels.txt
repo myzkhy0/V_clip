@@ -1,0 +1,4 @@
+# Auto-post exclusion list for trending tweets.
+# One channel_id per line, e.g.:
+# UCxxxxxxxxxxxxxxxxxxxxxx
+
