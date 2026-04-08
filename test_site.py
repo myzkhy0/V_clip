@@ -2877,7 +2877,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function applyPagination() {{
       let cards = getCurrentCards();
       const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
-      const deferredCount = isMobile ? 0 : getDeferredCountForActivePanel();
+      let deferredCount = getDeferredCountForActivePanel();
+      if (isMobile && deferredCount > 0) {{
+        mountDeferredCardsForActivePanel();
+        cards = getCurrentCards();
+        deferredCount = 0;
+      }}
       const totalItems = cards.length + deferredCount;
       const ranges = isMobile ? buildMobilePageRanges(totalItems) : buildDesktopPageRanges(totalItems);
       const totalPages = Math.max(1, ranges.length);
@@ -3710,15 +3715,17 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         groupPanel.className = "group-panel" + (groupName === defaultGroup ? " active" : "");
         groupPanel.dataset.group = groupName;
         groupPanel.innerHTML = period.groups[groupName];
-        const contentPanels = Array.from(groupPanel.querySelectorAll(".content-panel"));
-        contentPanels.forEach((contentPanel) => {{
-          const contentType = contentPanel.dataset.contentPanel || "shorts";
-          const cards = Array.from(contentPanel.querySelectorAll(".card"));
-          if (cards.length <= PAGE_SIZE_DESKTOP) return;
-          const deferred = cards.slice(PAGE_SIZE_DESKTOP);
-          deferredCardsByPanel.set(`${{period.table}}::${{groupName}}::${{contentType}}`, deferred.map((card) => card.outerHTML));
-          deferred.forEach((card) => card.remove());
-        }});
+        if (window.innerWidth > MOBILE_BREAKPOINT) {{
+          const contentPanels = Array.from(groupPanel.querySelectorAll(".content-panel"));
+          contentPanels.forEach((contentPanel) => {{
+            const contentType = contentPanel.dataset.contentPanel || "shorts";
+            const cards = Array.from(contentPanel.querySelectorAll(".card"));
+            if (cards.length <= PAGE_SIZE_DESKTOP) return;
+            const deferred = cards.slice(PAGE_SIZE_DESKTOP);
+            deferredCardsByPanel.set(`${{period.table}}::${{groupName}}::${{contentType}}`, deferred.map((card) => card.outerHTML));
+            deferred.forEach((card) => card.remove());
+          }});
+        }}
         groupRoot.appendChild(groupPanel);
       }});
 
