@@ -4356,6 +4356,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     .player iframe {{ width:100%; height:100%; border:0; display:block; }}
     .action-row {{ margin-top:10px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }}
     .action-btn {{ display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:8px; border:1px solid #c8d2dd; background:#e5eaf0; color:#334155; text-decoration:none; font-size:.82rem; font-weight:700; padding:8px 10px; }}
+    .action-btn .btn-icon {{ width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 14px; }}
+    .action-btn .btn-icon svg {{ width:14px; height:14px; display:block; }}
+    .action-btn .btn-icon.xmark {{ font-size:13px; font-weight:800; line-height:1; }}
     .info-list {{ display:grid; gap:8px; }}
     .info-row {{ display:flex; justify-content:space-between; gap:8px; font-size:.84rem; color:var(--text-sub); }}
     .info-row strong {{ color:#0f172a; font-weight:700; }}
@@ -4427,8 +4430,8 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
             <iframe src="https://www.youtube-nocookie.com/embed/{video_id_escaped}?rel=0&playsinline=1" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
           </div>
           <div class="action-row">
-            <a class="action-btn" href="{yt_url}" target="_blank" rel="noopener noreferrer">YouTube</a>
-            <a class="action-btn" href="{detail_share_url}" target="_blank" rel="noopener noreferrer">シェア</a>
+            <a class="action-btn" href="{yt_url}" target="_blank" rel="noopener noreferrer"><span class="btn-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="5" width="20" height="14" rx="4" fill="#ff0033"></rect><polygon points="10,9 16,12 10,15" fill="#ffffff"></polygon></svg></span>YouTube</a>
+            <a class="action-btn" href="{detail_share_url}" target="_blank" rel="noopener noreferrer"><span class="btn-icon xmark">𝕏</span>シェア</a>
           </div>
         </article>
         <article class="panel">
