@@ -2777,10 +2777,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     let activePeriod = "{first_period}";
     let activeContentType = "shorts";
     const PAGE_SIZE_MOBILE = 20;
-    const PAGE_SIZE_DESKTOP = 50;
     const MOBILE_BREAKPOINT = 760;
     const pageState = {{}};
-    const deferredCardsByPanel = new Map();
     let cachedNewPickPool = null;
     let newPickLayoutMode = window.innerWidth <= MOBILE_BREAKPOINT ? "mobile" : "desktop";
     const typeConfig = {{
@@ -2825,36 +2823,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     function paginationKey() {{
       return `${{activePeriod}}::${{activeContentType}}`;
     }}
-    function activePanelDeferredKey() {{
-      const activePanel = periodRoot.querySelector(".period-panel.active");
-      if (!activePanel) return "";
-      const groupPanel = activePanel.querySelector(".group-panel.active");
-      if (!groupPanel) return "";
-      const groupName = groupPanel.dataset.group || "all";
-      return `${{activePeriod}}::${{groupName}}::${{activeContentType}}`;
-    }}
-    function getDeferredCountForActivePanel() {{
-      const key = activePanelDeferredKey();
-      if (!key) return 0;
-      const items = deferredCardsByPanel.get(key);
-      return Array.isArray(items) ? items.length : 0;
-    }}
-    function mountDeferredCardsForActivePanel() {{
-      const key = activePanelDeferredKey();
-      if (!key) return;
-      const deferred = deferredCardsByPanel.get(key);
-      if (!Array.isArray(deferred) || !deferred.length) return;
-      const activePanel = periodRoot.querySelector(".period-panel.active");
-      if (!activePanel) return;
-      const contentPanel = activePanel.querySelector(`.group-panel.active .content-panel[data-content-panel="${{activeContentType}}"]`);
-      if (!contentPanel) return;
-      const tmp = document.createElement("div");
-      tmp.innerHTML = deferred.join("");
-      const frag = document.createDocumentFragment();
-      while (tmp.firstElementChild) frag.appendChild(tmp.firstElementChild);
-      contentPanel.appendChild(frag);
-      deferredCardsByPanel.delete(key);
-    }}
     function getCurrentCards() {{
       const activePanel = periodRoot.querySelector(".period-panel.active");
       if (!activePanel) return [];
@@ -2864,8 +2832,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     function buildDesktopPageRanges(totalItems) {{
       if (totalItems <= 0) return [[0, 0]];
-      if (totalItems <= PAGE_SIZE_DESKTOP) return [[0, totalItems]];
-      return [[0, PAGE_SIZE_DESKTOP], [PAGE_SIZE_DESKTOP, totalItems]];
+      if (totalItems <= 51) return [[0, totalItems]];
+      return [[0, 51], [51, totalItems]];
     }}
     function buildMobilePageRanges(totalItems) {{
       const ranges = [];
@@ -2875,21 +2843,15 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       return ranges.length ? ranges : [[0, 0]];
     }}
     function applyPagination() {{
-      let cards = getCurrentCards();
+      const cards = getCurrentCards();
       const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
-      const deferredCount = isMobile ? 0 : getDeferredCountForActivePanel();
-      const totalItems = cards.length + deferredCount;
-      const ranges = isMobile ? buildMobilePageRanges(totalItems) : buildDesktopPageRanges(totalItems);
+      const ranges = isMobile ? buildMobilePageRanges(cards.length) : buildDesktopPageRanges(cards.length);
       const totalPages = Math.max(1, ranges.length);
       const key = paginationKey();
       let currentPage = pageState[key] || 1;
       if (currentPage > totalPages) currentPage = totalPages;
       if (currentPage < 1) currentPage = 1;
       pageState[key] = currentPage;
-      if (!isMobile && currentPage > 1 && deferredCount > 0) {{
-        mountDeferredCardsForActivePanel();
-        cards = getCurrentCards();
-      }}
       const currentRange = ranges[currentPage - 1];
       const start = currentRange[0];
       const end = currentRange[1];
@@ -3710,15 +3672,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         groupPanel.className = "group-panel" + (groupName === defaultGroup ? " active" : "");
         groupPanel.dataset.group = groupName;
         groupPanel.innerHTML = period.groups[groupName];
-        const contentPanels = Array.from(groupPanel.querySelectorAll(".content-panel"));
-        contentPanels.forEach((contentPanel) => {{
-          const contentType = contentPanel.dataset.contentPanel || "shorts";
-          const cards = Array.from(contentPanel.querySelectorAll(".card"));
-          if (cards.length <= PAGE_SIZE_DESKTOP) return;
-          const deferred = cards.slice(PAGE_SIZE_DESKTOP);
-          deferredCardsByPanel.set(`${{period.table}}::${{groupName}}::${{contentType}}`, deferred.map((card) => card.outerHTML));
-          deferred.forEach((card) => card.remove());
-        }});
         groupRoot.appendChild(groupPanel);
       }});
 
