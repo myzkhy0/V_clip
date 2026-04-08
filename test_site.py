@@ -2777,7 +2777,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     let activePeriod = "{first_period}";
     let activeContentType = "shorts";
     const PAGE_SIZE_MOBILE = 20;
-    const PAGE_SIZE_DESKTOP = 20;
     const MOBILE_BREAKPOINT = 760;
     const pageState = {{}};
     let cachedNewPickPool = null;
@@ -2832,11 +2831,9 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       return Array.from(contentPanel.querySelectorAll(".card"));
     }}
     function buildDesktopPageRanges(totalItems) {{
-      const ranges = [];
-      for (let start = 0; start < totalItems; start += PAGE_SIZE_DESKTOP) {{
-        ranges.push([start, Math.min(start + PAGE_SIZE_DESKTOP, totalItems)]);
-      }}
-      return ranges.length ? ranges : [[0, 0]];
+      if (totalItems <= 0) return [[0, 0]];
+      if (totalItems <= 51) return [[0, totalItems]];
+      return [[0, 51], [51, totalItems]];
     }}
     function buildMobilePageRanges(totalItems) {{
       const ranges = [];
