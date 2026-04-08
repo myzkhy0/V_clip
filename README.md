@@ -62,7 +62,7 @@ cp .env.example .env
 - 22:00 `like数が伸びている動画`
 - 03:00 `全体データ`
 
-急上昇投稿だけ除外したいチャンネルは `tweet_excluded_channels.txt` に `channel_id` を1行ずつ追加してください。
+急上昇投稿・like投稿で除外したいチャンネルは `tweet_excluded_channels.txt` に `channel_id` を1行ずつ追加してください。
 
 ### 3. Create Database
 

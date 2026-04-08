@@ -229,6 +229,17 @@ def _load_x_auto_post_excluded_channel_ids() -> set[str]:
     return excluded
 
 
+def _filter_rows_by_x_excluded_channels(rows: list[dict]) -> list[dict]:
+    excluded_channel_ids = _load_x_auto_post_excluded_channel_ids()
+    if not excluded_channel_ids:
+        return rows
+    return [
+        row
+        for row in rows
+        if str(row.get("channel_id") or "").strip() not in excluded_channel_ids
+    ]
+
+
 def _daily_rows_for_x(content_type: str, top_n: int = 200) -> list[dict]:
     normalized = _normalize_content_type(content_type)
     _, strict_rows = _fetch_latest_rankings(_ranking_table_for(normalized), top_n=top_n)
@@ -255,17 +266,12 @@ def _build_overall_text(content_type: str) -> str:
 def _build_trending_text(content_type: str) -> str:
     label = _target_label(content_type)
     month_day = _jst_month_day()
-    rows = _daily_rows_for_x(content_type=content_type, top_n=200)
-    excluded_channel_ids = _load_x_auto_post_excluded_channel_ids()
-    if excluded_channel_ids:
-        rows = [
-            row
-            for row in rows
-            if str(row.get("channel_id") or "").strip() not in excluded_channel_ids
-        ]
+    rows = _filter_rows_by_x_excluded_channels(
+        _daily_rows_for_x(content_type=content_type, top_n=200)
+    )
     new_rows = [row for row in rows if bool(row.get("is_new"))]
     if not new_rows:
-        if excluded_channel_ids:
+        if _load_x_auto_post_excluded_channel_ids():
             raise RuntimeError("急上昇候補（NEW）が見つかりません（除外チャンネル適用後）")
         raise RuntimeError("急上昇候補（NEW）が見つかりません")
     best = sorted(new_rows, key=lambda r: int(r.get("rank") or 999999))[0]
@@ -304,8 +310,12 @@ def _build_top3_text(content_type: str) -> str:
 def _build_likes_text(content_type: str) -> str:
     label = _target_label(content_type)
     month_day = _jst_month_day()
-    rows = _daily_rows_for_x(content_type=content_type, top_n=200)
+    rows = _filter_rows_by_x_excluded_channels(
+        _daily_rows_for_x(content_type=content_type, top_n=200)
+    )
     if not rows:
+        if _load_x_auto_post_excluded_channel_ids():
+            raise RuntimeError("like候補が見つかりません（除外チャンネル適用後）")
         raise RuntimeError("like候補が見つかりません")
     best = sorted(
         rows,
