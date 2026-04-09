@@ -34,7 +34,7 @@ FONT_FILE = r"C:\Users\11bs0\OneDrive\デスクトップ\NotoSansJP-VariableFont
 LOGO_FILE = os.getenv("TEST_SITE_LOGO_FILE", "").strip()
 FAVICON_FILE = os.getenv(
     "TEST_SITE_FAVICON_FILE",
-    str(Path(__file__).resolve().parent / "assets" / "ueno-icon.jpg"),
+    str(Path(__file__).resolve().parent / "assets" / "favicon.ico"),
 ).strip()
 DEFAULT_OG_IMAGE_FILE = str(Path(__file__).resolve().parent / "assets" / "site-logo.jpg")
 ADMIN_TOKEN = os.getenv("TEST_SITE_ADMIN_TOKEN", "")
@@ -99,6 +99,15 @@ CHANNEL_ID_PATTERN = re.compile(r"(UC[0-9A-Za-z_-]{20,})")
 
 
 
+def _favicon_content_type() -> str:
+    suffix = Path(FAVICON_FILE or "").suffix.lower()
+    if suffix == ".png":
+        return "image/png"
+    if suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    return "image/x-icon"
+
+
 def _extract_channel_id(raw: str) -> str:
     value = (raw or "").strip()
     if not value:
@@ -128,13 +137,13 @@ def _build_head_meta(base_url: str, is_admin: bool) -> str:
         elif Path(DEFAULT_OG_IMAGE_FILE).exists():
             og_image_url = f"{base_url}/assets/site-logo.jpg"
         elif FAVICON_FILE and Path(FAVICON_FILE).exists():
-            og_image_url = f"{base_url}/assets/ueno-icon.jpg"
+            og_image_url = f"{base_url}/assets/favicon.ico"
 
     tags = [
         f'<meta name="description" content="{html.escape(SITE_DESCRIPTION, quote=True)}">',
         f'<meta name="robots" content="{robots}">',
-        '<link rel="icon" type="image/jpeg" href="/assets/ueno-icon.jpg">',
-        '<link rel="shortcut icon" href="/assets/ueno-icon.jpg">',
+        '<link rel="icon" type="image/x-icon" href="/assets/favicon.ico">',
+        '<link rel="shortcut icon" href="/assets/favicon.ico">',
     ]
     if canonical_url:
         tags.append(f'<link rel="canonical" href="{html.escape(canonical_url, quote=True)}">')
@@ -4161,7 +4170,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     }
     head_meta = (
         f'<meta name="description" content="{html.escape(detail_description, quote=True)}">\n'
-        f'  <link rel="icon" type="image/jpeg" href="/assets/ueno-icon.jpg">\n'
+        f'  <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">\n'
         f'  <link rel="canonical" href="{html.escape(canonical_url, quote=True)}">\n'
         f'  <meta property="og:type" content="website">\n'
         f'  <meta property="og:site_name" content="{html.escape(SITE_TITLE, quote=True)}">\n'
@@ -4712,7 +4721,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
 
         if path_only == "/favicon.ico":
             self.send_response(302)
-            self.send_header("Location", "/assets/ueno-icon.jpg")
+            self.send_header("Location", "/assets/favicon.ico")
             self.end_headers()
             return
         if path_only == "/assets/noto-sans-jp.ttf":
@@ -4722,7 +4731,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        if path_only == "/assets/ueno-icon.jpg":
+        if path_only in {"/assets/favicon.ico", "/assets/ueno-icon.jpg"}:
             if not FAVICON_FILE:
                 self.send_error(404, "Favicon not configured")
                 return
@@ -4733,7 +4742,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
                 self.send_error(404, "Favicon not found")
                 return
             self.send_response(200)
-            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Type", _favicon_content_type())
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
@@ -4811,7 +4820,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
 
         if path_only == "/favicon.ico":
             self.send_response(302)
-            self.send_header("Location", "/assets/ueno-icon.jpg")
+            self.send_header("Location", "/assets/favicon.ico")
             self.end_headers()
             return
         if path_only == "/assets/noto-sans-jp.ttf":
@@ -4829,7 +4838,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if path_only == "/assets/ueno-icon.jpg":
+        if path_only in {"/assets/favicon.ico", "/assets/ueno-icon.jpg"}:
             if not FAVICON_FILE:
                 self.send_error(404, "Favicon not configured")
                 return
@@ -4840,10 +4849,11 @@ class TestSiteHandler(BaseHTTPRequestHandler):
                 self.send_error(404, "Favicon not found")
                 return
             self.send_response(200)
-            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Type", _favicon_content_type())
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "public, max-age=86400")
             self.end_headers()
+            self.wfile.write(body)
             return
 
         if path_only == "/assets/site-logo.png":
