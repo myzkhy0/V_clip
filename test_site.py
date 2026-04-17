@@ -4215,6 +4215,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         var(--bg);
       line-height: 1.6;
     }}
+    body.player-open {{ overflow:hidden; }}
     .header {{
       position: sticky; top: 0; z-index: 100;
       background: rgba(11, 17, 28, 0.92);
@@ -4352,14 +4353,30 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       .action-row {{ grid-template-columns:1fr; }}
       .related-item {{ grid-template-columns:96px 1fr; }}
       .player-modal {{
-        align-items:flex-end;
-        padding:max(6px, env(safe-area-inset-top)) 6px max(10px, env(safe-area-inset-bottom));
+        align-items:stretch;
+        padding:0;
       }}
-      .player-sheet {{ width:100%; max-height:calc(100dvh - 12px); }}
-      .player-sheet.portrait {{ width:min(94vw,390px); }}
-      .player-head {{ height:50px; padding:6px 8px 8px; }}
-      .player-close {{ width:40px; height:40px; font-size:1.2rem; }}
-      .player-frame.portrait {{ height:min(68dvh, 580px); }}
+      .player-sheet {{
+        width:100vw;
+        height:100dvh;
+        max-height:100dvh;
+        border-radius:0;
+        border:0;
+        box-shadow:none;
+      }}
+      .player-sheet.portrait {{ width:100vw; }}
+      .player-head {{
+        height:56px;
+        padding:max(8px, env(safe-area-inset-top)) 10px 8px;
+      }}
+      .player-close {{
+        width:46px;
+        height:46px;
+        font-size:1.28rem;
+        border-width:2px;
+      }}
+      .player-frame {{ height:calc(100dvh - 56px - env(safe-area-inset-top)); }}
+      .player-frame.portrait {{ height:calc(100dvh - 56px - env(safe-area-inset-top)); }}
     }}
   </style>
 </head>
@@ -4493,11 +4510,13 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       detailPlayerIframe.src = "https://www.youtube-nocookie.com/embed/{video_id_escaped}?rel=0&autoplay=1&playsinline=1";
       detailPlayerModal.classList.add("open");
       detailPlayerModal.setAttribute("aria-hidden", "false");
+      document.body.classList.add("player-open");
     }}
     function closeDetailPlayer() {{
       detailPlayerModal.classList.remove("open");
       detailPlayerModal.setAttribute("aria-hidden", "true");
       detailPlayerIframe.src = "";
+      document.body.classList.remove("player-open");
     }}
     if (detailPlayerLaunch) {{
       detailPlayerLaunch.addEventListener("click", openDetailPlayer);
