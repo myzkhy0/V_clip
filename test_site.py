@@ -4308,14 +4308,11 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       position:relative;
     }}
     .player-sheet.portrait {{
-      width:100vw;
+      width:min(96vw, calc((100dvh - 50px) * 0.5625));
       height:100dvh;
       max-height:100dvh;
       display:grid;
       grid-template-rows:auto 1fr;
-      border-radius:0;
-      border:0;
-      box-shadow:none;
     }}
     .player-head {{
       height:50px; padding:6px 10px; display:flex; align-items:center; justify-content:flex-end;
