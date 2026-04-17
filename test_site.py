@@ -4303,7 +4303,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     }}
     .player-modal.open {{ display:flex; }}
     .player-sheet {{
-      width:min(98vw,1280px); background:#020617; border:1px solid rgba(148,163,184,.45);
+      width:min(96vw,1120px); background:#020617; border:1px solid rgba(148,163,184,.45);
       border-radius:14px; overflow:hidden; box-shadow:0 22px 58px rgba(2,6,23,.55);
       position:relative;
     }}
