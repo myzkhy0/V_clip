@@ -8,6 +8,7 @@ import html
 import json
 import logging
 import os
+import copy
 import random
 import re
 import base64
@@ -15,6 +16,7 @@ import hashlib
 import hmac
 import secrets
 import time
+import threading
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -50,6 +52,12 @@ X_API_OAUTH1_CONSUMER_SECRET = os.getenv("X_API_OAUTH1_CONSUMER_SECRET", "").str
 X_API_OAUTH1_ACCESS_TOKEN = os.getenv("X_API_OAUTH1_ACCESS_TOKEN", "").strip()
 X_API_OAUTH1_ACCESS_TOKEN_SECRET = os.getenv("X_API_OAUTH1_ACCESS_TOKEN_SECRET", "").strip()
 JST = timezone(timedelta(hours=9))
+PERIOD_PAYLOAD_CACHE_TTL_SEC = max(5, int(os.getenv("TEST_SITE_PERIOD_CACHE_TTL_SEC", "30")))
+HERO_STATS_CACHE_TTL_SEC = max(5, int(os.getenv("TEST_SITE_HERO_STATS_CACHE_TTL_SEC", "30")))
+_period_payload_cache_lock = threading.Lock()
+_period_payload_cache: dict[bool, tuple[float, list[dict]]] = {}
+_hero_stats_cache_lock = threading.Lock()
+_hero_stats_cache: tuple[float, dict] | None = None
 
 PERIODS: list[tuple[str, str, str, str]] = [
     ("daily", "24時間", "daily_ranking_shorts", "daily_ranking_video"),
@@ -233,37 +241,29 @@ def _build_robots_txt(base_url: str) -> str:
     return "\n".join(lines) + "\n"
 def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | None, list[dict]]:
     try:
-        latest_row = fetchall(
+        snapshot_rows = fetchall(
             f"""
             SELECT calculated_at
             FROM {table}
+            GROUP BY calculated_at
             ORDER BY calculated_at DESC
-            LIMIT 1
+            LIMIT 2
             """
         )
     except Exception:
         logger.exception("Failed to fetch latest ranking from table %s", table)
         return None, []
 
-    if not latest_row:
+    if not snapshot_rows:
         return None, []
 
-    calculated_at = latest_row[0]["calculated_at"]
+    calculated_at = snapshot_rows[0]["calculated_at"]
 
     previous_ids: set[str] = set()
-    prev_calculated_at: datetime | None = None
-    previous_row = fetchall(
-        f"""
-        SELECT calculated_at
-        FROM {table}
-        WHERE calculated_at < %s
-        ORDER BY calculated_at DESC
-        LIMIT 1
-        """,
-        (calculated_at,),
+    prev_calculated_at: datetime | None = (
+        snapshot_rows[1]["calculated_at"] if len(snapshot_rows) > 1 else None
     )
-    if previous_row:
-        prev_calculated_at = previous_row[0]["calculated_at"]
+    if prev_calculated_at:
         prev_rows = fetchall(
             f"""
             SELECT video_id
@@ -892,6 +892,13 @@ def _render_group_content(
     <div class="content-panel" data-content-panel="video">{video_html}</div>
     """
 def _build_period_payload(is_admin: bool = False) -> list[dict]:
+    cache_key = bool(is_admin)
+    now_ts = time.time()
+    with _period_payload_cache_lock:
+        cached = _period_payload_cache.get(cache_key)
+        if cached and (now_ts - cached[0]) < PERIOD_PAYLOAD_CACHE_TTL_SEC:
+            return copy.deepcopy(cached[1])
+
     payload = []
     top_n = 200 if is_admin else 100
     for period_key, label, shorts_table, video_table in PERIODS:
@@ -959,6 +966,8 @@ def _build_period_payload(is_admin: bool = False) -> list[dict]:
                 "available_groups": available_groups,
             }
         )
+    with _period_payload_cache_lock:
+        _period_payload_cache[cache_key] = (time.time(), copy.deepcopy(payload))
     return payload
 def _load_quota_usage() -> tuple[int, int]:
     """Return (used_units, limit_units) from local quota state file."""
@@ -1190,6 +1199,13 @@ def _fetch_admin_board_data() -> dict:
     return data
 def _fetch_public_hero_stats() -> dict:
     """Public hero metrics for top summary cards."""
+    global _hero_stats_cache
+    now_ts = time.time()
+    with _hero_stats_cache_lock:
+        cached = _hero_stats_cache
+        if cached and (now_ts - cached[0]) < HERO_STATS_CACHE_TTL_SEC:
+            return dict(cached[1])
+
     stats = {
         "tracking_videos": 0,
         "daily_growth_total": 0,
@@ -1232,6 +1248,8 @@ def _fetch_public_hero_stats() -> dict:
     except Exception:
         logger.exception("Failed to fetch new_24h")
 
+    with _hero_stats_cache_lock:
+        _hero_stats_cache = (time.time(), dict(stats))
     return stats
 
 
