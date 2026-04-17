@@ -55,7 +55,7 @@ JST = timezone(timedelta(hours=9))
 PERIOD_PAYLOAD_CACHE_TTL_SEC = max(5, int(os.getenv("TEST_SITE_PERIOD_CACHE_TTL_SEC", "30")))
 HERO_STATS_CACHE_TTL_SEC = max(5, int(os.getenv("TEST_SITE_HERO_STATS_CACHE_TTL_SEC", "30")))
 _period_payload_cache_lock = threading.Lock()
-_period_payload_cache: dict[bool, tuple[float, list[dict]]] = {}
+_period_payload_cache: dict[tuple[bool, str], tuple[float, list[dict]]] = {}
 _hero_stats_cache_lock = threading.Lock()
 _hero_stats_cache: tuple[float, dict] | None = None
 
@@ -64,6 +64,11 @@ PERIODS: list[tuple[str, str, str, str]] = [
     ("weekly", "7日", "weekly_ranking_shorts", "weekly_ranking_video"),
     ("monthly", "30日", "monthly_ranking_shorts", "monthly_ranking_video"),
 ]
+PERIOD_TABLE_MAP: dict[str, tuple[str, str, str]] = {
+    period_key: (label, shorts_table, video_table)
+    for period_key, label, shorts_table, video_table in PERIODS
+}
+LAZY_LOAD_PERIOD_KEYS = {"weekly", "monthly"}
 GROUP_ORDER = [
     "all",
     "Aogiri",
@@ -891,81 +896,113 @@ def _render_group_content(
     <div class="content-panel" data-content-panel="shorts">{shorts_html}</div>
     <div class="content-panel" data-content-panel="video">{video_html}</div>
     """
-def _build_period_payload(is_admin: bool = False) -> list[dict]:
-    cache_key = bool(is_admin)
+def _build_single_period_payload(period_key: str, is_admin: bool = False) -> dict | None:
+    period = PERIOD_TABLE_MAP.get(period_key)
+    if not period:
+        return None
+    label, shorts_table, video_table = period
+    top_n = 200 if is_admin else 100
+    shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table, top_n=top_n)
+    video_calculated_at, video_rows = _fetch_latest_rankings(video_table, top_n=top_n)
+
+    provisional_shorts_rows: list[dict] = []
+    provisional_video_rows: list[dict] = []
+    if period_key == "daily":
+        provisional_shorts_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
+        provisional_video_rows = _fetch_daily_provisional_rows("video", top_n=top_n)
+
+    grouped_shorts: dict[str, list[dict]] = defaultdict(list)
+    grouped_video: dict[str, list[dict]] = defaultdict(list)
+    grouped_provisional_shorts: dict[str, list[dict]] = defaultdict(list)
+    grouped_provisional_video: dict[str, list[dict]] = defaultdict(list)
+
+    grouped_shorts["all"] = shorts_rows
+    grouped_video["all"] = video_rows
+    grouped_provisional_shorts["all"] = provisional_shorts_rows
+    grouped_provisional_video["all"] = provisional_video_rows
+
+    for row in shorts_rows:
+        grouped_shorts[_infer_group(row)].append(row)
+    for row in video_rows:
+        grouped_video[_infer_group(row)].append(row)
+    for row in provisional_shorts_rows:
+        grouped_provisional_shorts[_infer_group(row)].append(row)
+    for row in provisional_video_rows:
+        grouped_provisional_video[_infer_group(row)].append(row)
+
+    available_groups = [
+        group_name
+        for group_name in GROUP_ORDER
+        if grouped_shorts.get(group_name)
+        or grouped_video.get(group_name)
+        or grouped_provisional_shorts.get(group_name)
+        or grouped_provisional_video.get(group_name)
+    ]
+    if not available_groups:
+        available_groups = ["all"]
+    if not is_admin:
+        available_groups = ["all"]
+
+    candidates = [dt for dt in (shorts_calculated_at, video_calculated_at) if dt is not None]
+    calculated_at = max(candidates) if candidates else None
+
+    return {
+        "table": period_key,
+        "label": label,
+        "calculated_at": _fmt_datetime(calculated_at),
+        "groups": {
+            group_name: _render_group_content(
+                grouped_shorts.get(group_name, []),
+                grouped_video.get(group_name, []),
+                show_group=True,
+                period_key=period_key,
+                provisional_shorts_rows=grouped_provisional_shorts.get(group_name, []),
+                provisional_video_rows=grouped_provisional_video.get(group_name, []),
+                top_n=top_n,
+            )
+            for group_name in available_groups
+        },
+        "available_groups": available_groups,
+        "lazy": False,
+    }
+
+
+def _build_period_placeholder(period_key: str) -> dict:
+    label = PERIOD_TABLE_MAP.get(period_key, (period_key, "", ""))[0]
+    return {
+        "table": period_key,
+        "label": label,
+        "calculated_at": "-",
+        "groups": {"all": '<div class="empty">この期間のランキングを読み込み中です...</div>'},
+        "available_groups": ["all"],
+        "lazy": True,
+    }
+
+
+def _build_period_payload(
+    is_admin: bool = False,
+    include_period_keys: set[str] | None = None,
+    include_placeholders: bool = False,
+) -> list[dict]:
+    include_keys = include_period_keys or {period_key for period_key, *_ in PERIODS}
+    include_signature = ",".join(sorted(include_keys))
+    cache_key = (bool(is_admin), include_signature)
     now_ts = time.time()
     with _period_payload_cache_lock:
         cached = _period_payload_cache.get(cache_key)
         if cached and (now_ts - cached[0]) < PERIOD_PAYLOAD_CACHE_TTL_SEC:
             return copy.deepcopy(cached[1])
 
-    payload = []
-    top_n = 200 if is_admin else 100
-    for period_key, label, shorts_table, video_table in PERIODS:
-        shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table, top_n=top_n)
-        video_calculated_at, video_rows = _fetch_latest_rankings(video_table, top_n=top_n)
+    payload: list[dict] = []
+    for period_key, _, _, _ in PERIODS:
+        if period_key in include_keys:
+            period_payload = _build_single_period_payload(period_key, is_admin=is_admin)
+            if period_payload:
+                payload.append(period_payload)
+                continue
+        if include_placeholders:
+            payload.append(_build_period_placeholder(period_key))
 
-        provisional_shorts_rows: list[dict] = []
-        provisional_video_rows: list[dict] = []
-        if period_key == "daily":
-            provisional_shorts_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
-            provisional_video_rows = _fetch_daily_provisional_rows("video", top_n=top_n)
-
-        grouped_shorts: dict[str, list[dict]] = defaultdict(list)
-        grouped_video: dict[str, list[dict]] = defaultdict(list)
-        grouped_provisional_shorts: dict[str, list[dict]] = defaultdict(list)
-        grouped_provisional_video: dict[str, list[dict]] = defaultdict(list)
-
-        grouped_shorts["all"] = shorts_rows
-        grouped_video["all"] = video_rows
-        grouped_provisional_shorts["all"] = provisional_shorts_rows
-        grouped_provisional_video["all"] = provisional_video_rows
-
-        for row in shorts_rows:
-            grouped_shorts[_infer_group(row)].append(row)
-        for row in video_rows:
-            grouped_video[_infer_group(row)].append(row)
-        for row in provisional_shorts_rows:
-            grouped_provisional_shorts[_infer_group(row)].append(row)
-        for row in provisional_video_rows:
-            grouped_provisional_video[_infer_group(row)].append(row)
-
-        available_groups = [
-            group_name
-            for group_name in GROUP_ORDER
-            if grouped_shorts.get(group_name)
-            or grouped_video.get(group_name)
-            or grouped_provisional_shorts.get(group_name)
-            or grouped_provisional_video.get(group_name)
-        ]
-        if not available_groups:
-            available_groups = ["all"]
-        if not is_admin:
-            available_groups = ["all"]
-
-        candidates = [dt for dt in (shorts_calculated_at, video_calculated_at) if dt is not None]
-        calculated_at = max(candidates) if candidates else None
-
-        payload.append(
-            {
-                "table": period_key,
-                "label": label,
-                "calculated_at": _fmt_datetime(calculated_at),
-                "groups": {
-                    group_name: _render_group_content(
-                        grouped_shorts.get(group_name, []),
-                        grouped_video.get(group_name, []),
-                        show_group=True,
-                        period_key=period_key,
-                        provisional_shorts_rows=grouped_provisional_shorts.get(group_name, []),
-                        provisional_video_rows=grouped_provisional_video.get(group_name, []),
-                        top_n=top_n,
-                    )
-                    for group_name in available_groups
-                },
-                "available_groups": available_groups,
-            }
-        )
     with _period_payload_cache_lock:
         _period_payload_cache[cache_key] = (time.time(), copy.deepcopy(payload))
     return payload
@@ -1006,6 +1043,13 @@ def _json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) 
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
     handler.wfile.write(body)
+
+
+def _normalize_period_param(raw: str) -> str:
+    value = (raw or "").strip().lower()
+    if value in PERIOD_TABLE_MAP:
+        return value
+    return ""
 
 
 def _build_oauth1_header_for_x_post(url: str) -> str:
@@ -1389,7 +1433,11 @@ def render_policy_page(base_url: str = "") -> str:
 """
 
 def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
-    payload = _build_period_payload(is_admin=is_admin)
+    payload = _build_period_payload(
+        is_admin=is_admin,
+        include_period_keys={period_key for period_key, *_ in PERIODS if period_key not in LAZY_LOAD_PERIOD_KEYS},
+        include_placeholders=True,
+    )
     first_period = payload[0]["table"] if payload else ""
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
@@ -3391,7 +3439,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         throw new Error("copy_failed");
       }}
     }}
-    function jumpToVideoCard(videoId, contentType = "shorts", period = "daily") {{
+    async function jumpToVideoCard(videoId, contentType = "shorts", period = "daily") {{
       if (!videoId) return;
 
       if (activePeriod !== period || activeContentType !== contentType) {{
@@ -3399,7 +3447,8 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         activeContentType = contentType;
         rankingIcon.textContent = typeConfig[contentType]?.icon || typeConfig.shorts.icon;
         rankingLabel.textContent = typeConfig[contentType]?.label || typeConfig.shorts.label;
-        render();
+        await ensurePeriodLoaded(activePeriod);
+        await render();
       }}
 
       const selector = `.period-panel[data-period="${{period}}"] .content-panel[data-content-panel="${{contentType}}"] .card[data-video-id="${{videoId}}"]`;
@@ -3547,6 +3596,70 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     const periodMap = new Map(payload.map((p) => [p.table, p]));
     const builtPeriodPanels = new Set();
+    const loadingPeriods = new Map();
+    function buildPeriodFetchCandidates(periodTable) {{
+      const normalized = (periodTable || "").toLowerCase();
+      const candidates = [
+        `/rankings-period/${{encodeURIComponent(normalized)}}.json`,
+        `/api/rankings?period=${{encodeURIComponent(normalized)}}`,
+      ];
+      return candidates;
+    }}
+    async function fetchPeriodPayload(periodTable) {{
+      const candidates = buildPeriodFetchCandidates(periodTable);
+      for (const url of candidates) {{
+        try {{
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 12000);
+          const response = await fetch(url, {{ credentials: "same-origin", signal: controller.signal }});
+          clearTimeout(timer);
+          if (!response.ok) continue;
+          const data = await response.json();
+          if (!data || !data.ok || !data.period || data.period.table !== periodTable) continue;
+          return data.period;
+        }} catch (_error) {{
+          continue;
+        }}
+      }}
+      return null;
+    }}
+    async function ensurePeriodLoaded(periodTable) {{
+      const period = periodMap.get(periodTable);
+      if (!period || !period.lazy) return true;
+      if (loadingPeriods.has(periodTable)) {{
+        return loadingPeriods.get(periodTable);
+      }}
+      const loadPromise = (async () => {{
+        const loaded = await fetchPeriodPayload(periodTable);
+        if (!loaded) {{
+          const fallback = periodMap.get(periodTable);
+          if (fallback) {{
+            fallback.lazy = false;
+            fallback.groups = {{
+              all: '<div class="empty">この期間のランキング取得に失敗しました。時間をおいて再試行してください。</div>',
+            }};
+            fallback.available_groups = ["all"];
+            builtPeriodPanels.delete(periodTable);
+          }}
+          return false;
+        }}
+        const target = periodMap.get(periodTable);
+        if (target) {{
+          Object.keys(target).forEach((key) => delete target[key]);
+          Object.assign(target, loaded);
+        }} else {{
+          periodMap.set(periodTable, loaded);
+        }}
+        builtPeriodPanels.delete(periodTable);
+        return true;
+      }})();
+      loadingPeriods.set(periodTable, loadPromise);
+      try {{
+        return await loadPromise;
+      }} finally {{
+        loadingPeriods.delete(periodTable);
+      }}
+    }}
     function ensureTypeTabs() {{
       if (typeTabs.dataset.ready === "1") {{
         typeTabs.querySelectorAll(".tab-btn").forEach((btn) => {{
@@ -3563,7 +3676,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         btn.dataset.type = type;
         btn.addEventListener("click", () => {{
           activeContentType = type;
-          render();
+          void render();
         }});
         typeTabs.appendChild(btn);
       }});
@@ -3583,9 +3696,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         btn.textContent = period.label;
         btn.type = "button";
         btn.dataset.period = period.table;
-        btn.addEventListener("click", () => {{
+        btn.addEventListener("click", async () => {{
           activePeriod = period.table;
-          render();
+          await ensurePeriodLoaded(activePeriod);
+          await render();
         }});
         periodTabs.appendChild(btn);
       }});
@@ -3642,10 +3756,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       builtPeriodPanels.add(periodTable);
     }}
     /* ── Main render ── */
-    function render() {{
+    async function render() {{
       if (!periodMap.has(activePeriod) && payload.length) {{
         activePeriod = payload[0].table;
       }}
+      await ensurePeriodLoaded(activePeriod);
       ensureTypeTabs();
       ensurePeriodTabs();
       ensurePeriodPanel(activePeriod);
@@ -3668,7 +3783,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const trigger = event.target.closest(".pickup-card");
         if (!trigger || !trigger.dataset.videoId) return;
         event.preventDefault();
-        jumpToVideoCard(
+        void jumpToVideoCard(
           trigger.dataset.videoId,
           trigger.dataset.contentType || "shorts",
           trigger.dataset.period || "daily",
@@ -3692,7 +3807,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
 
     buildHeroStats();
     buildNewPicks();
-    render();
+    void render();
     if (showAdminMeta) {{
       bindAdminTargetToggle();
       renderAdminTrendingPicker();
@@ -4940,6 +5055,34 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            return
+
+        if path_only.startswith("/rankings-period/") and path_only.endswith(".json"):
+            period_key = _normalize_period_param(path_only.rsplit("/", 1)[-1].replace(".json", ""))
+            if not period_key:
+                _json_response(self, 400, {"ok": False, "error": "invalid_period"})
+                return
+            token = (query.get("admin_token") or [""])[0]
+            is_admin = bool(ADMIN_TOKEN and token == ADMIN_TOKEN)
+            period_payload = _build_single_period_payload(period_key, is_admin=is_admin)
+            if not period_payload:
+                _json_response(self, 404, {"ok": False, "error": "period_not_found"})
+                return
+            _json_response(self, 200, {"ok": True, "period": period_payload})
+            return
+
+        if path_only == "/api/rankings":
+            period_key = _normalize_period_param((query.get("period") or [""])[0])
+            if not period_key:
+                _json_response(self, 400, {"ok": False, "error": "invalid_period"})
+                return
+            token = (query.get("admin_token") or [""])[0]
+            is_admin = bool(ADMIN_TOKEN and token == ADMIN_TOKEN)
+            period_payload = _build_single_period_payload(period_key, is_admin=is_admin)
+            if not period_payload:
+                _json_response(self, 404, {"ok": False, "error": "period_not_found"})
+                return
+            _json_response(self, 200, {"ok": True, "period": period_payload})
             return
 
         if path_only == "/policy":
