@@ -4303,28 +4303,32 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     }}
     .player-modal.open {{ display:flex; }}
     .player-sheet {{
-      width:min(96vw,1020px); background:#020617; border:1px solid rgba(148,163,184,.45);
+      width:min(98vw,1280px); background:#020617; border:1px solid rgba(148,163,184,.45);
       border-radius:14px; overflow:hidden; box-shadow:0 22px 58px rgba(2,6,23,.55);
       position:relative;
     }}
     .player-sheet.portrait {{
-      width:min(94vw,420px);
-      max-height:calc(100dvh - 20px);
+      width:100vw;
+      height:100dvh;
+      max-height:100dvh;
       display:grid;
       grid-template-rows:auto 1fr;
+      border-radius:0;
+      border:0;
+      box-shadow:none;
     }}
     .player-head {{
-      height:44px; padding:6px 8px; display:flex; align-items:center; justify-content:flex-end;
+      height:50px; padding:6px 10px; display:flex; align-items:center; justify-content:flex-end;
       background:rgba(15,23,42,.9); border-bottom:1px solid rgba(148,163,184,.35);
       position:sticky; top:0; z-index:2;
     }}
     .player-close {{
-      width:36px; height:36px; border-radius:999px; border:1px solid rgba(148,163,184,.55);
-      background:rgba(15,23,42,.75); color:#e2e8f0; cursor:pointer; font-size:1.08rem; line-height:1;
+      width:44px; height:44px; border-radius:999px; border:2px solid rgba(148,163,184,.65);
+      background:rgba(15,23,42,.75); color:#e2e8f0; cursor:pointer; font-size:1.24rem; line-height:1;
       display:inline-flex; align-items:center; justify-content:center;
     }}
     .player-frame {{ width:100%; aspect-ratio:16/9; background:#000; }}
-    .player-frame.portrait {{ aspect-ratio:auto; height:min(72dvh, 640px); }}
+    .player-frame.portrait {{ aspect-ratio:auto; height:calc(100dvh - 50px); }}
     .player-frame iframe {{ width:100%; height:100%; border:0; display:block; }}
     .action-row {{ margin-top:10px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }}
     .action-btn {{ display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:8px; border:1px solid #c8d2dd; background:#e5eaf0; color:#334155; text-decoration:none; font-size:.82rem; font-weight:700; padding:8px 10px; }}
