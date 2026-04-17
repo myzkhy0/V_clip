@@ -4356,10 +4356,10 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         padding:max(6px, env(safe-area-inset-top)) 6px max(10px, env(safe-area-inset-bottom));
       }}
       .player-sheet {{ width:100%; max-height:calc(100dvh - 12px); }}
-      .player-sheet.portrait {{ width:min(94vw,360px); }}
+      .player-sheet.portrait {{ width:min(94vw,390px); }}
       .player-head {{ height:50px; padding:6px 8px 8px; }}
       .player-close {{ width:40px; height:40px; font-size:1.2rem; }}
-      .player-frame.portrait {{ height:min(62dvh, 520px); }}
+      .player-frame.portrait {{ height:min(68dvh, 580px); }}
     }}
   </style>
 </head>
