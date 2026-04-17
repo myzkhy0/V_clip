@@ -1424,12 +1424,7 @@ def render_policy_page(base_url: str = "") -> str:
 </html>
 """
 
-def render_homepage(
-    is_admin: bool = False,
-    base_url: str = "",
-    initial_period: str = "",
-    preload_all_periods: bool = False,
-) -> str:
+def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     normalized_base_url = _normalize_base_url(base_url)
     cache_key = (bool(is_admin), normalized_base_url)
     now_ts = time.time()
@@ -1438,24 +1433,12 @@ def render_homepage(
         if cached and (now_ts - cached[0]) < HOMEPAGE_CACHE_TTL_SEC:
             return cached[1]
 
-    if preload_all_periods:
-        payload = _build_period_payload(
-            is_admin=is_admin,
-            include_period_keys=set(PERIOD_ORDER),
-            include_placeholders=False,
-        )
-    else:
-        payload = _build_period_payload(
-            is_admin=is_admin,
-            include_period_keys=set(PERIOD_ORDER) - set(LAZY_PERIOD_KEYS),
-            include_placeholders=True,
-        )
+    payload = _build_period_payload(
+        is_admin=is_admin,
+        include_period_keys=set(PERIOD_ORDER) - set(LAZY_PERIOD_KEYS),
+        include_placeholders=True,
+    )
     first_period = payload[0]["table"] if payload else ""
-    normalized_initial_period = (initial_period or "").strip().lower()
-    if normalized_initial_period in PERIOD_TABLES and any(
-        str(item.get("table") or "") == normalized_initial_period for item in payload
-    ):
-        first_period = normalized_initial_period
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     hero_stats_json = json.dumps(_fetch_public_hero_stats(), ensure_ascii=False).replace("</", "<\\/")
@@ -3674,13 +3657,6 @@ def render_homepage(
             builtPeriodPanels.delete(periodTable);
           }}
           console.error(error);
-          const retryUrl = new URL(window.location.href);
-          retryUrl.searchParams.set("nolazy", "1");
-          retryUrl.searchParams.set("period", periodTable);
-          if (showAdminMeta && adminTokenFromUrl) {{
-            retryUrl.searchParams.set("admin_token", adminTokenFromUrl);
-          }}
-          window.location.href = retryUrl.toString();
           return fallback;
         }})
         .finally(() => {{
@@ -5102,8 +5078,6 @@ class TestSiteHandler(BaseHTTPRequestHandler):
 
         requested_admin = path_only == "/admin"
         token = (query.get("admin_token") or [""])[0]
-        requested_period = (query.get("period") or [""])[0]
-        no_lazy = ((query.get("nolazy") or [""])[0].strip() == "1")
 
         is_admin = False
         if requested_admin:
@@ -5116,12 +5090,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
 
         base_url = self._request_base_url()
         try:
-            body = render_homepage(
-                is_admin=is_admin,
-                base_url=base_url,
-                initial_period=requested_period,
-                preload_all_periods=no_lazy,
-            ).encode("utf-8", errors="replace")
+            body = render_homepage(is_admin=is_admin, base_url=base_url).encode("utf-8", errors="replace")
         except Exception as exc:
             logger.exception("Failed to render test site")
             body = render_error_page(exc, base_url=base_url).encode("utf-8", errors="replace")
