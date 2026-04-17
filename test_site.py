@@ -4268,7 +4268,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       width:100%; padding:0; cursor:pointer; position:relative; display:block;
       aspect-ratio:16/9;
     }}
-    .player-launch.portrait {{ aspect-ratio:9/16; max-width:420px; }}
+    .player-launch.portrait {{ aspect-ratio:9/16; max-width:420px; margin-left:auto; margin-right:auto; }}
     .player-launch img {{ width:100%; height:100%; object-fit:cover; display:block; opacity:.9; transition:opacity .2s ease; }}
     .player-launch:hover img {{ opacity:1; }}
     .player-launch::after {{
