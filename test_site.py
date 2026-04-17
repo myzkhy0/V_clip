@@ -785,7 +785,7 @@ def _render_cards(
         cards.append(
             f"""
             <article class="card video-card{rank_class}" data-video-id="{video_id}" data-rank="{current_rank}" data-prev-rank="{prev_rank}" data-view-growth-pct="{view_growth_pct}" data-view-growth="{view_growth_value}" data-like-growth="{like_growth}" data-comment-growth="{comment_growth}" data-published-at="{html.escape(published_iso, quote=True)}">
-              <a class="thumb" href="{video_url}" target="_blank" rel="noreferrer"
+              <a class="thumb" href="{detail_url}"
                   data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <div class="{rank_badge_class}">{rank}</div>
@@ -793,7 +793,7 @@ def _render_cards(
                 {duration_html}
               </a>
               <div class="card-meta">
-                <a class="card-title" href="{video_url}" target="_blank" rel="noreferrer"
+                <a class="card-title" href="{detail_url}"
                    data-video-id="{video_id}" data-content-type="{content_type}">{title}</a>
                 <div class="card-info card-info-top">
                   <a class="card-channel channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
@@ -1777,33 +1777,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     .delay-1 {{ animation-delay:0.1s; }}
     .delay-2 {{ animation-delay:0.2s; }}
     .delay-3 {{ animation-delay:0.3s; }}
-    /* ── Player modal ── */
-    .player-modal {{
-      position:fixed;inset:0;background:rgba(2,6,10,0.84);
-      display:none;align-items:center;justify-content:center;z-index:1000;padding:14px;
-    }}
-    .player-modal.open {{ display:flex; }}
-    .player-sheet {{ width:min(94vw,460px);background:#0a131a;border:1px solid var(--glass-border);box-shadow:0 20px 60px rgba(0,0,0,0.55);border-radius:16px;overflow:hidden; }}
-    .player-sheet.landscape {{ width:min(96vw,980px); }}
-    .player-topbar {{
-      height:44px;display:flex;align-items:center;justify-content:space-between;
-      gap:10px;padding:6px 8px;border-bottom:1px solid rgba(231,242,251,0.12);background:rgba(10,19,26,0.92);
-    }}
-    .player-controls {{ display:inline-flex;align-items:center;gap:6px; }}
-    .player-toggle {{
-      min-width:38px;height:30px;border-radius:999px;
-      border:1px solid rgba(231,242,251,0.24);background:rgba(255,255,255,0.04);
-      color:#c9d8e5;font-size:0.78rem;cursor:pointer;font:inherit;padding:0 10px;
-    }}
-    .player-toggle.active {{ background:rgba(99,208,255,0.2);border-color:rgba(99,208,255,0.72);color:#e9f7ff;font-weight:700; }}
-    .player-close {{
-      width:34px;height:34px;border-radius:999px;
-      background:rgba(10,19,26,0.82);color:#e7f2fb;border:1px solid rgba(231,242,251,0.28);
-      font-size:1.15rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font:inherit;
-    }}
-    .player-frame {{ position:relative;width:100%;aspect-ratio:9/16;background:#000; }}
-    .player-frame.landscape {{ aspect-ratio:16/9; }}
-    .player-frame iframe {{ width:100%;height:100%;border:0; }}
     /* ── Admin ── */
     .admin-board {{ border:1px solid var(--glass-border);background:linear-gradient(180deg,#121a25,#0f161f);box-shadow:0 24px 60px rgba(0,0,0,0.35);margin-top:12px;padding:14px;border-radius:16px; }}
     .admin-board-head h2 {{ font-size:1rem;margin:0;color:#e7f2ff; }}
@@ -1973,9 +1946,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       .footer {{ margin-top:20px;font-size:0.72rem;padding-bottom:16px; }}
       .footer-links {{ gap:12px;font-size:0.72rem; }}
       .admin-metric-grid {{ grid-template-columns:1fr; }}
-      .player-modal {{ align-items:flex-end;padding:4px; }}
-      .player-sheet {{ width:100%;max-height:calc(100dvh - 8px); }}
-      .player-frame {{ max-height:calc(100dvh - 130px); }}
     }}
     @media (max-width:400px) {{
       .topbar-brand {{ align-items:center; }}
@@ -2746,20 +2716,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     </div>
     <span>VCLIP | VTuber\u5207\u308a\u629c\u304d\u30e9\u30f3\u30ad\u30f3\u30b0 &copy; 2026</span>
   </footer>
-  <div id="player-modal" class="player-modal" aria-hidden="true">
-    <div class="player-sheet" role="dialog" aria-modal="true" aria-label="\u52d5\u753b\u30d7\u30ec\u30a4\u30e4\u30fc">
-      <div class="player-topbar">
-        <div class="player-controls" role="group" aria-label="\u30d7\u30ec\u30fc\u30e4\u30fc\u8868\u793a\u5207\u66ff">
-          <button id="player-mode-portrait" class="player-toggle active" type="button" aria-label="\u7e26\u8868\u793a">\u7e26</button>
-          <button id="player-mode-landscape" class="player-toggle" type="button" aria-label="\u6a2a\u8868\u793a">\u6a2a</button>
-        </div>
-        <button id="player-close" class="player-close" type="button" aria-label="\u9589\u3058\u308b">\u00d7</button>
-      </div>
-      <div class="player-frame">
-        <iframe id="player-iframe" src="" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
-      </div>
-    </div>
-  </div>
   <script>
     const payload = {payload_json};
     const heroStats = {hero_stats_json};
@@ -2774,13 +2730,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const rankingLabel = document.getElementById("ranking-label");
     const pageTabsTop = document.getElementById("page-tabs-top");
     const pageTabsBottom = document.getElementById("page-tabs-bottom");
-    const playerModal = document.getElementById("player-modal");
-    const playerSheet = playerModal.querySelector(".player-sheet");
-    const playerFrame = playerModal.querySelector(".player-frame");
-    const playerIframe = document.getElementById("player-iframe");
-    const playerClose = document.getElementById("player-close");
-    const playerModePortrait = document.getElementById("player-mode-portrait");
-    const playerModeLandscape = document.getElementById("player-mode-landscape");
     const adminTargetToggle = document.getElementById("admin-target-toggle");
     let adminShareTargetType = "shorts";
     let activePeriod = "{first_period}";
@@ -2794,39 +2743,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       shorts: {{ icon: "▶", label: "Shorts \u30e9\u30f3\u30ad\u30f3\u30b0" }},
       video:  {{ icon: "▦", label: "\u52d5\u753b\u30e9\u30f3\u30ad\u30f3\u30b0" }}
     }};
-
-    function setPlayerLayout(layout) {{
-      const normalized = layout === "landscape" ? "landscape" : "portrait";
-      const isLandscape = normalized === "landscape";
-      playerSheet.classList.toggle("landscape", isLandscape);
-      playerFrame.classList.toggle("landscape", isLandscape);
-      playerModePortrait.classList.toggle("active", !isLandscape);
-      playerModeLandscape.classList.toggle("active", isLandscape);
-    }}
-    function openPlayer(videoId, layout) {{
-      setPlayerLayout(layout);
-      playerIframe.src = `https://www.youtube.com/embed/${{videoId}}?autoplay=1&playsinline=1`;
-      playerModal.classList.add("open");
-      playerModal.setAttribute("aria-hidden", "false");
-    }}
-    function closePlayer() {{
-      playerModal.classList.remove("open");
-      playerModal.setAttribute("aria-hidden", "true");
-      setPlayerLayout("portrait");
-      playerIframe.src = "";
-    }}
-
-    function resolvePlayerLayout(trigger) {{
-      const contentType = (trigger.dataset.contentType || "").toLowerCase();
-      if (contentType !== "video") return "portrait";
-      const card = trigger.closest(".card");
-      const thumbImg = card ? card.querySelector(".thumb img") : null;
-      if (!thumbImg) return "portrait";
-      const w = thumbImg.naturalWidth || thumbImg.clientWidth || 0;
-      const h = thumbImg.naturalHeight || thumbImg.clientHeight || 0;
-      if (h <= 0) return "portrait";
-      return w / h >= 1.2 ? "landscape" : "portrait";
-    }}
 
     /* ── Pagination helpers ── */
     function paginationKey() {{
@@ -3728,14 +3644,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       applyPagination();
     }}
 
-    // Player modal event delegation
-    const handlePlayerTrigger = (event) => {{
-      const trigger = event.target.closest(".thumb, .card-title");
-      if (!trigger || !trigger.dataset.videoId) return;
-      event.preventDefault();
-      openPlayer(trigger.dataset.videoId, resolvePlayerLayout(trigger));
-    }};
-    periodRoot.addEventListener("click", handlePlayerTrigger);
     const newListRoot = document.getElementById("new-list");
     if (newListRoot) {{
       newListRoot.addEventListener("click", (event) => {{
@@ -3749,21 +3657,12 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         );
       }});
     }}
-    playerModePortrait.addEventListener("click", () => setPlayerLayout("portrait"));
-    playerModeLandscape.addEventListener("click", () => setPlayerLayout("landscape"));
-    playerClose.addEventListener("click", closePlayer);
-    playerModal.addEventListener("click", (event) => {{
-      if (event.target === playerModal) closePlayer();
-    }});
     if (backToTop) {{
       backToTop.addEventListener("click", (event) => {{
         event.preventDefault();
         window.scrollTo({{ top: 0, behavior: "smooth" }});
       }});
     }}
-    document.addEventListener("keydown", (event) => {{
-      if (event.key === "Escape" && playerModal.classList.contains("open")) closePlayer();
-    }});
     window.addEventListener("resize", () => {{
       applyPagination();
       const nextMode = window.innerWidth <= MOBILE_BREAKPOINT ? "mobile" : "desktop";
@@ -4265,6 +4164,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     )
     detail_share_text = f"{payload['title']}\n{canonical_url}\n#VCLIP"
     detail_share_url = "https://twitter.com/intent/tweet?text=" + quote(detail_share_text, safe="")
+    player_aspect_class = "landscape" if content_type == "video" else "portrait"
+    player_open_label = "動画プレーヤーを開く" if content_type == "video" else "Shortsプレーヤーを開く"
+    thumbnail_escaped = html.escape(thumbnail_url, quote=True)
 
     body = f"""
 <!doctype html>
@@ -4361,8 +4263,43 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     .content {{ display:grid; grid-template-columns:minmax(0,2fr) minmax(300px,1fr); gap:14px; align-items:start; }}
     .video-title {{ margin:0; font-size:clamp(1.05rem,2vw,1.3rem); line-height:1.45; font-weight:600; }}
     .video-meta {{ margin-top:6px; color:var(--text-sub); font-size:.86rem; display:flex; gap:10px; flex-wrap:wrap; }}
-    .player {{ margin-top:10px; border-radius:12px; overflow:hidden; border:1px solid var(--panel-border); background:#000; aspect-ratio:16/9; }}
-    .player iframe {{ width:100%; height:100%; border:0; display:block; }}
+    .player-launch {{
+      margin-top:10px; border:1px solid var(--panel-border); border-radius:12px; overflow:hidden; background:#000;
+      width:100%; padding:0; cursor:pointer; position:relative; display:block;
+      aspect-ratio:16/9;
+    }}
+    .player-launch.portrait {{ aspect-ratio:9/16; max-width:420px; }}
+    .player-launch img {{ width:100%; height:100%; object-fit:cover; display:block; opacity:.9; transition:opacity .2s ease; }}
+    .player-launch:hover img {{ opacity:1; }}
+    .player-launch::after {{
+      content:'▶ 再生';
+      position:absolute; left:50%; top:50%; transform:translate(-50%, -50%);
+      padding:10px 18px; border-radius:999px; border:1px solid rgba(255,255,255,.35);
+      background:rgba(2,6,23,.72); color:#f8fafc; font-size:.88rem; font-weight:700;
+      backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    }}
+    .player-modal {{
+      position:fixed; inset:0; z-index:1200; display:none; align-items:center; justify-content:center;
+      background:rgba(2,6,23,.82); padding:14px;
+    }}
+    .player-modal.open {{ display:flex; }}
+    .player-sheet {{
+      width:min(96vw,1020px); background:#020617; border:1px solid rgba(148,163,184,.45);
+      border-radius:14px; overflow:hidden; box-shadow:0 22px 58px rgba(2,6,23,.55);
+    }}
+    .player-sheet.portrait {{ width:min(96vw,500px); }}
+    .player-head {{
+      height:44px; padding:6px 8px; display:flex; align-items:center; justify-content:flex-end;
+      background:rgba(15,23,42,.9); border-bottom:1px solid rgba(148,163,184,.35);
+    }}
+    .player-close {{
+      width:32px; height:32px; border-radius:999px; border:1px solid rgba(148,163,184,.55);
+      background:rgba(15,23,42,.75); color:#e2e8f0; cursor:pointer; font-size:1.08rem; line-height:1;
+      display:inline-flex; align-items:center; justify-content:center;
+    }}
+    .player-frame {{ width:100%; aspect-ratio:16/9; background:#000; }}
+    .player-frame.portrait {{ aspect-ratio:9/16; }}
+    .player-frame iframe {{ width:100%; height:100%; border:0; display:block; }}
     .action-row {{ margin-top:10px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }}
     .action-btn {{ display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:8px; border:1px solid #c8d2dd; background:#e5eaf0; color:#334155; text-decoration:none; font-size:.82rem; font-weight:700; padding:8px 10px; }}
     .action-btn .btn-icon {{ width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; flex:0 0 14px; }}
@@ -4407,6 +4344,8 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       .hero-top3-thumb-wrap {{ width:96px; }}
       .action-row {{ grid-template-columns:1fr; }}
       .related-item {{ grid-template-columns:96px 1fr; }}
+      .player-modal {{ align-items:flex-end; padding:6px; }}
+      .player-sheet {{ width:100%; }}
     }}
   </style>
 </head>
@@ -4435,9 +4374,9 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
             <span>公開日: {published_escaped}</span>
             <span>video_id: {video_id_escaped}</span>
           </div>
-          <div class="player">
-            <iframe src="https://www.youtube-nocookie.com/embed/{video_id_escaped}?rel=0&playsinline=1" title="YouTube player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
-          </div>
+          <button class="player-launch {player_aspect_class}" id="detail-player-launch" type="button" aria-label="{player_open_label}">
+            <img src="{thumbnail_escaped}" alt="{title_escaped}" loading="eager" fetchpriority="high">
+          </button>
           <div class="action-row">
             <a class="action-btn" href="{yt_url}" target="_blank" rel="noopener noreferrer"><span class="btn-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="5" width="20" height="14" rx="4" fill="#ff0033"></rect><polygon points="10,9 16,12 10,15" fill="#ffffff"></polygon></svg></span>YouTube</a>
             <a class="action-btn" href="{detail_share_url}" target="_blank" rel="noopener noreferrer"><span class="btn-icon xmark">𝕏</span>シェア</a>
@@ -4513,8 +4452,53 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     </div>
     <span>VCLIP | VTuber切り抜きランキング &copy; 2026</span>
   </footer>
+  <div id="detail-player-modal" class="player-modal" aria-hidden="true">
+    <div class="player-sheet {player_aspect_class}" role="dialog" aria-modal="true" aria-label="動画プレーヤー">
+      <div class="player-head">
+        <button id="detail-player-close" class="player-close" type="button" aria-label="閉じる">×</button>
+      </div>
+      <div class="player-frame {player_aspect_class}">
+        <iframe
+          id="detail-player-iframe"
+          src=""
+          title="YouTube player"
+          loading="lazy"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen
+        ></iframe>
+      </div>
+    </div>
+  </div>
   <script>
     const trendPayload = {payload_json};
+    const detailPlayerLaunch = document.getElementById("detail-player-launch");
+    const detailPlayerModal = document.getElementById("detail-player-modal");
+    const detailPlayerClose = document.getElementById("detail-player-close");
+    const detailPlayerIframe = document.getElementById("detail-player-iframe");
+    function openDetailPlayer() {{
+      detailPlayerIframe.src = "https://www.youtube-nocookie.com/embed/{video_id_escaped}?rel=0&autoplay=1&playsinline=1";
+      detailPlayerModal.classList.add("open");
+      detailPlayerModal.setAttribute("aria-hidden", "false");
+    }}
+    function closeDetailPlayer() {{
+      detailPlayerModal.classList.remove("open");
+      detailPlayerModal.setAttribute("aria-hidden", "true");
+      detailPlayerIframe.src = "";
+    }}
+    if (detailPlayerLaunch) {{
+      detailPlayerLaunch.addEventListener("click", openDetailPlayer);
+    }}
+    if (detailPlayerClose) {{
+      detailPlayerClose.addEventListener("click", closeDetailPlayer);
+    }}
+    if (detailPlayerModal) {{
+      detailPlayerModal.addEventListener("click", (event) => {{
+        if (event.target === detailPlayerModal) closeDetailPlayer();
+      }});
+    }}
+    document.addEventListener("keydown", (event) => {{
+      if (event.key === "Escape" && detailPlayerModal?.classList.contains("open")) closeDetailPlayer();
+    }});
     const tabs = Array.from(document.querySelectorAll(".tab"));
     let activeRange = "7";
     let activeMetric = "views";
