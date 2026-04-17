@@ -3597,27 +3597,6 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     const periodMap = new Map(payload.map((p) => [p.table, p]));
     const periodOrder = payload.map((p) => p.table);
-    const fallbackPeriods = [
-      {{ table: "daily", label: "24時間", lazy: false }},
-      {{ table: "weekly", label: "7日", lazy: true }},
-      {{ table: "monthly", label: "30日", lazy: true }},
-    ];
-    fallbackPeriods.forEach((fallback) => {{
-      if (periodMap.has(fallback.table)) return;
-      const placeholder = {{
-        table: fallback.table,
-        label: fallback.label,
-        calculated_at: "-",
-        groups: {{
-          all: '<div class="empty">この期間のランキングを読み込み中です...</div>',
-        }},
-        available_groups: ["all"],
-        lazy: fallback.lazy,
-      }};
-      payload.push(placeholder);
-      periodMap.set(fallback.table, placeholder);
-      periodOrder.push(fallback.table);
-    }});
     const builtPeriodPanels = new Set();
     const loadingPeriodPromises = new Map();
     async function ensurePeriodLoaded(periodTable) {{
