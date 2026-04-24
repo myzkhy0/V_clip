@@ -3597,6 +3597,55 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const periodMap = new Map(payload.map((p) => [p.table, p]));
     const builtPeriodPanels = new Set();
     const loadingPeriods = new Map();
+    const mountedContentPanels = new Set();
+    function normalizeContentType(type) {{
+      return (type || "").toLowerCase() === "video" ? "video" : "shorts";
+    }}
+    function contentMountKey(periodTable, groupName, contentType) {{
+      return `${{periodTable}}::${{groupName}}::${{normalizeContentType(contentType)}}`;
+    }}
+    function extractSingleContentPanelHtml(groupHtml, contentType) {{
+      const normalized = normalizeContentType(contentType);
+      const raw = String(groupHtml || "");
+      if (!raw.trim()) {{
+        return `<div class="content-panel" data-content-panel="${{normalized}}"><div class="empty">このタブに該当する動画はありません。</div></div>`;
+      }}
+      const tmp = document.createElement("div");
+      tmp.innerHTML = raw;
+      const panel = tmp.querySelector(`.content-panel[data-content-panel="${{normalized}}"]`);
+      if (panel) return panel.outerHTML;
+      const hasAnyContentPanel = !!tmp.querySelector(".content-panel[data-content-panel]");
+      if (hasAnyContentPanel) {{
+        return `<div class="content-panel" data-content-panel="${{normalized}}"><div class="empty">${{normalized === "video" ? "動画" : "Shorts"}}に該当する動画はありません。</div></div>`;
+      }}
+      return `<div class="content-panel" data-content-panel="${{normalized}}">${{raw}}</div>`;
+    }}
+    function mountContentPanelForGroup(periodTable, groupName, contentType) {{
+      const normalized = normalizeContentType(contentType);
+      const groupPanel = periodRoot.querySelector(
+        `.period-panel[data-period="${{periodTable}}"] .group-panel[data-group="${{groupName}}"]`
+      );
+      if (!groupPanel) return;
+      const existing = groupPanel.querySelector(`.content-panel[data-content-panel="${{normalized}}"]`);
+      if (existing) {{
+        mountedContentPanels.add(contentMountKey(periodTable, groupName, normalized));
+        return;
+      }}
+      const period = periodMap.get(periodTable);
+      if (!period || !period.groups) return;
+      const groupHtml = period.groups[groupName] || "";
+      groupPanel.insertAdjacentHTML("beforeend", extractSingleContentPanelHtml(groupHtml, normalized));
+      mountedContentPanels.add(contentMountKey(periodTable, groupName, normalized));
+    }}
+    function ensureActiveContentMounted(periodTable, contentType) {{
+      const normalized = normalizeContentType(contentType);
+      const periodPanel = periodRoot.querySelector(`.period-panel[data-period="${{periodTable}}"]`);
+      if (!periodPanel) return;
+      const activeGroupPanel = periodPanel.querySelector(".group-panel.active");
+      if (!activeGroupPanel) return;
+      const groupName = activeGroupPanel.dataset.group || "all";
+      mountContentPanelForGroup(periodTable, groupName, normalized);
+    }}
     function buildPeriodFetchCandidates(periodTable) {{
       const normalized = (periodTable || "").toLowerCase();
       const candidates = [
@@ -3728,8 +3777,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         const groupPanel = document.createElement("div");
         groupPanel.className = "group-panel" + (groupName === defaultGroup ? " active" : "");
         groupPanel.dataset.group = groupName;
-        groupPanel.innerHTML = period.groups[groupName];
         groupRoot.appendChild(groupPanel);
+        if (groupName === defaultGroup) {{
+          mountContentPanelForGroup(period.table, groupName, activeContentType);
+        }}
       }});
 
       if (showAdminMeta && groupsForRender.length > 1) {{
@@ -3745,6 +3796,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
               groupRoot.querySelectorAll(".group-panel").forEach((p) => p.classList.remove("active"));
               gBtn.classList.add("active");
               groupRoot.querySelector(`[data-group="${{groupName}}"]`).classList.add("active");
+              mountContentPanelForGroup(period.table, groupName, activeContentType);
               applyPagination();
             }});
             gTabs.appendChild(gBtn);
@@ -3764,6 +3816,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       ensureTypeTabs();
       ensurePeriodTabs();
       ensurePeriodPanel(activePeriod);
+      ensureActiveContentMounted(activePeriod, activeContentType);
 
       rankingIcon.textContent = typeConfig[activeContentType]?.icon || typeConfig.shorts.icon;
       rankingLabel.textContent = typeConfig[activeContentType]?.label || typeConfig.shorts.label;
