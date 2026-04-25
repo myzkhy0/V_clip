@@ -32,6 +32,12 @@ def init_db():
             cur.execute(
                 """
                 ALTER TABLE channels
+                ADD COLUMN IF NOT EXISTS subscriber_count BIGINT NOT NULL DEFAULT 0
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE channels
                 ADD COLUMN IF NOT EXISTS is_tracked BOOLEAN NOT NULL DEFAULT TRUE
                 """
             )

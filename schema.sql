@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS channels (
     channel_name        VARCHAR(256) NOT NULL,
     group_name          VARCHAR(128) NOT NULL,
     uploads_playlist_id VARCHAR(64)  NOT NULL DEFAULT '',
+    subscriber_count    BIGINT       NOT NULL DEFAULT 0,
     is_tracked          BOOLEAN      NOT NULL DEFAULT TRUE,
     empty_streak        INTEGER      NOT NULL DEFAULT 0,
     last_checked_at     TIMESTAMP    NULL,

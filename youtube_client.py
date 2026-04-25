@@ -367,34 +367,39 @@ def search_by_keyword(
     return video_ids
 
 
-def _fetch_channel_icon_map(channel_ids: list[str]) -> dict[str, str]:
-    """Fetch channel icon URLs for given channel IDs."""
+def _fetch_channel_profile_map(channel_ids: list[str]) -> dict[str, dict]:
+    """Fetch channel profile fields (icon URL, subscriber count) by channel ID."""
     youtube = _get_youtube()
-    icon_map: dict[str, str] = {}
+    profile_map: dict[str, dict] = {}
     unique_ids = [cid for cid in dict.fromkeys(channel_ids) if cid]
 
     for i in range(0, len(unique_ids), 50):
         batch = unique_ids[i : i + 50]
         request = youtube.channels().list(
-            part="snippet",
+            part="snippet,statistics",
             id=",".join(batch),
             maxResults=50,
         )
-        response = _execute_request(request, "channels.list:icon_map")
+        response = _execute_request(request, "channels.list:profile_map")
 
         for item in response.get("items", []):
             channel_id = item.get("id", "")
             thumbnails = item.get("snippet", {}).get("thumbnails", {})
+            stats = item.get("statistics", {})
             icon_url = (
                 thumbnails.get("default", {}).get("url")
                 or thumbnails.get("medium", {}).get("url")
                 or thumbnails.get("high", {}).get("url")
                 or ""
             )
-            if channel_id and icon_url:
-                icon_map[channel_id] = icon_url
+            subscriber_count = int(stats.get("subscriberCount", 0) or 0)
+            if channel_id:
+                profile_map[channel_id] = {
+                    "icon_url": icon_url,
+                    "subscriber_count": subscriber_count,
+                }
 
-    return icon_map
+    return profile_map
 
 
 # ── Video details ────────────────────────────────────────────────────
@@ -416,6 +421,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
             "comment_count": int,
             "tags_text": str,
             "channel_icon_url": str,
+            "channel_subscriber_count": int,
             "description": str,
             "live_broadcast_content": str,
             "live_actual_start_time": datetime | None,
@@ -437,7 +443,7 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
         raw_items.extend(response.get("items", []))
 
     channel_ids = [item.get("snippet", {}).get("channelId", "") for item in raw_items]
-    icon_map = _fetch_channel_icon_map(channel_ids)
+    profile_map = _fetch_channel_profile_map(channel_ids)
 
     results: list[dict] = []
     for item in raw_items:
@@ -463,7 +469,8 @@ def get_video_details(video_ids: list[str]) -> list[dict]:
                 "like_count": int(stats.get("likeCount", 0)),
                 "comment_count": int(stats.get("commentCount", 0)),
                 "tags_text": " ".join(tags),
-                "channel_icon_url": icon_map.get(channel_id, ""),
+                "channel_icon_url": str(profile_map.get(channel_id, {}).get("icon_url") or ""),
+                "channel_subscriber_count": int(profile_map.get(channel_id, {}).get("subscriber_count", 0) or 0),
                 "description": snippet.get("description", ""),
                 "live_broadcast_content": snippet.get("liveBroadcastContent", ""),
                 "live_actual_start_time": _parse_datetime(live_details.get("actualStartTime", "")),

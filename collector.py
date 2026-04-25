@@ -60,12 +60,12 @@ def seed_channels() -> None:
     if not SEED_CHANNELS:
         return
 
-    resolved_rows: list[tuple[str, str, str, str, bool]] = []
+    resolved_rows: list[tuple[str, str, str, str, bool, int]] = []
     for channel_identifier, channel_name, group_name in SEED_CHANNELS:
         try:
             channel_id = resolve_channel_identifier(channel_identifier)
             uploads_playlist_id = get_uploads_playlist_id(channel_id) or ""
-            resolved_rows.append((channel_id, channel_name, group_name, uploads_playlist_id, True))
+            resolved_rows.append((channel_id, channel_name, group_name, uploads_playlist_id, True, 0))
         except Exception:
             logger.exception("Failed to resolve seed channel %s", channel_identifier)
 
@@ -74,14 +74,18 @@ def seed_channels() -> None:
         return
 
     query = """
-        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id, is_tracked)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id, is_tracked, subscriber_count)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (channel_id) DO UPDATE SET
             channel_name = EXCLUDED.channel_name,
             group_name = EXCLUDED.group_name,
             uploads_playlist_id = CASE
                 WHEN COALESCE(channels.uploads_playlist_id, '') = '' THEN EXCLUDED.uploads_playlist_id
                 ELSE channels.uploads_playlist_id
+            END,
+            subscriber_count = CASE
+                WHEN COALESCE(EXCLUDED.subscriber_count, 0) > 0 THEN EXCLUDED.subscriber_count
+                ELSE COALESCE(channels.subscriber_count, 0)
             END,
             is_tracked = TRUE
     """
@@ -115,18 +119,23 @@ def backfill_channels_from_videos(limit: int = 5000) -> int:
             row.get("group_name", "other") or "other",
             "",
             True,
+            0,
         )
         for row in rows
     ]
 
     query = """
-        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id, is_tracked)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id, is_tracked, subscriber_count)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (channel_id) DO UPDATE SET
             channel_name = EXCLUDED.channel_name,
             group_name = CASE
                 WHEN COALESCE(channels.group_name, '') IN ('', 'other') THEN EXCLUDED.group_name
                 ELSE channels.group_name
+            END,
+            subscriber_count = CASE
+                WHEN COALESCE(EXCLUDED.subscriber_count, 0) > 0 THEN EXCLUDED.subscriber_count
+                ELSE COALESCE(channels.subscriber_count, 0)
             END,
             is_tracked = TRUE
     """
@@ -663,7 +672,7 @@ def _infer_group_name(detail: dict, group_map: dict[str, str]) -> str:
 
 def _upsert_discovered_channels(details: list[dict], group_map: dict[str, str]) -> None:
     """Persist discovered source channels and include them in tracked crawl targets."""
-    seen: dict[str, tuple[str, str, str, str, bool]] = {}
+    seen: dict[str, tuple[str, str, str, str, bool, int]] = {}
     for detail in details:
         channel_id = detail.get("channel_id", "")
         if not channel_id:
@@ -671,6 +680,16 @@ def _upsert_discovered_channels(details: list[dict], group_map: dict[str, str]) 
         inferred_group = _infer_group_name(detail, group_map)
         group_map.setdefault(channel_id, inferred_group)
         if channel_id in seen:
+            if int(detail.get("channel_subscriber_count") or 0) > int(seen[channel_id][5] or 0):
+                channel_id_val, channel_name_val, inferred_group_val, uploads_playlist_id_val, is_tracked_val, _ = seen[channel_id]
+                seen[channel_id] = (
+                    channel_id_val,
+                    channel_name_val,
+                    inferred_group_val,
+                    uploads_playlist_id_val,
+                    is_tracked_val,
+                    int(detail.get("channel_subscriber_count") or 0),
+                )
             continue
         seen[channel_id] = (
             channel_id,
@@ -678,6 +697,7 @@ def _upsert_discovered_channels(details: list[dict], group_map: dict[str, str]) 
             inferred_group,
             "",
             True,
+            int(detail.get("channel_subscriber_count") or 0),
         )
 
     rows = list(seen.values())
@@ -685,8 +705,8 @@ def _upsert_discovered_channels(details: list[dict], group_map: dict[str, str]) 
         return
 
     query = """
-        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id, is_tracked)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO channels (channel_id, channel_name, group_name, uploads_playlist_id, is_tracked, subscriber_count)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (channel_id) DO UPDATE SET
             channel_name = EXCLUDED.channel_name,
             group_name = CASE
@@ -696,6 +716,10 @@ def _upsert_discovered_channels(details: list[dict], group_map: dict[str, str]) 
             uploads_playlist_id = CASE
                 WHEN COALESCE(channels.uploads_playlist_id, '') = '' THEN EXCLUDED.uploads_playlist_id
                 ELSE channels.uploads_playlist_id
+            END,
+            subscriber_count = CASE
+                WHEN COALESCE(EXCLUDED.subscriber_count, 0) > 0 THEN EXCLUDED.subscriber_count
+                ELSE COALESCE(channels.subscriber_count, 0)
             END,
             is_tracked = TRUE
     """
