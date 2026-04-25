@@ -4577,13 +4577,13 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     .side-stack {{ display:grid; gap:14px; }}
     .side-channel-card {{
       display:flex; align-items:center; gap:10px;
-      padding:10px; border:1px solid var(--panel-border); border-radius:11px;
-      background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
-      box-shadow:var(--shadow-sm);
+      padding:2px 0; border:0; border-radius:0;
+      background:transparent;
+      box-shadow:none;
       color:inherit; text-decoration:none;
-      transition:transform var(--transition), box-shadow var(--transition);
+      transition:opacity var(--transition);
     }}
-    .side-channel-card:hover {{ transform:translateY(-1px); box-shadow:var(--shadow-md); }}
+    .side-channel-card:hover {{ opacity:.92; }}
     .side-channel-avatar {{
       position:relative; width:46px; height:46px; flex:0 0 46px;
       border-radius:50%; overflow:hidden;
