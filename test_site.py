@@ -4581,9 +4581,15 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       background:transparent;
       box-shadow:none;
       color:inherit; text-decoration:none;
-      transition:opacity var(--transition);
+      transition:opacity var(--transition), transform var(--transition);
     }}
-    .side-channel-card:hover {{ opacity:.92; }}
+    .side-channel-card[href] {{ cursor:pointer; }}
+    .side-channel-card[href]:hover {{ opacity:.92; transform:translateY(-1px); }}
+    .side-channel-card[href]:focus-visible {{
+      outline:2px solid rgba(96,165,250,.55);
+      outline-offset:2px;
+      border-radius:8px;
+    }}
     .side-channel-avatar {{
       position:relative; width:46px; height:46px; flex:0 0 46px;
       border-radius:50%; overflow:hidden;
