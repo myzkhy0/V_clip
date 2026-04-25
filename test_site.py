@@ -657,6 +657,20 @@ def _format_duration_label(duration_seconds: object) -> str:
     return f"{minutes}:{seconds:02d}"
 
 
+def _format_subscriber_label(subscriber_count: object) -> str:
+    try:
+        value = int(subscriber_count)
+    except (TypeError, ValueError):
+        return "-"
+    if value <= 0:
+        return "-"
+    if value >= 100_000_000:
+        return f"{value / 100_000_000:.2f}億人"
+    if value >= 10_000:
+        return f"{value / 10_000:.1f}万人"
+    return f"{value:,}人"
+
+
 def _merge_daily_rows(
     strict_rows: list[dict],
     provisional_rows: list[dict],
@@ -1082,11 +1096,12 @@ def _build_oauth1_header_for_x_post(url: str) -> str:
     return f"OAuth {header_params}"
 
 
-def _post_text_to_x_api(text: str) -> tuple[bool, int, dict]:
-    normalized_text = (text or "").strip()
-    if not normalized_text:
+def _post_payload_to_x_api(payload_obj: dict) -> tuple[bool, int, dict]:
+    payload_json = dict(payload_obj or {})
+    text_value = (payload_json.get("text") or "").strip()
+    if not text_value:
         return False, 400, {"error": "text is required"}
-    if len(normalized_text) > 280:
+    if len(text_value) > 280:
         return False, 400, {"error": "text is too long (max 280 chars)"}
     use_oauth1 = all(
         [
@@ -1104,7 +1119,7 @@ def _post_text_to_x_api(text: str) -> tuple[bool, int, dict]:
             )
         }
 
-    payload = json.dumps({"text": normalized_text}, ensure_ascii=False).encode("utf-8")
+    payload = json.dumps(payload_json, ensure_ascii=False).encode("utf-8")
     if use_oauth1:
         auth_header = _build_oauth1_header_for_x_post(X_API_POST_URL)
     else:
@@ -1140,6 +1155,11 @@ def _post_text_to_x_api(text: str) -> tuple[bool, int, dict]:
     except Exception as exc:
         logger.exception("Failed to post to X API")
         return False, 500, {"error": "x_api_post_failed", "detail": str(exc)}
+
+
+def _post_text_to_x_api(text: str) -> tuple[bool, int, dict]:
+    normalized_text = (text or "").strip()
+    return _post_payload_to_x_api({"text": normalized_text})
 
 
 def _fetch_admin_board_data() -> dict:
@@ -3989,6 +4009,26 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         """,
         (video_id,),
     )
+    channel_subscriber_count: int | None = None
+    channel_id = str(video.get("channel_id") or "").strip()
+    if channel_id:
+        try:
+            channel_rows = fetchall(
+                """
+                SELECT subscriber_count
+                FROM channels
+                WHERE channel_id = %s
+                LIMIT 1
+                """,
+                (channel_id,),
+            )
+            if channel_rows:
+                raw_subscriber_count = channel_rows[0].get("subscriber_count")
+                if raw_subscriber_count is not None:
+                    channel_subscriber_count = int(raw_subscriber_count)
+        except Exception:
+            # Backward-compatible when subscriber_count does not exist in older DB schema.
+            channel_subscriber_count = None
 
     delta_rows = fetchall(
         """
@@ -4155,8 +4195,10 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         "video_id": video_id,
         "period_key": normalized_period,
         "title": _sanitize_text(video.get("title") or ""),
+        "channel_id": _sanitize_text(video.get("channel_id") or ""),
         "channel_name": _sanitize_text(video.get("channel_name") or ""),
         "channel_icon_url": _sanitize_text(video.get("channel_icon_url") or ""),
+        "channel_subscriber_count": channel_subscriber_count,
         "published_at": _to_jst_date(video.get("published_at")),
         "published_at_iso": _to_jst_iso(video.get("published_at")),
         "content_type": _sanitize_text(video.get("content_type") or ""),
@@ -4225,6 +4267,26 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     title_escaped = html.escape(payload["title"])
     channel_escaped = html.escape(payload["channel_name"])
     channel_icon_escaped = html.escape(payload.get("channel_icon_url") or "")
+    channel_id_raw = str(payload.get("channel_id") or "").strip()
+    channel_url_escaped = ""
+    if channel_id_raw:
+        channel_url_escaped = html.escape(f"https://www.youtube.com/channel/{quote(channel_id_raw, safe='')}", quote=True)
+    channel_subscriber_label = _format_subscriber_label(payload.get("channel_subscriber_count"))
+    channel_subscriber_escaped = html.escape(channel_subscriber_label)
+    if channel_icon_escaped:
+        channel_avatar_html = f"""
+            <img src="{channel_icon_escaped}" alt="" loading="lazy"
+                 onerror="this.style.display='none';const fb=this.parentElement?.querySelector('.side-channel-avatar-fallback');if(fb) fb.style.display='inline-flex';">
+            <span class="side-channel-avatar-fallback" style="display:none;">CH</span>
+        """
+    else:
+        channel_avatar_html = '<span class="side-channel-avatar-fallback">CH</span>'
+    channel_card_open = (
+        f'<a class="side-channel-card" href="{channel_url_escaped}" target="_blank" rel="noopener noreferrer">'
+        if channel_url_escaped
+        else '<div class="side-channel-card">'
+    )
+    channel_card_close = "</a>" if channel_url_escaped else "</div>"
     published_escaped = html.escape(payload["published_at"])
     detail_title = f"{payload['title']} | VCLIP"
     normalized_base_url = _normalize_base_url(base_url)
@@ -4513,6 +4575,33 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
     .chart-box {{ border:1px solid var(--panel-border); border-radius:10px; background:#f8fbff; padding:8px; }}
     .legend {{ margin-top:6px; color:var(--text-soft); font-size:.78rem; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }}
     .side-stack {{ display:grid; gap:14px; }}
+    .side-channel-card {{
+      display:flex; align-items:center; gap:10px;
+      padding:10px; border:1px solid var(--panel-border); border-radius:11px;
+      background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+      box-shadow:var(--shadow-sm);
+      color:inherit; text-decoration:none;
+      transition:transform var(--transition), box-shadow var(--transition);
+    }}
+    .side-channel-card:hover {{ transform:translateY(-1px); box-shadow:var(--shadow-md); }}
+    .side-channel-avatar {{
+      position:relative; width:46px; height:46px; flex:0 0 46px;
+      border-radius:50%; overflow:hidden;
+      border:1px solid #d4deea; background:#e8f0fb;
+      display:inline-flex; align-items:center; justify-content:center;
+    }}
+    .side-channel-avatar img {{ width:100%; height:100%; object-fit:cover; display:block; }}
+    .side-channel-avatar-fallback {{
+      width:100%; height:100%; display:inline-flex; align-items:center; justify-content:center;
+      color:#33516f; font-size:.72rem; font-weight:800; letter-spacing:.03em;
+    }}
+    .side-channel-body {{ min-width:0; display:grid; gap:2px; }}
+    .side-channel-label {{ font-size:.72rem; color:var(--text-soft); line-height:1.2; }}
+    .side-channel-name {{
+      margin:0; color:#0f172a; font-size:.95rem; font-weight:700; line-height:1.35;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }}
+    .side-channel-subs {{ font-size:.8rem; color:#334155; font-weight:600; line-height:1.3; }}
     .rank-chip {{ min-width:34px; height:34px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:.9rem; font-weight:800; color:#fff; background:rgba(26,32,44,.82); }}
     .rank-chip.gold {{ background:linear-gradient(135deg,#f59e0b,#facc15); color:#3b2a00; border:1px solid rgba(180,120,0,.45); }}
     .rank-chip.silver {{ background:linear-gradient(135deg,#94a3b8,#e2e8f0); color:#1f2937; border:1px solid rgba(148,163,184,.5); }}
@@ -4632,6 +4721,18 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         </article>
       </div>
       <aside class="side-stack">
+        <article class="panel">
+          {channel_card_open}
+            <span class="side-channel-avatar">
+              {channel_avatar_html}
+            </span>
+            <div class="side-channel-body">
+              <span class="side-channel-label">チャンネル</span>
+              <p class="side-channel-name">{channel_escaped}</p>
+              <span class="side-channel-subs">登録者数 {channel_subscriber_escaped}</span>
+            </div>
+          {channel_card_close}
+        </article>
         <article class="panel">
           <div class="section-head"><span>現在のランキング情報</span></div>
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
