@@ -4728,18 +4728,6 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
       </div>
       <aside class="side-stack">
         <article class="panel">
-          {channel_card_open}
-            <span class="side-channel-avatar">
-              {channel_avatar_html}
-            </span>
-            <div class="side-channel-body">
-              <span class="side-channel-label">チャンネル</span>
-              <p class="side-channel-name">{channel_escaped}</p>
-              <span class="side-channel-subs">登録者数 {channel_subscriber_escaped}</span>
-            </div>
-          {channel_card_close}
-        </article>
-        <article class="panel">
           <div class="section-head"><span>現在のランキング情報</span></div>
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
             <span class="rank-chip {rank_chip_class}">{html.escape(rank_chip_value)}</span>
@@ -4761,6 +4749,18 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
             <div class="info-row"><span>最高順位日時</span><strong>{html.escape(best_rank_at_label or "-")}</strong></div>
             <div class="info-row"><span>更新日時</span><strong>{html.escape(current_rank_at_label or "-")}</strong></div>
           </div>
+        </article>
+        <article class="panel">
+          {channel_card_open}
+            <span class="side-channel-avatar">
+              {channel_avatar_html}
+            </span>
+            <div class="side-channel-body">
+              <span class="side-channel-label">チャンネル</span>
+              <p class="side-channel-name">{channel_escaped}</p>
+              <span class="side-channel-subs">登録者数 {channel_subscriber_escaped}</span>
+            </div>
+          {channel_card_close}
         </article>
         <article class="panel">
           <div class="section-head"><span>同チャンネル関連動画</span></div>
