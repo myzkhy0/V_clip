@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import ssl
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,17 +39,21 @@ class QuotaExceededError(RuntimeError):
 
 
 # ── Lazy-init API resource ──────────────────────────────────────────
-_youtube = None
+# googleapiclient Resource keeps an internal HTTP transport that is not
+# thread-safe. APScheduler can run jobs concurrently, so keep one client
+# per thread to avoid cross-thread transport reuse.
+_youtube_local = threading.local()
 
 
 def _get_youtube():
     """Return (and cache) the youtube API resource."""
-    global _youtube
-    if _youtube is None:
+    youtube = getattr(_youtube_local, "resource", None)
+    if youtube is None:
         if not YOUTUBE_API_KEY:
             raise RuntimeError("YOUTUBE_API_KEY is not set. Check your .env file.")
-        _youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
-    return _youtube
+        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+        _youtube_local.resource = youtube
+    return youtube
 
 
 def _is_quota_exceeded_http_error(exc: HttpError) -> bool:
