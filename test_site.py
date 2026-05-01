@@ -812,7 +812,6 @@ def _render_cards(
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <div class="{rank_badge_class}">{rank}</div>
                 {new_badge_html}
-                <span class="prev-rank-chip">{prev_rank_text}</span>
                 {duration_html}
               </a>
               <div class="card-meta">
@@ -829,6 +828,7 @@ def _render_cards(
                     <span class="card-metrics-stack">
                     <span class="card-views"><em class="arrow">▶</em><span class="view-growth">+{view_growth_value:,}</span></span>
                     <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
+                    <span class="prev-rank-chip">{prev_rank_text}</span>
                   </span>
                   <span class="card-date">{html.escape(published_label)}</span>
                 </div>
@@ -1907,10 +1907,11 @@ def render_homepage(
       min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
     }}
     .prev-rank-chip {{
-      position:absolute;
-      left:10px;
-      bottom:10px;
-      z-index:2;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:max-content;
+      margin-top:4px;
       font-size:0.62rem;
       font-weight:800;
       letter-spacing:0.03em;
@@ -1921,7 +1922,7 @@ def render_homepage(
       padding:3px 8px;
       line-height:1;
       white-space:nowrap;
-      box-shadow:0 3px 8px rgba(3, 10, 25, 0.35);
+      box-shadow:0 1px 4px rgba(3, 10, 25, 0.25);
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
     .card-info-top {{ margin-bottom:6px;justify-content:space-between; }}
