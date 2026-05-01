@@ -2871,16 +2871,13 @@ def render_homepage(
     function buildViewNavigationUrl(contentType) {{
       const normalized = normalizeContentType(contentType);
       const params = new URLSearchParams(window.location.search || "");
-      if (normalized === "video") {{
-        params.set("view", "videos");
-      }} else {{
-        params.delete("view");
-      }}
+      params.delete("view");
       if (activePeriod) {{
         params.set("period", activePeriod);
       }}
       const query = params.toString();
-      return query ? `/?${{query}}` : "/";
+      const basePath = normalized === "video" ? "/videos" : "/";
+      return query ? `${{basePath}}?${{query}}` : basePath;
     }}
 
     /* ── Pagination helpers ── */
@@ -3721,10 +3718,16 @@ def render_homepage(
     }}
     function buildPeriodFetchCandidates(periodTable) {{
       const normalized = (periodTable || "").toLowerCase();
-      const viewParam = normalizeContentType(activeContentType) === "video" ? "videos" : "shorts";
+      const isVideoView = normalizeContentType(activeContentType) === "video";
       const candidates = [
-        `/rankings-period/${{encodeURIComponent(normalized)}}.json?view=${{encodeURIComponent(viewParam)}}`,
-        `/api/rankings?period=${{encodeURIComponent(normalized)}}&view=${{encodeURIComponent(viewParam)}}`,
+        isVideoView
+          ? `/rankings-period-videos/${{encodeURIComponent(normalized)}}.json`
+          : `/rankings-period/${{encodeURIComponent(normalized)}}.json`,
+        isVideoView
+          ? `/api/rankings/videos?period=${{encodeURIComponent(normalized)}}`
+          : `/api/rankings?period=${{encodeURIComponent(normalized)}}`,
+        `/rankings-period/${{encodeURIComponent(normalized)}}.json?view=${{isVideoView ? "videos" : "shorts"}}`,
+        `/api/rankings?period=${{encodeURIComponent(normalized)}}&view=${{isVideoView ? "videos" : "shorts"}}`,
       ];
       return candidates;
     }}
@@ -5163,7 +5166,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        if path_only in {"/", "/index.html"}:
+        if path_only in {"/", "/index.html", "/videos"}:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -5294,6 +5297,24 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             _json_response(self, 200, {"ok": True, "period": period_payload})
             return
 
+        if path_only.startswith("/rankings-period-videos/") and path_only.endswith(".json"):
+            period_key = _normalize_period_param(path_only.rsplit("/", 1)[-1].replace(".json", ""))
+            if not period_key:
+                _json_response(self, 400, {"ok": False, "error": "invalid_period"})
+                return
+            token = (query.get("admin_token") or [""])[0]
+            is_admin = bool(ADMIN_TOKEN and token == ADMIN_TOKEN)
+            period_payload = _build_single_period_payload(
+                period_key,
+                is_admin=is_admin,
+                include_content_types={"video"},
+            )
+            if not period_payload:
+                _json_response(self, 404, {"ok": False, "error": "period_not_found"})
+                return
+            _json_response(self, 200, {"ok": True, "period": period_payload})
+            return
+
         if path_only == "/api/rankings":
             period_key = _normalize_period_param((query.get("period") or [""])[0])
             if not period_key:
@@ -5307,6 +5328,24 @@ class TestSiteHandler(BaseHTTPRequestHandler):
                 period_key,
                 is_admin=is_admin,
                 include_content_types=include_content_types,
+            )
+            if not period_payload:
+                _json_response(self, 404, {"ok": False, "error": "period_not_found"})
+                return
+            _json_response(self, 200, {"ok": True, "period": period_payload})
+            return
+
+        if path_only == "/api/rankings/videos":
+            period_key = _normalize_period_param((query.get("period") or [""])[0])
+            if not period_key:
+                _json_response(self, 400, {"ok": False, "error": "invalid_period"})
+                return
+            token = (query.get("admin_token") or [""])[0]
+            is_admin = bool(ADMIN_TOKEN and token == ADMIN_TOKEN)
+            period_payload = _build_single_period_payload(
+                period_key,
+                is_admin=is_admin,
+                include_content_types={"video"},
             )
             if not period_payload:
                 _json_response(self, 404, {"ok": False, "error": "period_not_found"})
@@ -5342,7 +5381,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if path_only not in {"/", "/index.html", "/admin"}:
+        if path_only not in {"/", "/index.html", "/admin", "/videos"}:
             self.send_error(404, "Not found")
             return
 
@@ -5359,7 +5398,9 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             is_admin = token == ADMIN_TOKEN
 
         base_url = self._request_base_url()
-        view_mode = _normalize_view_mode((query.get("view") or [""])[0])
+        path_view_mode = "videos" if path_only == "/videos" else "shorts"
+        query_view_mode = _normalize_view_mode((query.get("view") or [""])[0])
+        view_mode = "videos" if path_view_mode == "videos" or query_view_mode == "videos" else "shorts"
         period_key = _normalize_period_param((query.get("period") or ["daily"])[0]) or "daily"
         try:
             body = render_homepage(
