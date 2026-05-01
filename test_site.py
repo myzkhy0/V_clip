@@ -815,11 +815,8 @@ def _render_cards(
                 {duration_html}
               </a>
               <div class="card-meta">
-                <div class="card-title-row">
-                  <a class="card-title" href="{detail_url}"
-                     data-video-id="{video_id}" data-content-type="{content_type}">{title}</a>
-                  <span class="prev-rank-chip">{prev_rank_text}</span>
-                </div>
+                <a class="card-title" href="{detail_url}"
+                   data-video-id="{video_id}" data-content-type="{content_type}">{title}</a>
                 <div class="card-info card-info-top">
                   <a class="card-channel channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
                     {icon_html}
@@ -832,7 +829,10 @@ def _render_cards(
                     <span class="card-views"><em class="arrow">▶</em><span class="view-growth">+{view_growth_value:,}</span></span>
                     <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
                   </span>
-                  <span class="card-date">{html.escape(published_label)}</span>
+                  <span class="card-meta-right">
+                    <span class="prev-rank-chip">{prev_rank_text}</span>
+                    <span class="card-date">{html.escape(published_label)}</span>
+                  </span>
                 </div>
                 <div class="card-actions">
                   <a class="card-action-link" href="{video_url}" target="_blank" rel="noreferrer" aria-label="YouTubeで開く" title="YouTubeで開く">
@@ -1903,31 +1903,28 @@ def render_homepage(
       font-size:0.74rem;font-weight:800;line-height:1;
     }}
     .card-meta {{ padding:15px 17px; }}
-    .card-title-row {{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:8px;
-    }}
     .card-title {{
       display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
       overflow:hidden;font-size:1.01rem;font-weight:700;line-height:1.5;
-      min-height:2.6em;margin-bottom:0;color:var(--text);text-decoration:none;
-      flex:1;
+      min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
+    }}
+    .card-meta-right {{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:3px;
     }}
     .prev-rank-chip {{
       flex:0 0 auto;
-      font-size:0.68rem;
+      font-size:0.64rem;
       font-weight:800;
       letter-spacing:0.03em;
       color:#eaf6ff;
       background:linear-gradient(135deg, rgba(41, 116, 217, 0.95), rgba(38, 156, 216, 0.95));
       border:1px solid rgba(164, 221, 255, 0.6);
       border-radius:999px;
-      padding:4px 8px;
+      padding:3px 8px;
       line-height:1;
-      margin-top:2px;
       white-space:nowrap;
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
