@@ -2907,11 +2907,7 @@ def render_homepage(
       const normalized = normalizeContentType(contentType);
       const params = new URLSearchParams(window.location.search || "");
       params.delete("view");
-      if (activePeriod && activePeriod !== "daily") {{
-        params.set("period", activePeriod);
-      }} else {{
-        params.delete("period");
-      }}
+      params.delete("period");
       const query = params.toString();
       const basePath = normalized === "video" ? "/videos" : "/";
       return query ? `${{basePath}}?${{query}}` : basePath;
@@ -5551,7 +5547,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
         path_view_mode = "videos" if path_only == "/videos" else "shorts"
         query_view_mode = _normalize_view_mode((query.get("view") or [""])[0])
         view_mode = "videos" if path_view_mode == "videos" or query_view_mode == "videos" else "shorts"
-        period_key = _normalize_period_param((query.get("period") or ["daily"])[0]) or "daily"
+        period_key = "daily"
         render_started_at = time.perf_counter()
         try:
             body = render_homepage(
