@@ -786,6 +786,7 @@ def _render_cards(
             prev_rank = int(row.get("prev_rank") or 0)
         except (TypeError, ValueError):
             prev_rank = 0
+        prev_rank_text = f"前回 {prev_rank}位" if prev_rank > 0 else "初登場"
         try:
             view_growth_pct = int(row.get("view_growth_pct") or 0)
         except (TypeError, ValueError):
@@ -816,6 +817,7 @@ def _render_cards(
               <div class="card-meta">
                 <a class="card-title" href="{detail_url}"
                    data-video-id="{video_id}" data-content-type="{content_type}">{title}</a>
+                <div class="prev-rank-label">{prev_rank_text}</div>
                 <div class="card-info card-info-top">
                   <a class="card-channel channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
                     {icon_html}
@@ -1903,6 +1905,12 @@ def render_homepage(
       display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
       overflow:hidden;font-size:1.01rem;font-weight:700;line-height:1.5;
       min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
+    }}
+    .prev-rank-label {{
+      font-size:0.76rem;
+      color:var(--text-dim);
+      margin:-3px 0 8px;
+      letter-spacing:0.01em;
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
     .card-info-top {{ margin-bottom:6px;justify-content:space-between; }}
