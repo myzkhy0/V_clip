@@ -786,7 +786,7 @@ def _render_cards(
             prev_rank = int(row.get("prev_rank") or 0)
         except (TypeError, ValueError):
             prev_rank = 0
-        prev_rank_text = f"PREV #{prev_rank}" if prev_rank > 0 else "NEW ENTRY"
+        prev_rank_text = f"PREV#{prev_rank}" if prev_rank > 0 else "ENTRY"
         try:
             view_growth_pct = int(row.get("view_growth_pct") or 0)
         except (TypeError, ValueError):
@@ -812,6 +812,7 @@ def _render_cards(
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <div class="{rank_badge_class}">{rank}</div>
                 {new_badge_html}
+                <span class="prev-rank-chip">{prev_rank_text}</span>
                 {duration_html}
               </a>
               <div class="card-meta">
@@ -829,10 +830,7 @@ def _render_cards(
                     <span class="card-views"><em class="arrow">▶</em><span class="view-growth">+{view_growth_value:,}</span></span>
                     <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
                   </span>
-                  <span class="card-meta-right">
-                    <span class="prev-rank-chip">{prev_rank_text}</span>
-                    <span class="card-date">{html.escape(published_label)}</span>
-                  </span>
+                  <span class="card-date">{html.escape(published_label)}</span>
                 </div>
                 <div class="card-actions">
                   <a class="card-action-link" href="{video_url}" target="_blank" rel="noreferrer" aria-label="YouTubeで開く" title="YouTubeで開く">
@@ -1908,24 +1906,22 @@ def render_homepage(
       overflow:hidden;font-size:1.01rem;font-weight:700;line-height:1.5;
       min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
     }}
-    .card-meta-right {{
-      display:flex;
-      flex-direction:column;
-      align-items:flex-end;
-      gap:3px;
-    }}
     .prev-rank-chip {{
-      flex:0 0 auto;
-      font-size:0.64rem;
+      position:absolute;
+      left:10px;
+      bottom:10px;
+      z-index:2;
+      font-size:0.62rem;
       font-weight:800;
       letter-spacing:0.03em;
       color:#eaf6ff;
-      background:linear-gradient(135deg, rgba(41, 116, 217, 0.95), rgba(38, 156, 216, 0.95));
-      border:1px solid rgba(164, 221, 255, 0.6);
+      background:linear-gradient(135deg, rgba(22, 66, 134, 0.95), rgba(26, 119, 170, 0.95));
+      border:1px solid rgba(150, 216, 255, 0.58);
       border-radius:999px;
       padding:3px 8px;
       line-height:1;
       white-space:nowrap;
+      box-shadow:0 3px 8px rgba(3, 10, 25, 0.35);
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
     .card-info-top {{ margin-bottom:6px;justify-content:space-between; }}
