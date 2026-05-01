@@ -3811,7 +3811,10 @@ def render_homepage(
     }}
     async function runAutoPerfProbe() {{
       const params = new URLSearchParams(window.location.search || "");
-      if (params.get("perf") !== "1") return;
+      const perfParam = params.get("perf");
+      if (perfParam === null) return;
+      const normalizedPerf = String(perfParam || "").trim().toLowerCase();
+      if (normalizedPerf === "0" || normalizedPerf === "off" || normalizedPerf === "false") return;
       const overlay = createPerfProbeOverlay();
       const lines = [];
       const currentUrl = window.location.pathname + window.location.search;
@@ -5568,6 +5571,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, s-maxage=120, stale-while-revalidate=300")
         self.send_header("X-Perf-Render-Ms", str(int((time.perf_counter() - render_started_at) * 1000)))
         self.send_header("X-Perf-Total-Ms", str(int((time.perf_counter() - request_started_at) * 1000)))
         self.send_header("X-Perf-View-Mode", view_mode)
