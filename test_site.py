@@ -286,6 +286,20 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
                 prev_calculated_at = newest_history_at
     except Exception:
         logger.exception("Failed to fetch previous ranking snapshot from %s", history_table)
+    previous_ids: set[str] = set()
+    if prev_calculated_at:
+        try:
+            prev_rows = fetchall(
+                f"""
+                SELECT video_id
+                FROM {history_table}
+                WHERE calculated_at = %s
+                """,
+                (prev_calculated_at,),
+            )
+            previous_ids = {str(row.get("video_id") or "") for row in prev_rows if row.get("video_id")}
+        except Exception:
+            logger.exception("Failed to fetch previous video_ids from %s", history_table)
 
     period_hours_map = {"daily": 24, "weekly": 168, "monthly": 720}
     period_key = "daily"
