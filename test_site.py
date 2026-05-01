@@ -311,17 +311,59 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
     limit = max(1, int(top_n))
     excluded_channel_ids = _load_excluded_channel_ids()
     exclude_clause = ""
-    ranking_params: list[object] = [cutoff, cutoff, cutoff, calculated_at]
+    ranking_params: list[object] = [calculated_at]
     if excluded_channel_ids:
         exclude_clause = " AND NOT (v.channel_id = ANY(%s))"
         ranking_params.append(excluded_channel_ids)
     ranking_params.append(limit)
+    ranking_params.append(cutoff)
     rows = fetchall(
         f"""
+        WITH base AS (
+            SELECT
+                r.rank,
+                r.view_growth,
+                r.calculated_at,
+                r.video_id
+            FROM {table} r
+            JOIN videos v ON v.video_id = r.video_id
+            WHERE r.calculated_at = %s
+              {exclude_clause}
+            ORDER BY r.rank
+            LIMIT %s
+        ),
+        stats_bounds AS (
+            SELECT
+                s.video_id,
+                MAX(s.timestamp) AS max_ts,
+                MAX(s.timestamp) FILTER (WHERE s.timestamp <= %s) AS old_ts,
+                MIN(s.timestamp) AS min_ts
+            FROM video_stats s
+            WHERE s.video_id = ANY (SELECT video_id FROM base)
+            GROUP BY s.video_id
+        ),
+        stats_pick AS (
+            SELECT
+                s.video_id,
+                MAX(s.view_count) FILTER (WHERE s.timestamp = b.max_ts) AS latest_view_count,
+                MAX(s.view_count) FILTER (WHERE s.timestamp = b.old_ts) AS old_view_count,
+                MAX(s.like_count) FILTER (WHERE s.timestamp = b.max_ts) AS latest_like_count,
+                MAX(s.like_count) FILTER (WHERE s.timestamp = b.old_ts) AS old_like_count,
+                MAX(s.like_count) FILTER (WHERE s.timestamp = b.min_ts) AS first_like_count,
+                MAX(s.comment_count) FILTER (WHERE s.timestamp = b.max_ts) AS latest_comment_count,
+                MAX(s.comment_count) FILTER (WHERE s.timestamp = b.old_ts) AS old_comment_count,
+                MAX(s.comment_count) FILTER (WHERE s.timestamp = b.min_ts) AS first_comment_count
+            FROM video_stats s
+            JOIN stats_bounds b ON b.video_id = s.video_id
+            WHERE s.timestamp = b.max_ts
+               OR s.timestamp = b.old_ts
+               OR s.timestamp = b.min_ts
+            GROUP BY s.video_id
+        )
         SELECT
-            r.rank,
-            r.view_growth,
-            r.calculated_at,
+            base.rank,
+            base.view_growth,
+            base.calculated_at,
             v.video_id,
             v.title,
             v.channel_id,
@@ -330,83 +372,21 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
             v.group_name,
             v.content_type,
             v.duration_seconds,
-            v.tags_text,
             v.published_at,
-            lv.view_count AS latest_view_count,
-            ov.view_count AS old_view_count,
+            sp.latest_view_count,
+            sp.old_view_count,
             GREATEST(
                 0,
-                COALESCE(ls.like_count, 0) - COALESCE(os.like_count, fs.like_count, ls.like_count, 0)
+                COALESCE(sp.latest_like_count, 0) - COALESCE(sp.old_like_count, sp.first_like_count, sp.latest_like_count, 0)
             ) AS like_growth,
             GREATEST(
                 0,
-                COALESCE(lc.comment_count, 0) - COALESCE(oc.comment_count, fc.comment_count, lc.comment_count, 0)
+                COALESCE(sp.latest_comment_count, 0) - COALESCE(sp.old_comment_count, sp.first_comment_count, sp.latest_comment_count, 0)
             ) AS comment_growth
-        FROM {table} r
-        JOIN videos v ON v.video_id = r.video_id
-        LEFT JOIN LATERAL (
-            SELECT view_count
-            FROM video_stats s
-            WHERE s.video_id = r.video_id
-            ORDER BY s.timestamp DESC
-            LIMIT 1
-        ) lv ON TRUE
-        LEFT JOIN LATERAL (
-            SELECT view_count
-            FROM video_stats s
-            WHERE s.video_id = r.video_id
-              AND s.timestamp <= %s
-            ORDER BY s.timestamp DESC
-            LIMIT 1
-        ) ov ON TRUE
-        LEFT JOIN LATERAL (
-            SELECT like_count
-            FROM video_stats s
-            WHERE s.video_id = r.video_id
-            ORDER BY s.timestamp DESC
-            LIMIT 1
-        ) ls ON TRUE
-        LEFT JOIN LATERAL (
-            SELECT like_count
-            FROM video_stats s
-            WHERE s.video_id = r.video_id
-              AND s.timestamp <= %s
-            ORDER BY s.timestamp DESC
-            LIMIT 1
-        ) os ON TRUE
-        LEFT JOIN LATERAL (
-            SELECT like_count
-            FROM video_stats s
-            WHERE s.video_id = r.video_id
-            ORDER BY s.timestamp ASC
-            LIMIT 1
-        ) fs ON TRUE
-        LEFT JOIN LATERAL (
-            SELECT comment_count
-            FROM video_stats s
-            WHERE s.video_id = r.video_id
-            ORDER BY s.timestamp DESC
-            LIMIT 1
-        ) lc ON TRUE
-        LEFT JOIN LATERAL (
-            SELECT comment_count
-            FROM video_stats s
-            WHERE s.video_id = r.video_id
-              AND s.timestamp <= %s
-            ORDER BY s.timestamp DESC
-            LIMIT 1
-        ) oc ON TRUE
-        LEFT JOIN LATERAL (
-            SELECT comment_count
-            FROM video_stats s
-            WHERE s.video_id = r.video_id
-            ORDER BY s.timestamp ASC
-            LIMIT 1
-        ) fc ON TRUE
-        WHERE r.calculated_at = %s
-          {exclude_clause}
-        ORDER BY r.rank
-        LIMIT %s
+        FROM base
+        JOIN videos v ON v.video_id = base.video_id
+        LEFT JOIN stats_pick sp ON sp.video_id = base.video_id
+        ORDER BY base.rank
         """,
         tuple(ranking_params),
     )
