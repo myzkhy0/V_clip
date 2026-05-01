@@ -2907,8 +2907,10 @@ def render_homepage(
       const normalized = normalizeContentType(contentType);
       const params = new URLSearchParams(window.location.search || "");
       params.delete("view");
-      if (activePeriod) {{
+      if (activePeriod && activePeriod !== "daily") {{
         params.set("period", activePeriod);
+      }} else {{
+        params.delete("period");
       }}
       const query = params.toString();
       const basePath = normalized === "video" ? "/videos" : "/";
