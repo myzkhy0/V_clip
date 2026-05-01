@@ -922,6 +922,7 @@ def _build_single_period_payload(
     is_admin: bool = False,
     include_content_types: set[str] | None = None,
 ) -> dict | None:
+    started_at = time.perf_counter()
     period = PERIOD_TABLE_MAP.get(period_key)
     if not period:
         return None
@@ -971,7 +972,7 @@ def _build_single_period_payload(
     candidates = [dt for dt in (shorts_calculated_at, video_calculated_at) if dt is not None]
     calculated_at = max(candidates) if candidates else None
 
-    return {
+    result = {
         "table": period_key,
         "label": label,
         "calculated_at": _fmt_datetime(calculated_at),
@@ -991,6 +992,15 @@ def _build_single_period_payload(
         "available_groups": available_groups,
         "lazy": False,
     }
+    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+    logger.info(
+        "PERF build_single_period_payload period=%s types=%s admin=%s ms=%d",
+        period_key,
+        ",".join(sorted(include_content_types or {"shorts", "video"})),
+        bool(is_admin),
+        elapsed_ms,
+    )
+    return result
 
 
 def _build_period_placeholder(period_key: str) -> dict:
@@ -1011,6 +1021,7 @@ def _build_period_payload(
     include_placeholders: bool = False,
     include_content_types: set[str] | None = None,
 ) -> list[dict]:
+    started_at = time.perf_counter()
     include_keys = include_period_keys or {period_key for period_key, *_ in PERIODS}
     include_signature = ",".join(sorted(include_keys))
     include_type_signature = ",".join(sorted(include_content_types or {"shorts", "video"}))
@@ -1019,6 +1030,14 @@ def _build_period_payload(
     with _period_payload_cache_lock:
         cached = _period_payload_cache.get(cache_key)
         if cached and (now_ts - cached[0]) < PERIOD_PAYLOAD_CACHE_TTL_SEC:
+            elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+            logger.info(
+                "PERF build_period_payload cache=hit periods=%s types=%s admin=%s ms=%d",
+                include_signature,
+                include_type_signature,
+                bool(is_admin),
+                elapsed_ms,
+            )
             return copy.deepcopy(cached[1])
 
     payload: list[dict] = []
@@ -1037,6 +1056,14 @@ def _build_period_payload(
 
     with _period_payload_cache_lock:
         _period_payload_cache[cache_key] = (time.time(), copy.deepcopy(payload))
+    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+    logger.info(
+        "PERF build_period_payload cache=miss periods=%s types=%s admin=%s ms=%d",
+        include_signature,
+        include_type_signature,
+        bool(is_admin),
+        elapsed_ms,
+    )
     return payload
 def _load_quota_usage() -> tuple[int, int]:
     """Return (used_units, limit_units) from local quota state file."""
@@ -1068,11 +1095,19 @@ def _quota_status(used: int, limit: int) -> tuple[str, str]:
     return "通常", "ok"
 
 
-def _json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
+def _json_response(
+    handler: BaseHTTPRequestHandler,
+    status: int,
+    payload: dict,
+    extra_headers: dict[str, str] | None = None,
+) -> None:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
+    if extra_headers:
+        for key, value in extra_headers.items():
+            handler.send_header(key, value)
     handler.end_headers()
     handler.wfile.write(body)
 
@@ -5185,6 +5220,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
 
         self.send_error(404, "Not found")
     def do_GET(self) -> None:
+        request_started_at = time.perf_counter()
         parsed = urlparse(self.path)
         path_only = parsed.path
         query = parse_qs(parsed.query)
@@ -5278,6 +5314,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             return
 
         if path_only.startswith("/rankings-period/") and path_only.endswith(".json"):
+            route_started_at = time.perf_counter()
             period_key = _normalize_period_param(path_only.rsplit("/", 1)[-1].replace(".json", ""))
             if not period_key:
                 _json_response(self, 400, {"ok": False, "error": "invalid_period"})
@@ -5294,10 +5331,22 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             if not period_payload:
                 _json_response(self, 404, {"ok": False, "error": "period_not_found"})
                 return
-            _json_response(self, 200, {"ok": True, "period": period_payload})
+            route_ms = int((time.perf_counter() - route_started_at) * 1000)
+            total_ms = int((time.perf_counter() - request_started_at) * 1000)
+            _json_response(
+                self,
+                200,
+                {"ok": True, "period": period_payload},
+                extra_headers={
+                    "X-Perf-Route-Ms": str(route_ms),
+                    "X-Perf-Total-Ms": str(total_ms),
+                    "X-Perf-Route": "rankings-period",
+                },
+            )
             return
 
         if path_only.startswith("/rankings-period-videos/") and path_only.endswith(".json"):
+            route_started_at = time.perf_counter()
             period_key = _normalize_period_param(path_only.rsplit("/", 1)[-1].replace(".json", ""))
             if not period_key:
                 _json_response(self, 400, {"ok": False, "error": "invalid_period"})
@@ -5312,10 +5361,22 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             if not period_payload:
                 _json_response(self, 404, {"ok": False, "error": "period_not_found"})
                 return
-            _json_response(self, 200, {"ok": True, "period": period_payload})
+            route_ms = int((time.perf_counter() - route_started_at) * 1000)
+            total_ms = int((time.perf_counter() - request_started_at) * 1000)
+            _json_response(
+                self,
+                200,
+                {"ok": True, "period": period_payload},
+                extra_headers={
+                    "X-Perf-Route-Ms": str(route_ms),
+                    "X-Perf-Total-Ms": str(total_ms),
+                    "X-Perf-Route": "rankings-period-videos",
+                },
+            )
             return
 
         if path_only == "/api/rankings":
+            route_started_at = time.perf_counter()
             period_key = _normalize_period_param((query.get("period") or [""])[0])
             if not period_key:
                 _json_response(self, 400, {"ok": False, "error": "invalid_period"})
@@ -5332,10 +5393,22 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             if not period_payload:
                 _json_response(self, 404, {"ok": False, "error": "period_not_found"})
                 return
-            _json_response(self, 200, {"ok": True, "period": period_payload})
+            route_ms = int((time.perf_counter() - route_started_at) * 1000)
+            total_ms = int((time.perf_counter() - request_started_at) * 1000)
+            _json_response(
+                self,
+                200,
+                {"ok": True, "period": period_payload},
+                extra_headers={
+                    "X-Perf-Route-Ms": str(route_ms),
+                    "X-Perf-Total-Ms": str(total_ms),
+                    "X-Perf-Route": "api-rankings",
+                },
+            )
             return
 
         if path_only == "/api/rankings/videos":
+            route_started_at = time.perf_counter()
             period_key = _normalize_period_param((query.get("period") or [""])[0])
             if not period_key:
                 _json_response(self, 400, {"ok": False, "error": "invalid_period"})
@@ -5350,7 +5423,18 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             if not period_payload:
                 _json_response(self, 404, {"ok": False, "error": "period_not_found"})
                 return
-            _json_response(self, 200, {"ok": True, "period": period_payload})
+            route_ms = int((time.perf_counter() - route_started_at) * 1000)
+            total_ms = int((time.perf_counter() - request_started_at) * 1000)
+            _json_response(
+                self,
+                200,
+                {"ok": True, "period": period_payload},
+                extra_headers={
+                    "X-Perf-Route-Ms": str(route_ms),
+                    "X-Perf-Total-Ms": str(total_ms),
+                    "X-Perf-Route": "api-rankings-videos",
+                },
+            )
             return
 
         if path_only == "/policy":
@@ -5402,6 +5486,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
         query_view_mode = _normalize_view_mode((query.get("view") or [""])[0])
         view_mode = "videos" if path_view_mode == "videos" or query_view_mode == "videos" else "shorts"
         period_key = _normalize_period_param((query.get("period") or ["daily"])[0]) or "daily"
+        render_started_at = time.perf_counter()
         try:
             body = render_homepage(
                 is_admin=is_admin,
@@ -5422,6 +5507,9 @@ class TestSiteHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Perf-Render-Ms", str(int((time.perf_counter() - render_started_at) * 1000)))
+        self.send_header("X-Perf-Total-Ms", str(int((time.perf_counter() - request_started_at) * 1000)))
+        self.send_header("X-Perf-View-Mode", view_mode)
         self.end_headers()
         self.wfile.write(body)
 
