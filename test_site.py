@@ -64,6 +64,8 @@ PERIODS: list[tuple[str, str, str, str]] = [
     ("weekly", "7日", "weekly_ranking_shorts", "weekly_ranking_video"),
     ("monthly", "30日", "monthly_ranking_shorts", "monthly_ranking_video"),
 ]
+NEW_PERIOD_KEY = "new"
+NEW_PERIOD_LABEL = "NEW"
 PERIOD_TABLE_MAP: dict[str, tuple[str, str, str]] = {
     period_key: (label, shorts_table, video_table)
     for period_key, label, shorts_table, video_table in PERIODS
@@ -923,10 +925,17 @@ def _build_single_period_payload(
     include_content_types: set[str] | None = None,
 ) -> dict | None:
     started_at = time.perf_counter()
-    period = PERIOD_TABLE_MAP.get(period_key)
-    if not period:
-        return None
-    label, shorts_table, video_table = period
+    if period_key == NEW_PERIOD_KEY:
+        label = NEW_PERIOD_LABEL
+        shorts_table = "daily_ranking_shorts"
+        video_table = "daily_ranking_video"
+        is_new_period = True
+    else:
+        period = PERIOD_TABLE_MAP.get(period_key)
+        if not period:
+            return None
+        label, shorts_table, video_table = period
+        is_new_period = False
     top_n = 200 if is_admin else 100
     shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table, top_n=top_n)
     video_calculated_at, video_rows = _fetch_latest_rankings(video_table, top_n=top_n)
@@ -936,6 +945,19 @@ def _build_single_period_payload(
     if period_key == "daily":
         provisional_shorts_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
         provisional_video_rows = _fetch_daily_provisional_rows("video", top_n=top_n)
+    if is_new_period:
+        cutoff_utc = datetime.now(timezone.utc) - timedelta(hours=48)
+        def _within_48h(row: dict) -> bool:
+            published_at = row.get("published_at")
+            if not isinstance(published_at, datetime):
+                return False
+            if published_at.tzinfo is None:
+                published_at = published_at.replace(tzinfo=timezone.utc)
+            return published_at >= cutoff_utc
+        shorts_rows = [row for row in shorts_rows if _within_48h(row)]
+        video_rows = [row for row in video_rows if _within_48h(row)]
+        provisional_shorts_rows = [row for row in provisional_shorts_rows if _within_48h(row)]
+        provisional_video_rows = [row for row in provisional_video_rows if _within_48h(row)]
 
     grouped_shorts: dict[str, list[dict]] = defaultdict(list)
     grouped_video: dict[str, list[dict]] = defaultdict(list)
@@ -1521,24 +1543,55 @@ def render_homepage(
     base_url: str = "",
     view_mode: str = "shorts",
     initial_period_key: str = "daily",
+    new_mode: bool = False,
 ) -> str:
     normalized_view_mode = _normalize_view_mode(view_mode)
     initial_content_type = _content_type_for_view_mode(normalized_view_mode)
-    payload = _build_period_payload(
-        is_admin=is_admin,
-        include_period_keys={period_key for period_key, *_ in PERIODS if period_key not in LAZY_LOAD_PERIOD_KEYS},
-        include_placeholders=True,
-        include_content_types={initial_content_type},
-    )
-    normalized_initial_period = _normalize_period_param(initial_period_key) or "daily"
-    first_period = normalized_initial_period if payload else ""
+    if new_mode:
+        period_payload = _build_single_period_payload(
+            NEW_PERIOD_KEY,
+            is_admin=is_admin,
+            include_content_types={initial_content_type},
+        )
+        payload = [period_payload] if period_payload else []
+        first_period = NEW_PERIOD_KEY if payload else ""
+    else:
+        payload = _build_period_payload(
+            is_admin=is_admin,
+            include_period_keys={period_key for period_key, *_ in PERIODS if period_key not in LAZY_LOAD_PERIOD_KEYS},
+            include_placeholders=True,
+            include_content_types={initial_content_type},
+        )
+        normalized_initial_period = _normalize_period_param(initial_period_key) or "daily"
+        first_period = normalized_initial_period if payload else ""
+    period_tabs_config: list[dict[str, str | bool]] = []
+    if new_mode:
+        period_tabs_config.extend(
+            [
+                {"kind": "nav", "label": "24時間", "href": "/" if initial_content_type == "shorts" else "/videos"},
+                {"kind": "nav", "label": "7日", "href": "/" if initial_content_type == "shorts" else "/videos"},
+                {"kind": "nav", "label": "30日", "href": "/" if initial_content_type == "shorts" else "/videos"},
+                {"kind": "nav", "label": "NEW", "href": "/new" if initial_content_type == "shorts" else "/videos/new", "active": True},
+            ]
+        )
+    else:
+        period_tabs_config.extend(
+            [
+                {"kind": "period", "label": "24時間", "period": "daily", "active": True},
+                {"kind": "period", "label": "7日", "period": "weekly"},
+                {"kind": "period", "label": "30日", "period": "monthly"},
+                {"kind": "nav", "label": "NEW", "href": "/new" if initial_content_type == "shorts" else "/videos/new"},
+            ]
+        )
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+    period_tabs_json = json.dumps(period_tabs_config, ensure_ascii=False).replace("</", "<\\/")
     hero_stats_json = json.dumps(_fetch_public_hero_stats(), ensure_ascii=False).replace("</", "<\\/")
     normalized_base_url = _normalize_base_url(base_url)
     head_meta = _build_head_meta(normalized_base_url, is_admin=is_admin)
     show_admin_meta = "true" if is_admin else "false"
     initial_content_type_js = json.dumps(initial_content_type)
+    is_new_page_js = "true" if new_mode else "false"
     admin_html = ""
     admin_board_html = ""
     body_class = "admin-mode" if is_admin else ""
@@ -2878,9 +2931,11 @@ def render_homepage(
   </footer>
   <script>
     const payload = {payload_json};
+    const periodTabsConfig = {period_tabs_json};
     const heroStats = {hero_stats_json};
     const groupLabels = {group_labels_json};
     const showAdminMeta = {show_admin_meta};
+    const isNewPage = {is_new_page_js};
     const typeTabs = document.getElementById("type-tabs");
     const periodTabs = document.getElementById("period-tabs");
     const periodRoot = document.getElementById("period-root");
@@ -2909,7 +2964,10 @@ def render_homepage(
       params.delete("view");
       params.delete("period");
       const query = params.toString();
-      const basePath = normalized === "video" ? "/videos" : "/";
+      let basePath = normalized === "video" ? "/videos" : "/";
+      if (isNewPage) {{
+        basePath = normalized === "video" ? "/videos/new" : "/new";
+      }}
       return query ? `${{basePath}}?${{query}}` : basePath;
     }}
 
@@ -3907,23 +3965,36 @@ def render_homepage(
     }}
     function ensurePeriodTabs() {{
       if (periodTabs.dataset.ready === "1") {{
-        periodTabs.querySelectorAll(".tab-btn").forEach((btn) => {{
-          btn.classList.toggle("active", btn.dataset.period === activePeriod);
+        periodTabs.querySelectorAll(".tab-btn").forEach((btn, idx) => {{
+          const tab = periodTabsConfig[idx];
+          const isActive = tab && tab.kind === "period"
+            ? btn.dataset.period === activePeriod
+            : !!(tab && tab.active);
+          btn.classList.toggle("active", isActive);
         }});
         return;
       }}
       periodTabs.innerHTML = "";
-      payload.forEach((period) => {{
+      periodTabsConfig.forEach((tab) => {{
         const btn = document.createElement("button");
-        btn.className = "tab-btn" + (period.table === activePeriod ? " active" : "");
-        btn.textContent = period.label;
+        const isActive = tab.kind === "period"
+          ? tab.period === activePeriod
+          : !!tab.active;
+        btn.className = "tab-btn" + (isActive ? " active" : "");
+        btn.textContent = tab.label || "";
         btn.type = "button";
-        btn.dataset.period = period.table;
-        btn.addEventListener("click", async () => {{
-          activePeriod = period.table;
-          await ensurePeriodLoaded(activePeriod);
-          await render();
-        }});
+        if (tab.kind === "period") {{
+          btn.dataset.period = tab.period || "";
+          btn.addEventListener("click", async () => {{
+            activePeriod = tab.period || "daily";
+            await ensurePeriodLoaded(activePeriod);
+            await render();
+          }});
+        }} else {{
+          btn.addEventListener("click", () => {{
+            if (tab.href) window.location.href = tab.href;
+          }});
+        }}
         periodTabs.appendChild(btn);
       }});
       periodTabs.dataset.ready = "1";
@@ -5263,7 +5334,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        if path_only in {"/", "/index.html", "/videos"}:
+        if path_only in {"/", "/index.html", "/videos", "/new", "/videos/new"}:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -5527,7 +5598,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if path_only not in {"/", "/index.html", "/admin", "/videos"}:
+        if path_only not in {"/", "/index.html", "/admin", "/videos", "/new", "/videos/new"}:
             self.send_error(404, "Not found")
             return
 
@@ -5544,7 +5615,8 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             is_admin = token == ADMIN_TOKEN
 
         base_url = self._request_base_url()
-        path_view_mode = "videos" if path_only == "/videos" else "shorts"
+        path_view_mode = "videos" if path_only in {"/videos", "/videos/new"} else "shorts"
+        is_new_mode = path_only in {"/new", "/videos/new"}
         query_view_mode = _normalize_view_mode((query.get("view") or [""])[0])
         view_mode = "videos" if path_view_mode == "videos" or query_view_mode == "videos" else "shorts"
         period_key = "daily"
@@ -5555,6 +5627,7 @@ class TestSiteHandler(BaseHTTPRequestHandler):
                 base_url=base_url,
                 view_mode=view_mode,
                 initial_period_key=period_key,
+                new_mode=is_new_mode,
             ).encode("utf-8", errors="replace")
         except Exception as exc:
             logger.exception("Failed to render test site")
