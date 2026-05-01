@@ -1583,11 +1583,12 @@ def render_homepage(
 ) -> str:
     normalized_view_mode = _normalize_view_mode(view_mode)
     initial_content_type = _content_type_for_view_mode(normalized_view_mode)
+    include_content_types = {"shorts", "video"} if is_admin else {initial_content_type}
     if new_mode:
         period_payload = _build_single_period_payload(
             NEW_PERIOD_KEY,
             is_admin=is_admin,
-            include_content_types={initial_content_type},
+            include_content_types=include_content_types,
         )
         payload = [period_payload] if period_payload else []
         first_period = NEW_PERIOD_KEY if payload else ""
@@ -1596,7 +1597,7 @@ def render_homepage(
             is_admin=is_admin,
             include_period_keys={period_key for period_key, *_ in PERIODS if period_key not in LAZY_LOAD_PERIOD_KEYS},
             include_placeholders=True,
-            include_content_types={initial_content_type},
+            include_content_types=include_content_types,
         )
         normalized_initial_period = _normalize_period_param(initial_period_key) or "daily"
         first_period = normalized_initial_period if payload else ""
@@ -3129,15 +3130,27 @@ def render_homepage(
         <article class="stat-card"><div class="stat-value">${{fresh.toLocaleString("ja-JP")}}</div><div class="stat-label">New (24h)</div></article>
       `;
     }}
-    function getDailyTop3Items(contentType) {{
+    function getDailyCardsByContentType(contentType) {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
       const daily = payload.find((p) => p.table === "daily");
       if (!daily || !daily.groups || !daily.groups.all) return [];
       const tmp = document.createElement("div");
       tmp.innerHTML = daily.groups.all;
-      const cards = Array.from(
+      const panelCards = Array.from(
         tmp.querySelectorAll(`.content-panel[data-content-panel="${{normalized}}"] .card`)
-      ).slice(0, 3);
+      );
+      if (panelCards.length) return panelCards;
+      return Array.from(tmp.querySelectorAll(".card")).filter((card) => {{
+        const typeFromThumb = (card.querySelector(".thumb")?.dataset?.contentType || "").toLowerCase();
+        if (typeFromThumb) {{
+          return (typeFromThumb === "video") === (normalized === "video");
+        }}
+        return normalized !== "video";
+      }});
+    }}
+    function getDailyTop3Items(contentType) {{
+      const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
+      const cards = getDailyCardsByContentType(normalized).slice(0, 3);
       return cards.map((card, idx) => {{
         const titleEl = card.querySelector(".card-title");
         const videoId = (card.dataset.videoId || "").trim();
@@ -3190,13 +3203,7 @@ def render_homepage(
     }}
     function getDailyTopItems(contentType, limit = 3) {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
-      const daily = payload.find((p) => p.table === "daily");
-      if (!daily || !daily.groups || !daily.groups.all) return [];
-      const tmp = document.createElement("div");
-      tmp.innerHTML = daily.groups.all;
-      const cards = Array.from(
-        tmp.querySelectorAll(`.content-panel[data-content-panel="${{normalized}}"] .card`)
-      );
+      const cards = getDailyCardsByContentType(normalized);
       const items = cards.map((card) => {{
         const thumb = card.querySelector(".thumb");
         const titleEl = card.querySelector(".card-title");
@@ -3218,21 +3225,24 @@ def render_homepage(
           viewGrowth: Number.isFinite(viewGrowth) ? viewGrowth : 0,
           rankUp: Number.isFinite(rankUp) ? rankUp : 0,
         }};
-      }}).filter((item) => item.videoId && item.isNew);
-      const maxViewGrowth = Math.max(1, ...items.map((item) => Math.max(0, Number(item.viewGrowth || 0))));
-      const maxRankUp = Math.max(1, ...items.map((item) => Math.max(0, Number(item.rankUp || 0))));
-      items.forEach((item) => {{
+      }}).filter((item) => item.videoId);
+      const sourceItems = items.some((item) => item.isNew)
+        ? items.filter((item) => item.isNew)
+        : items;
+      const maxViewGrowth = Math.max(1, ...sourceItems.map((item) => Math.max(0, Number(item.viewGrowth || 0))));
+      const maxRankUp = Math.max(1, ...sourceItems.map((item) => Math.max(0, Number(item.rankUp || 0))));
+      sourceItems.forEach((item) => {{
         const viewNorm = Math.max(0, Number(item.viewGrowth || 0)) / maxViewGrowth;
         const rankNorm = Math.max(0, Number(item.rankUp || 0)) / maxRankUp;
         item.momentumScore = (viewNorm * 0.5) + (rankNorm * 0.5);
       }});
-      items.sort((a, b) =>
+      sourceItems.sort((a, b) =>
         (b.momentumScore - a.momentumScore) ||
         (b.rankUp - a.rankUp) ||
         (b.viewGrowth - a.viewGrowth) ||
         (a.rank - b.rank)
       );
-      return items.slice(0, Math.max(1, limit));
+      return sourceItems.slice(0, Math.max(1, limit));
     }}
     function parseMetricNumber(text) {{
       const normalized = String(text || "").replace(/[^0-9-]/g, "");
@@ -3248,11 +3258,7 @@ def render_homepage(
     }}
     function getDailyCardMetrics(contentType) {{
       const normalized = (contentType || "").toLowerCase() === "video" ? "video" : "shorts";
-      const daily = payload.find((p) => p.table === "daily");
-      if (!daily || !daily.groups || !daily.groups.all) return [];
-      const tmp = document.createElement("div");
-      tmp.innerHTML = daily.groups.all;
-      const cards = Array.from(tmp.querySelectorAll(`.content-panel[data-content-panel="${{normalized}}"] .card`));
+      const cards = getDailyCardsByContentType(normalized);
       return cards.map((card) => {{
         const thumb = card.querySelector(".thumb");
         const titleEl = card.querySelector(".card-title");
