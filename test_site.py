@@ -266,20 +266,26 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
 
     calculated_at = snapshot_rows[0]["calculated_at"]
 
-    previous_ids: set[str] = set()
-    prev_calculated_at: datetime | None = (
-        snapshot_rows[1]["calculated_at"] if len(snapshot_rows) > 1 else None
-    )
-    if prev_calculated_at:
-        prev_rows = fetchall(
+    prev_calculated_at: datetime | None = None
+    history_table = f"{table}_history"
+    try:
+        history_snapshot_rows = fetchall(
             f"""
-            SELECT video_id
-            FROM {table}
-            WHERE calculated_at = %s
-            """,
-            (prev_calculated_at,),
+            SELECT calculated_at
+            FROM {history_table}
+            GROUP BY calculated_at
+            ORDER BY calculated_at DESC
+            LIMIT 2
+            """
         )
-        previous_ids = {row["video_id"] for row in prev_rows}
+        if history_snapshot_rows:
+            newest_history_at = history_snapshot_rows[0]["calculated_at"]
+            if newest_history_at == calculated_at and len(history_snapshot_rows) > 1:
+                prev_calculated_at = history_snapshot_rows[1]["calculated_at"]
+            elif newest_history_at != calculated_at:
+                prev_calculated_at = newest_history_at
+    except Exception:
+        logger.exception("Failed to fetch previous ranking snapshot from %s", history_table)
 
     period_hours_map = {"daily": 24, "weekly": 168, "monthly": 720}
     period_key = "daily"
@@ -398,7 +404,7 @@ def _fetch_latest_rankings(table: str, top_n: int = 100) -> tuple[datetime | Non
             prev_rank_rows = fetchall(
                 f"""
                 SELECT video_id, rank
-                FROM {table}
+                FROM {history_table}
                 WHERE calculated_at = %s
                   AND video_id = ANY(%s)
                 """,
