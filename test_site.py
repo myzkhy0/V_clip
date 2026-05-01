@@ -843,6 +843,7 @@ def _render_cards(
                   data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <div class="{rank_badge_class}">{rank}</div>
+                <span class="prev-rank-chip thumb-prev-rank-chip {rank_move_class}">{prev_rank_text}</span>
                 {new_badge_html}
                 {duration_html}
               </a>
@@ -861,10 +862,7 @@ def _render_cards(
                     <span class="card-views"><em class="arrow">▶</em><span class="view-growth">+{view_growth_value:,}</span></span>
                     <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
                   </span>
-                  <span class="card-meta-right">
-                    <span class="prev-rank-chip {rank_move_class}">{prev_rank_text}</span>
-                    <span class="card-date">{html.escape(published_label)}</span>
-                  </span>
+                  <span class="card-date">{html.escape(published_label)}</span>
                 </div>
                 <div class="card-actions">
                   <a class="card-action-link" href="{video_url}" target="_blank" rel="noreferrer" aria-label="YouTubeで開く" title="YouTubeで開く">
@@ -1940,12 +1938,7 @@ def render_homepage(
       overflow:hidden;font-size:1.01rem;font-weight:700;line-height:1.5;
       min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
     }}
-    .card-meta-right {{
-      display:flex;
-      flex-direction:column;
-      align-items:flex-end;
-      gap:3px;
-    }}
+    .card-meta-right {{ display:flex; align-items:center; gap:8px; }}
     .prev-rank-chip {{
       display:inline-flex;
       align-items:center;
@@ -1963,6 +1956,16 @@ def render_homepage(
       line-height:1;
       white-space:nowrap;
       box-shadow:0 1px 4px rgba(3, 10, 25, 0.25);
+    }}
+    .thumb-prev-rank-chip {{
+      position:absolute;
+      left:10px;
+      top:44px;
+      z-index:2;
+      backdrop-filter: blur(1px);
+      background:rgba(8, 26, 54, 0.62);
+      border-color:rgba(188, 229, 255, 0.48);
+      box-shadow:0 2px 6px rgba(3, 10, 25, 0.30);
     }}
     .prev-rank-chip.is-up {{
       background:linear-gradient(135deg, rgba(7, 138, 88, 0.95), rgba(16, 185, 129, 0.95));
@@ -1986,8 +1989,15 @@ def render_homepage(
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
     .card-info-top {{ margin-bottom:6px;justify-content:space-between; }}
-    .card-info-bottom {{ justify-content:space-between;align-items:flex-end;margin-bottom:8px;font-size:0.84rem; }}
-    .card-date {{ color:var(--text-dim);white-space:nowrap; }}
+    .card-info-bottom {{
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) auto;
+      align-items:end;
+      column-gap:10px;
+      margin-bottom:8px;
+      font-size:0.84rem;
+    }}
+    .card-date {{ color:var(--text-dim);white-space:nowrap;text-align:right;min-width:112px; }}
     .card-actions {{
       display:flex;gap:8px;margin-top:10px;padding-top:10px;
       border-top:1px solid rgba(100,160,240,0.16);
