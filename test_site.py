@@ -806,7 +806,19 @@ def _render_cards(
             prev_rank = int(row.get("prev_rank") or 0)
         except (TypeError, ValueError):
             prev_rank = 0
-        prev_rank_text = f"PREV#{prev_rank}" if prev_rank > 0 else "ENTRY"
+        rank_move_class = "is-new"
+        if prev_rank > 0 and current_rank > 0:
+            if prev_rank > current_rank:
+                prev_rank_text = f"↑{prev_rank - current_rank}"
+                rank_move_class = "is-up"
+            elif prev_rank < current_rank:
+                prev_rank_text = f"↓{current_rank - prev_rank}"
+                rank_move_class = "is-down"
+            else:
+                prev_rank_text = "→0"
+                rank_move_class = "is-flat"
+        else:
+            prev_rank_text = "NEW"
         try:
             view_growth_pct = int(row.get("view_growth_pct") or 0)
         except (TypeError, ValueError):
@@ -850,7 +862,7 @@ def _render_cards(
                     <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
                   </span>
                   <span class="card-meta-right">
-                    <span class="prev-rank-chip">{prev_rank_text}</span>
+                    <span class="prev-rank-chip {rank_move_class}">{prev_rank_text}</span>
                     <span class="card-date">{html.escape(published_label)}</span>
                   </span>
                 </div>
@@ -1951,6 +1963,26 @@ def render_homepage(
       line-height:1;
       white-space:nowrap;
       box-shadow:0 1px 4px rgba(3, 10, 25, 0.25);
+    }}
+    .prev-rank-chip.is-up {{
+      background:linear-gradient(135deg, rgba(7, 138, 88, 0.95), rgba(16, 185, 129, 0.95));
+      border-color:rgba(167, 243, 208, 0.7);
+      color:#ecfdf5;
+    }}
+    .prev-rank-chip.is-down {{
+      background:linear-gradient(135deg, rgba(180, 40, 64, 0.95), rgba(239, 68, 68, 0.95));
+      border-color:rgba(254, 202, 202, 0.72);
+      color:#fff1f2;
+    }}
+    .prev-rank-chip.is-flat {{
+      background:linear-gradient(135deg, rgba(71, 85, 105, 0.95), rgba(100, 116, 139, 0.95));
+      border-color:rgba(203, 213, 225, 0.65);
+      color:#f8fafc;
+    }}
+    .prev-rank-chip.is-new {{
+      background:linear-gradient(135deg, rgba(22, 66, 134, 0.95), rgba(26, 119, 170, 0.95));
+      border-color:rgba(150, 216, 255, 0.58);
+      color:#eaf6ff;
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
     .card-info-top {{ margin-bottom:6px;justify-content:space-between; }}
