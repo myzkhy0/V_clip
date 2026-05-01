@@ -786,7 +786,7 @@ def _render_cards(
             prev_rank = int(row.get("prev_rank") or 0)
         except (TypeError, ValueError):
             prev_rank = 0
-        prev_rank_text = f"前回 {prev_rank}位" if prev_rank > 0 else "初登場"
+        prev_rank_text = f"PREV #{prev_rank}" if prev_rank > 0 else "NEW ENTRY"
         try:
             view_growth_pct = int(row.get("view_growth_pct") or 0)
         except (TypeError, ValueError):
@@ -815,9 +815,11 @@ def _render_cards(
                 {duration_html}
               </a>
               <div class="card-meta">
-                <a class="card-title" href="{detail_url}"
-                   data-video-id="{video_id}" data-content-type="{content_type}">{title}</a>
-                <div class="prev-rank-label">{prev_rank_text}</div>
+                <div class="card-title-row">
+                  <a class="card-title" href="{detail_url}"
+                     data-video-id="{video_id}" data-content-type="{content_type}">{title}</a>
+                  <span class="prev-rank-chip">{prev_rank_text}</span>
+                </div>
                 <div class="card-info card-info-top">
                   <a class="card-channel channel-link" href="{channel_url}" target="_blank" rel="noreferrer">
                     {icon_html}
@@ -1901,16 +1903,32 @@ def render_homepage(
       font-size:0.74rem;font-weight:800;line-height:1;
     }}
     .card-meta {{ padding:15px 17px; }}
+    .card-title-row {{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:8px;
+    }}
     .card-title {{
       display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
       overflow:hidden;font-size:1.01rem;font-weight:700;line-height:1.5;
-      min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
+      min-height:2.6em;margin-bottom:0;color:var(--text);text-decoration:none;
+      flex:1;
     }}
-    .prev-rank-label {{
-      font-size:0.76rem;
-      color:var(--text-dim);
-      margin:-3px 0 8px;
-      letter-spacing:0.01em;
+    .prev-rank-chip {{
+      flex:0 0 auto;
+      font-size:0.68rem;
+      font-weight:800;
+      letter-spacing:0.03em;
+      color:#eaf6ff;
+      background:linear-gradient(135deg, rgba(41, 116, 217, 0.95), rgba(38, 156, 216, 0.95));
+      border:1px solid rgba(164, 221, 255, 0.6);
+      border-radius:999px;
+      padding:4px 8px;
+      line-height:1;
+      margin-top:2px;
+      white-space:nowrap;
     }}
     .card-info {{ display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-dim); }}
     .card-info-top {{ margin-bottom:6px;justify-content:space-between; }}
