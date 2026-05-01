@@ -828,9 +828,11 @@ def _render_cards(
                     <span class="card-metrics-stack">
                     <span class="card-views"><em class="arrow">▶</em><span class="view-growth">+{view_growth_value:,}</span></span>
                     <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
-                    <span class="prev-rank-chip">{prev_rank_text}</span>
                   </span>
-                  <span class="card-date">{html.escape(published_label)}</span>
+                  <span class="card-meta-right">
+                    <span class="prev-rank-chip">{prev_rank_text}</span>
+                    <span class="card-date">{html.escape(published_label)}</span>
+                  </span>
                 </div>
                 <div class="card-actions">
                   <a class="card-action-link" href="{video_url}" target="_blank" rel="noreferrer" aria-label="YouTubeで開く" title="YouTubeで開く">
@@ -1906,12 +1908,18 @@ def render_homepage(
       overflow:hidden;font-size:1.01rem;font-weight:700;line-height:1.5;
       min-height:2.6em;margin-bottom:10px;color:var(--text);text-decoration:none;
     }}
+    .card-meta-right {{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:3px;
+    }}
     .prev-rank-chip {{
       display:inline-flex;
       align-items:center;
       justify-content:center;
       width:max-content;
-      margin-top:4px;
+      margin-top:0;
       font-size:0.62rem;
       font-weight:800;
       letter-spacing:0.03em;
