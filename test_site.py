@@ -1580,7 +1580,6 @@ def render_homepage(
                 {"kind": "period", "label": "24時間", "period": "daily", "active": True},
                 {"kind": "period", "label": "7日", "period": "weekly"},
                 {"kind": "period", "label": "30日", "period": "monthly"},
-                {"kind": "nav", "label": "NEW", "href": "/new" if initial_content_type == "shorts" else "/videos/new"},
             ]
         )
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
