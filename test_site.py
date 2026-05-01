@@ -3766,6 +3766,64 @@ def render_homepage(
       ];
       return candidates;
     }}
+    function readPerfHeadersFromResponse(response) {{
+      return {{
+        status: response.status,
+        route: response.headers.get("x-perf-route") || "",
+        renderMs: response.headers.get("x-perf-render-ms") || "",
+        routeMs: response.headers.get("x-perf-route-ms") || "",
+        totalMs: response.headers.get("x-perf-total-ms") || "",
+        viewMode: response.headers.get("x-perf-view-mode") || "",
+      }};
+    }}
+    function createPerfProbeOverlay() {{
+      const pre = document.createElement("pre");
+      pre.id = "perf-probe-overlay";
+      pre.style.cssText = [
+        "position:fixed",
+        "right:8px",
+        "bottom:8px",
+        "z-index:9999",
+        "max-width:min(92vw,680px)",
+        "max-height:45vh",
+        "overflow:auto",
+        "padding:10px 12px",
+        "margin:0",
+        "border-radius:10px",
+        "border:1px solid rgba(120,180,255,0.35)",
+        "background:rgba(8,14,24,0.88)",
+        "color:#d9ecff",
+        "font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        "white-space:pre-wrap",
+      ].join(";");
+      pre.textContent = "perf probe running...";
+      document.body.appendChild(pre);
+      return pre;
+    }}
+    async function fetchPerfLine(url, options = {{}}) {{
+      try {{
+        const response = await fetch(url, Object.assign({{ credentials: "same-origin", cache: "no-store" }}, options));
+        const perf = readPerfHeadersFromResponse(response);
+        return `${{url}}\\n  status=${{perf.status}} route=${{perf.route || "-"}} render=${{perf.renderMs || "-"}}ms route=${{perf.routeMs || "-"}}ms total=${{perf.totalMs || "-"}}ms view=${{perf.viewMode || "-"}}`;
+      }} catch (error) {{
+        return `${{url}}\\n  error=${{error && error.message ? error.message : "fetch_failed"}}`;
+      }}
+    }}
+    async function runAutoPerfProbe() {{
+      const params = new URLSearchParams(window.location.search || "");
+      if (params.get("perf") !== "1") return;
+      const overlay = createPerfProbeOverlay();
+      const lines = [];
+      const currentUrl = window.location.pathname + window.location.search;
+      lines.push(await fetchPerfLine(currentUrl, {{ method: "HEAD" }}));
+      const periods = ["daily", "weekly", "monthly"];
+      for (const period of periods) {{
+        const candidates = buildPeriodFetchCandidates(period);
+        lines.push(await fetchPerfLine(candidates[0]));
+      }}
+      overlay.textContent = ["[Auto Perf Probe]", ...lines].join("\\n\\n");
+      console.log("[Auto Perf Probe]\\n" + overlay.textContent);
+    }}
     async function fetchPeriodPayload(periodTable) {{
       const candidates = buildPeriodFetchCandidates(periodTable);
       for (const url of candidates) {{
@@ -3976,6 +4034,9 @@ def render_homepage(
     buildHeroStats();
     buildNewPicks();
     void render();
+    setTimeout(() => {{
+      void runAutoPerfProbe();
+    }}, 0);
     if (showAdminMeta) {{
       bindAdminTargetToggle();
       renderAdminTrendingPicker();
