@@ -843,7 +843,6 @@ def _render_cards(
                   data-video-id="{video_id}" data-video-title="{title}" data-content-type="{content_type}">
                 <img src="{_thumbnail_url(video_id)}" alt="{title}" loading="lazy">
                 <div class="{rank_badge_class}">{rank}</div>
-                <span class="prev-rank-chip thumb-prev-rank-chip {rank_move_class}">{prev_rank_text}</span>
                 {new_badge_html}
                 {duration_html}
               </a>
@@ -862,7 +861,10 @@ def _render_cards(
                     <span class="card-views"><em class="arrow">▶</em><span class="view-growth">+{view_growth_value:,}</span></span>
                     <span class="card-likes"><span class="like-icon">❤</span><span class="like-count">+{like_growth:,}</span></span>
                   </span>
-                  <span class="card-date">{html.escape(published_label)}</span>
+                  <span class="card-meta-right">
+                    <span class="prev-rank-chip {rank_move_class}">{prev_rank_text}</span>
+                    <span class="card-date">{html.escape(published_label)}</span>
+                  </span>
                 </div>
                 <div class="card-actions">
                   <a class="card-action-link" href="{video_url}" target="_blank" rel="noreferrer" aria-label="YouTubeで開く" title="YouTubeで開く">
@@ -1957,25 +1959,15 @@ def render_homepage(
       white-space:nowrap;
       box-shadow:0 1px 4px rgba(3, 10, 25, 0.25);
     }}
-    .thumb-prev-rank-chip {{
-      position:absolute;
-      left:10px;
-      top:44px;
-      z-index:2;
-      backdrop-filter: blur(1px);
-      background:rgba(8, 26, 54, 0.62);
-      border-color:rgba(188, 229, 255, 0.48);
-      box-shadow:0 2px 6px rgba(3, 10, 25, 0.30);
-    }}
     .prev-rank-chip.is-up {{
       background:linear-gradient(135deg, rgba(7, 138, 88, 0.95), rgba(16, 185, 129, 0.95));
       border-color:rgba(167, 243, 208, 0.7);
       color:#ecfdf5;
     }}
     .prev-rank-chip.is-down {{
-      background:linear-gradient(135deg, rgba(180, 40, 64, 0.95), rgba(239, 68, 68, 0.95));
-      border-color:rgba(254, 202, 202, 0.72);
-      color:#fff1f2;
+      background:linear-gradient(135deg, rgba(75, 85, 99, 0.95), rgba(107, 114, 128, 0.95));
+      border-color:rgba(209, 213, 219, 0.70);
+      color:#f9fafb;
     }}
     .prev-rank-chip.is-flat {{
       background:linear-gradient(135deg, rgba(71, 85, 105, 0.95), rgba(100, 116, 139, 0.95));
