@@ -867,6 +867,7 @@ def _render_group_content(
     provisional_shorts_rows: list[dict] | None = None,
     provisional_video_rows: list[dict] | None = None,
     top_n: int = 100,
+    include_content_types: set[str] | None = None,
 ) -> str:
     provisional_shorts_rows = provisional_shorts_rows or []
     provisional_video_rows = provisional_video_rows or []
@@ -885,32 +886,42 @@ def _render_group_content(
     if not display_shorts_rows and not display_video_rows:
         return '<div class="empty">このタブに該当する動画はありません。</div>'
 
-    shorts_html = (
-        _render_rank_sections(
-            display_shorts_rows,
-            show_group=show_group,
-            period_key=period_key,
-            content_label="shorts",
+    include_types = {normalized for normalized in (include_content_types or {"shorts", "video"}) if normalized in {"shorts", "video"}}
+    if not include_types:
+        include_types = {"shorts"}
+    parts: list[str] = []
+    if "shorts" in include_types:
+        shorts_html = (
+            _render_rank_sections(
+                display_shorts_rows,
+                show_group=show_group,
+                period_key=period_key,
+                content_label="shorts",
+            )
+            if display_shorts_rows
+            else '<div class="empty">Shortsに該当する動画はありません。</div>'
         )
-        if display_shorts_rows
-        else '<div class="empty">Shortsに該当する動画はありません。</div>'
-    )
-    video_html = (
-        _render_rank_sections(
-            display_video_rows,
-            show_group=show_group,
-            period_key=period_key,
-            content_label="動画",
+        parts.append(f'<div class="content-panel" data-content-panel="shorts">{shorts_html}</div>')
+    if "video" in include_types:
+        video_html = (
+            _render_rank_sections(
+                display_video_rows,
+                show_group=show_group,
+                period_key=period_key,
+                content_label="動画",
+            )
+            if display_video_rows
+            else '<div class="empty">動画に該当する動画はありません。</div>'
         )
-        if display_video_rows
-        else '<div class="empty">動画に該当する動画はありません。</div>'
-    )
+        parts.append(f'<div class="content-panel" data-content-panel="video">{video_html}</div>')
+    return "".join(parts)
 
-    return f"""
-    <div class="content-panel" data-content-panel="shorts">{shorts_html}</div>
-    <div class="content-panel" data-content-panel="video">{video_html}</div>
-    """
-def _build_single_period_payload(period_key: str, is_admin: bool = False) -> dict | None:
+
+def _build_single_period_payload(
+    period_key: str,
+    is_admin: bool = False,
+    include_content_types: set[str] | None = None,
+) -> dict | None:
     period = PERIOD_TABLE_MAP.get(period_key)
     if not period:
         return None
@@ -973,6 +984,7 @@ def _build_single_period_payload(period_key: str, is_admin: bool = False) -> dic
                 provisional_shorts_rows=grouped_provisional_shorts.get(group_name, []),
                 provisional_video_rows=grouped_provisional_video.get(group_name, []),
                 top_n=top_n,
+                include_content_types=include_content_types,
             )
             for group_name in available_groups
         },
@@ -997,10 +1009,12 @@ def _build_period_payload(
     is_admin: bool = False,
     include_period_keys: set[str] | None = None,
     include_placeholders: bool = False,
+    include_content_types: set[str] | None = None,
 ) -> list[dict]:
     include_keys = include_period_keys or {period_key for period_key, *_ in PERIODS}
     include_signature = ",".join(sorted(include_keys))
-    cache_key = (bool(is_admin), include_signature)
+    include_type_signature = ",".join(sorted(include_content_types or {"shorts", "video"}))
+    cache_key = (bool(is_admin), f"{include_signature}|{include_type_signature}")
     now_ts = time.time()
     with _period_payload_cache_lock:
         cached = _period_payload_cache.get(cache_key)
@@ -1010,7 +1024,11 @@ def _build_period_payload(
     payload: list[dict] = []
     for period_key, _, _, _ in PERIODS:
         if period_key in include_keys:
-            period_payload = _build_single_period_payload(period_key, is_admin=is_admin)
+            period_payload = _build_single_period_payload(
+                period_key,
+                is_admin=is_admin,
+                include_content_types=include_content_types,
+            )
             if period_payload:
                 payload.append(period_payload)
                 continue
@@ -1064,6 +1082,17 @@ def _normalize_period_param(raw: str) -> str:
     if value in PERIOD_TABLE_MAP:
         return value
     return ""
+
+
+def _normalize_view_mode(raw: str) -> str:
+    value = (raw or "").strip().lower()
+    if value in {"videos", "video", "douga"}:
+        return "videos"
+    return "shorts"
+
+
+def _content_type_for_view_mode(view_mode: str) -> str:
+    return "video" if _normalize_view_mode(view_mode) == "videos" else "shorts"
 
 
 def _build_oauth1_header_for_x_post(url: str) -> str:
@@ -1452,19 +1481,29 @@ def render_policy_page(base_url: str = "") -> str:
 </html>
 """
 
-def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
+def render_homepage(
+    is_admin: bool = False,
+    base_url: str = "",
+    view_mode: str = "shorts",
+    initial_period_key: str = "daily",
+) -> str:
+    normalized_view_mode = _normalize_view_mode(view_mode)
+    initial_content_type = _content_type_for_view_mode(normalized_view_mode)
     payload = _build_period_payload(
         is_admin=is_admin,
         include_period_keys={period_key for period_key, *_ in PERIODS if period_key not in LAZY_LOAD_PERIOD_KEYS},
         include_placeholders=True,
+        include_content_types={initial_content_type},
     )
-    first_period = payload[0]["table"] if payload else ""
+    normalized_initial_period = _normalize_period_param(initial_period_key) or "daily"
+    first_period = normalized_initial_period if payload else ""
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     hero_stats_json = json.dumps(_fetch_public_hero_stats(), ensure_ascii=False).replace("</", "<\\/")
     normalized_base_url = _normalize_base_url(base_url)
     head_meta = _build_head_meta(normalized_base_url, is_admin=is_admin)
     show_admin_meta = "true" if is_admin else "false"
+    initial_content_type_js = json.dumps(initial_content_type)
     admin_html = ""
     admin_board_html = ""
     body_class = "admin-mode" if is_admin else ""
@@ -2819,7 +2858,7 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     const adminTargetToggle = document.getElementById("admin-target-toggle");
     let adminShareTargetType = "shorts";
     let activePeriod = "{first_period}";
-    let activeContentType = "shorts";
+    let activeContentType = {initial_content_type_js};
     const PAGE_SIZE_MOBILE = 20;
     const MOBILE_BREAKPOINT = 760;
     const pageState = {{}};
@@ -2829,6 +2868,20 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
       shorts: {{ icon: "▶", label: "Shorts \u30e9\u30f3\u30ad\u30f3\u30b0" }},
       video:  {{ icon: "▦", label: "\u52d5\u753b\u30e9\u30f3\u30ad\u30f3\u30b0" }}
     }};
+    function buildViewNavigationUrl(contentType) {{
+      const normalized = normalizeContentType(contentType);
+      const params = new URLSearchParams(window.location.search || "");
+      if (normalized === "video") {{
+        params.set("view", "videos");
+      }} else {{
+        params.delete("view");
+      }}
+      if (activePeriod) {{
+        params.set("period", activePeriod);
+      }}
+      const query = params.toString();
+      return query ? `/?${{query}}` : "/";
+    }}
 
     /* ── Pagination helpers ── */
     function paginationKey() {{
@@ -3668,9 +3721,10 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
     }}
     function buildPeriodFetchCandidates(periodTable) {{
       const normalized = (periodTable || "").toLowerCase();
+      const viewParam = normalizeContentType(activeContentType) === "video" ? "videos" : "shorts";
       const candidates = [
-        `/rankings-period/${{encodeURIComponent(normalized)}}.json`,
-        `/api/rankings?period=${{encodeURIComponent(normalized)}}`,
+        `/rankings-period/${{encodeURIComponent(normalized)}}.json?view=${{encodeURIComponent(viewParam)}}`,
+        `/api/rankings?period=${{encodeURIComponent(normalized)}}&view=${{encodeURIComponent(viewParam)}}`,
       ];
       return candidates;
     }}
@@ -3744,8 +3798,11 @@ def render_homepage(is_admin: bool = False, base_url: str = "") -> str:
         btn.type = "button";
         btn.dataset.type = type;
         btn.addEventListener("click", () => {{
-          activeContentType = type;
-          void render();
+          const normalized = normalizeContentType(type);
+          if (normalized === activeContentType) {{
+            return;
+          }}
+          window.location.href = buildViewNavigationUrl(normalized);
         }});
         typeTabs.appendChild(btn);
       }});
@@ -5222,9 +5279,15 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             if not period_key:
                 _json_response(self, 400, {"ok": False, "error": "invalid_period"})
                 return
+            view_mode = _normalize_view_mode((query.get("view") or [""])[0])
+            include_content_types = {_content_type_for_view_mode(view_mode)}
             token = (query.get("admin_token") or [""])[0]
             is_admin = bool(ADMIN_TOKEN and token == ADMIN_TOKEN)
-            period_payload = _build_single_period_payload(period_key, is_admin=is_admin)
+            period_payload = _build_single_period_payload(
+                period_key,
+                is_admin=is_admin,
+                include_content_types=include_content_types,
+            )
             if not period_payload:
                 _json_response(self, 404, {"ok": False, "error": "period_not_found"})
                 return
@@ -5236,9 +5299,15 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             if not period_key:
                 _json_response(self, 400, {"ok": False, "error": "invalid_period"})
                 return
+            view_mode = _normalize_view_mode((query.get("view") or [""])[0])
+            include_content_types = {_content_type_for_view_mode(view_mode)}
             token = (query.get("admin_token") or [""])[0]
             is_admin = bool(ADMIN_TOKEN and token == ADMIN_TOKEN)
-            period_payload = _build_single_period_payload(period_key, is_admin=is_admin)
+            period_payload = _build_single_period_payload(
+                period_key,
+                is_admin=is_admin,
+                include_content_types=include_content_types,
+            )
             if not period_payload:
                 _json_response(self, 404, {"ok": False, "error": "period_not_found"})
                 return
@@ -5290,8 +5359,15 @@ class TestSiteHandler(BaseHTTPRequestHandler):
             is_admin = token == ADMIN_TOKEN
 
         base_url = self._request_base_url()
+        view_mode = _normalize_view_mode((query.get("view") or [""])[0])
+        period_key = _normalize_period_param((query.get("period") or ["daily"])[0]) or "daily"
         try:
-            body = render_homepage(is_admin=is_admin, base_url=base_url).encode("utf-8", errors="replace")
+            body = render_homepage(
+                is_admin=is_admin,
+                base_url=base_url,
+                view_mode=view_mode,
+                initial_period_key=period_key,
+            ).encode("utf-8", errors="replace")
         except Exception as exc:
             logger.exception("Failed to render test site")
             body = render_error_page(exc, base_url=base_url).encode("utf-8", errors="replace")
