@@ -3191,6 +3191,14 @@ def render_homepage(
         }}
       }});
     }}
+    function formatCompactStat(value) {{
+      const num = Number(value || 0);
+      const abs = Math.abs(num);
+      if (abs >= 1_000_000_000) return `${{(num / 1_000_000_000).toFixed(1).replace(/\\.0$/, "")}}B`;
+      if (abs >= 1_000_000) return `${{(num / 1_000_000).toFixed(1).replace(/\\.0$/, "")}}M`;
+      if (abs >= 1_000) return `${{(num / 1_000).toFixed(1).replace(/\\.0$/, "")}}K`;
+      return num.toLocaleString("ja-JP");
+    }}
     /* ── Build hero stats from payload ── */
     function buildHeroStats() {{
       const statsEl = document.getElementById("hero-stats");
@@ -3199,8 +3207,8 @@ def render_homepage(
       const growth = Number(heroStats?.daily_growth_total || 0);
       const fresh = Number(heroStats?.new_24h || 0);
       statsEl.innerHTML = `
-        <article class="stat-card"><div class="stat-value">${{tracking.toLocaleString("ja-JP")}}</div><div class="stat-label">Tracking Videos</div></article>
-        <article class="stat-card"><div class="stat-value">${{growth.toLocaleString("ja-JP")}}</div><div class="stat-label">Daily View Growth</div></article>
+        <article class="stat-card"><div class="stat-value">${{formatCompactStat(tracking)}}</div><div class="stat-label">Tracking Videos</div></article>
+        <article class="stat-card"><div class="stat-value">${{formatCompactStat(growth)}}</div><div class="stat-label">Daily View Growth</div></article>
         <article class="stat-card"><div class="stat-value">${{fresh.toLocaleString("ja-JP")}}</div><div class="stat-label">New (24h)</div></article>
       `;
     }}
