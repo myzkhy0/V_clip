@@ -29,6 +29,7 @@ from config import (
     GROUP_KEYWORDS,
     MIN_DURATION_SECONDS,
     KEYWORD_ROTATION_STATE_FILE,
+    REQUIRED_SEARCH_KEYWORD,
     KEYWORD_PUBLISHED_AFTER_HOURS,
     KEYWORD_MAX_RESULTS_OVERRIDE,
     KEYWORD_SEARCH_BATCH_SIZE,
@@ -438,17 +439,51 @@ def _save_keyword_rotation_state(offset: int) -> None:
 
 
 def _select_keywords_for_cycle(keywords: list[str]) -> list[str]:
-    """Select a rotating keyword batch for this collector cycle."""
+    """Select keywords for this cycle with one always-included keyword."""
     if not keywords:
         return []
 
     batch_size = max(1, KEYWORD_SEARCH_BATCH_SIZE)
-    if batch_size >= len(keywords):
-        return keywords
+    required = (REQUIRED_SEARCH_KEYWORD or "").strip()
+    if not required:
+        required = "VTuber 切り抜き"
 
-    offset = _load_keyword_rotation_state() % len(keywords)
-    selected = [keywords[(offset + i) % len(keywords)] for i in range(batch_size)]
-    next_offset = (offset + batch_size) % len(keywords)
+    base_keywords = list(dict.fromkeys(keywords))
+    selected: list[str] = []
+    if required in base_keywords:
+        selected.append(required)
+    else:
+        selected.append(required)
+        logger.warning(
+            "Required keyword '%s' is not in SEARCH_KEYWORDS; adding it dynamically for this run.",
+            required,
+        )
+    others = [kw for kw in base_keywords if kw != required]
+
+    remaining_slots = max(0, batch_size - len(selected))
+    if remaining_slots <= 0 or not others:
+        logger.info(
+            "Keyword rotation: using %d/%d keyword(s), required='%s', rotation_skipped",
+            len(selected),
+            len(base_keywords),
+            required,
+        )
+        return selected[:batch_size]
+
+    if remaining_slots >= len(others):
+        selected.extend(others)
+        logger.info(
+            "Keyword rotation: using %d/%d keyword(s), required='%s', all non-required included",
+            len(selected),
+            len(base_keywords),
+            required,
+        )
+        return selected[:batch_size]
+
+    offset = _load_keyword_rotation_state() % len(others)
+    rotated = [others[(offset + i) % len(others)] for i in range(remaining_slots)]
+    next_offset = (offset + remaining_slots) % len(others)
+    selected.extend(rotated)
 
     try:
         _save_keyword_rotation_state(next_offset)
@@ -456,9 +491,10 @@ def _select_keywords_for_cycle(keywords: list[str]) -> list[str]:
         logger.exception("Failed to save keyword rotation state.")
 
     logger.info(
-        "Keyword rotation: using %d/%d keyword(s), offset=%d -> %d",
+        "Keyword rotation: using %d/%d keyword(s), required='%s', other_offset=%d -> %d",
         len(selected),
-        len(keywords),
+        len(base_keywords),
+        required,
         offset,
         next_offset,
     )

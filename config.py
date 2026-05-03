@@ -33,6 +33,7 @@ TRACK_DAYS: int = 7               # Only collect stats for videos < 7 days old
 
 # ── Search keywords ──────────────────────────────────────────────────
 SEARCH_KEYWORDS: list[str] = [
+    "VTuber 切り抜き",
     "ホロライブ 切り抜き",
     "にじさんじ 切り抜き",
     "ぶいすぽ 切り抜き",
@@ -49,6 +50,7 @@ SEARCH_KEYWORDS: list[str] = [
     "REJECT 切り抜き",
     "RIOT MUSIC 切り抜き",
 ]
+REQUIRED_SEARCH_KEYWORD: str = os.getenv("REQUIRED_SEARCH_KEYWORD", "VTuber 切り抜き")
 
 KEYWORD_MAX_RESULTS_OVERRIDE: dict[str, int] = {
     "ホロライブ 切り抜き": 50,
