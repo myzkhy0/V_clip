@@ -44,6 +44,9 @@ GA_MEASUREMENT_ID = os.getenv("GA_MEASUREMENT_ID", "").strip()
 SITE_BASE_URL = os.getenv("TEST_SITE_BASE_URL", "").strip()
 YOUTUBE_DAILY_SEARCH_UNIT_LIMIT = int(os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT", "8000"))
 YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json")
+ENABLE_HOMEPAGE_PREBUILT_CACHE = os.getenv("ENABLE_HOMEPAGE_PREBUILT_CACHE", "1").strip().lower() in {"1", "true", "yes", "on"}
+HOMEPAGE_PREBUILT_CACHE_FILE = os.getenv("HOMEPAGE_PREBUILT_CACHE_FILE", "cache/homepage_prebuilt.json").strip()
+HOMEPAGE_PREBUILT_MAX_AGE_SECONDS = max(60, int(os.getenv("HOMEPAGE_PREBUILT_MAX_AGE_SECONDS", "7200")))
 X_API_USER_BEARER_TOKEN = os.getenv("X_API_USER_BEARER_TOKEN", "").strip()
 X_API_POST_URL = os.getenv("X_API_POST_URL", "https://api.x.com/2/tweets").strip() or "https://api.x.com/2/tweets"
 X_API_TIMEOUT_SECONDS = float(os.getenv("X_API_TIMEOUT_SECONDS", "10"))
@@ -1123,6 +1126,68 @@ def _build_period_payload(
         elapsed_ms,
     )
     return payload
+
+
+def _homepage_prebuilt_cache_path() -> Path:
+    path = Path(HOMEPAGE_PREBUILT_CACHE_FILE)
+    if not path.is_absolute():
+        path = (Path(__file__).resolve().parent / path).resolve()
+    return path
+
+
+def _build_homepage_prebuilt_entry(content_type: str) -> dict:
+    payload = _build_period_payload(
+        is_admin=False,
+        include_period_keys={period_key for period_key, *_ in PERIODS if period_key not in LAZY_LOAD_PERIOD_KEYS},
+        include_placeholders=True,
+        include_content_types={content_type},
+    )
+    return {
+        "payload": payload,
+        "hero_stats": _fetch_public_hero_stats(),
+    }
+
+
+def rebuild_homepage_prebuilt_cache() -> tuple[bool, str]:
+    """Generate homepage prebuilt cache for non-admin daily entry pages."""
+    try:
+        bundle = {
+            "generated_at": int(time.time()),
+            "shorts": _build_homepage_prebuilt_entry("shorts"),
+            "video": _build_homepage_prebuilt_entry("video"),
+        }
+        path = _homepage_prebuilt_cache_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(bundle, ensure_ascii=False), encoding="utf-8")
+        return True, f"updated {path}"
+    except Exception as exc:
+        logger.exception("Failed to rebuild homepage prebuilt cache")
+        return False, str(exc)
+
+
+def _load_homepage_prebuilt_entry(content_type: str) -> dict | None:
+    if not ENABLE_HOMEPAGE_PREBUILT_CACHE:
+        return None
+    try:
+        path = _homepage_prebuilt_cache_path()
+        if not path.exists():
+            return None
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        generated_at = int(raw.get("generated_at") or 0)
+        if generated_at <= 0:
+            return None
+        age = int(time.time()) - generated_at
+        if age > HOMEPAGE_PREBUILT_MAX_AGE_SECONDS:
+            return None
+        entry = raw.get(content_type) or {}
+        payload = entry.get("payload")
+        hero_stats = entry.get("hero_stats")
+        if not isinstance(payload, list) or not isinstance(hero_stats, dict):
+            return None
+        return {"payload": payload, "hero_stats": hero_stats}
+    except Exception:
+        logger.exception("Failed to load homepage prebuilt cache")
+        return None
 def _load_quota_usage() -> tuple[int, int]:
     """Return (used_units, limit_units) from local quota state file."""
     limit = max(0, YOUTUBE_DAILY_SEARCH_UNIT_LIMIT)
@@ -1592,13 +1657,22 @@ def render_homepage(
         )
         payload = [period_payload] if period_payload else []
         first_period = NEW_PERIOD_KEY if payload else ""
+        hero_stats = _fetch_public_hero_stats()
     else:
-        payload = _build_period_payload(
-            is_admin=is_admin,
-            include_period_keys={period_key for period_key, *_ in PERIODS if period_key not in LAZY_LOAD_PERIOD_KEYS},
-            include_placeholders=True,
-            include_content_types=include_content_types,
-        )
+        cache_entry = None
+        if not is_admin:
+            cache_entry = _load_homepage_prebuilt_entry(initial_content_type)
+        if cache_entry:
+            payload = cache_entry["payload"]
+            hero_stats = cache_entry["hero_stats"]
+        else:
+            payload = _build_period_payload(
+                is_admin=is_admin,
+                include_period_keys={period_key for period_key, *_ in PERIODS if period_key not in LAZY_LOAD_PERIOD_KEYS},
+                include_placeholders=True,
+                include_content_types=include_content_types,
+            )
+            hero_stats = _fetch_public_hero_stats()
         normalized_initial_period = _normalize_period_param(initial_period_key) or "daily"
         first_period = normalized_initial_period if payload else ""
     period_tabs_config: list[dict[str, str | bool]] = []
@@ -1622,7 +1696,7 @@ def render_homepage(
     group_labels_json = json.dumps(GROUP_LABELS, ensure_ascii=False).replace("</", "<\\/")
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     period_tabs_json = json.dumps(period_tabs_config, ensure_ascii=False).replace("</", "<\\/")
-    hero_stats_json = json.dumps(_fetch_public_hero_stats(), ensure_ascii=False).replace("</", "<\\/")
+    hero_stats_json = json.dumps(hero_stats, ensure_ascii=False).replace("</", "<\\/")
     normalized_base_url = _normalize_base_url(base_url)
     head_meta = _build_head_meta(normalized_base_url, is_admin=is_admin)
     show_admin_meta = "true" if is_admin else "false"

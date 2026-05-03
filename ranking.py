@@ -323,6 +323,16 @@ def run_rankings() -> None:
             _calculate_ranking(period_name, period_hours, content_type, table, history_table)
         except Exception:
             logger.exception("Error computing %s/%s ranking", period_name, content_type)
+    try:
+        from test_site import rebuild_homepage_prebuilt_cache
+
+        ok, message = rebuild_homepage_prebuilt_cache()
+        if ok:
+            logger.info("Homepage prebuilt cache rebuilt: %s", message)
+        else:
+            logger.warning("Homepage prebuilt cache rebuild failed: %s", message)
+    except Exception:
+        logger.exception("Homepage prebuilt cache rebuild hook failed")
     logger.info("=== Ranking calculation finished ===")
 
 
