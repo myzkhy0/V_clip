@@ -178,11 +178,24 @@ def _build_head_meta(base_url: str, is_admin: bool) -> str:
     if canonical_url:
         escaped_canonical = html.escape(canonical_url, quote=True)
         tags.append(f'<meta property="og:url" content="{escaped_canonical}">')
+        tags.append(f'<link rel="alternate" hreflang="ja" href="{escaped_canonical}">')
+        tags.append(f'<link rel="alternate" hreflang="x-default" href="{escaped_canonical}">')
 
     if og_image_url:
         escaped_og_image = html.escape(og_image_url, quote=True)
         tags.append(f'<meta property="og:image" content="{escaped_og_image}">')
         tags.append(f'<meta property="og:image:alt" content="{html.escape(SITE_TITLE, quote=True)}">')
+        tags.append('<meta name="twitter:card" content="summary_large_image">')
+        tags.append(f'<meta name="twitter:image" content="{escaped_og_image}">')
+    else:
+        tags.append('<meta name="twitter:card" content="summary">')
+
+    tags.extend(
+        [
+            f'<meta name="twitter:title" content="{html.escape(SITE_TITLE, quote=True)}">',
+            f'<meta name="twitter:description" content="{html.escape(SITE_DESCRIPTION, quote=True)}">',
+        ]
+    )
 
     website_structured_data = {
         "@context": "https://schema.org",
@@ -213,10 +226,15 @@ def _build_sitemap_xml(base_url: str) -> str:
     try:
         video_rows = fetchall(
             """
-            SELECT video_id, published_at
-            FROM videos
-            WHERE video_id IS NOT NULL
-            ORDER BY published_at DESC
+            SELECT
+                v.video_id,
+                v.published_at,
+                MAX(s.timestamp) AS last_seen_at
+            FROM videos v
+            LEFT JOIN video_stats s ON s.video_id = v.video_id
+            WHERE v.video_id IS NOT NULL
+            GROUP BY v.video_id, v.published_at
+            ORDER BY COALESCE(MAX(s.timestamp), v.published_at) DESC
             LIMIT 5000
             """
         )
@@ -224,7 +242,7 @@ def _build_sitemap_xml(base_url: str) -> str:
             video_id = _normalize_video_id(str(row.get("video_id") or ""))
             if not video_id:
                 continue
-            lastmod_value = row.get("published_at")
+            lastmod_value = row.get("last_seen_at") or row.get("published_at")
             if isinstance(lastmod_value, datetime):
                 if lastmod_value.tzinfo is None:
                     lastmod_value = lastmod_value.replace(tzinfo=timezone.utc)
