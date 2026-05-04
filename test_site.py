@@ -1783,7 +1783,7 @@ def render_channel_growth_page(base_url: str = "") -> str:
             f'<a class="rank-row" href="{link}" target="_blank" rel="noopener noreferrer">'
             f'<span class="rank-badge {cls}">{idx}</span>'
             f'<span class="row-main"><span class="row-title">{channel_name}</span>'
-            f'<span class="row-meta">{html.escape(_group_label(item.get("group_name") or "other"))} / 対象動画 {int(item.get("videos_with_base") or 0)}本</span></span>'
+            f'<span class="row-meta">{html.escape(GROUP_LABELS.get(item.get("group_name") or "other", "その他"))} / 対象動画 {int(item.get("videos_with_base") or 0)}本</span></span>'
             f'<span class="row-value">+{int(item.get("growth_24h") or 0):,}</span></a>'
         )
     rate_items: list[str] = []
@@ -1796,7 +1796,7 @@ def render_channel_growth_page(base_url: str = "") -> str:
             f'<a class="rank-row" href="{link}" target="_blank" rel="noopener noreferrer">'
             f'<span class="rank-badge {cls}">{idx}</span>'
             f'<span class="row-main"><span class="row-title">{channel_name}</span>'
-            f'<span class="row-meta">{html.escape(_group_label(item.get("group_name") or "other"))} / 24h前 {int(item.get("base_views_24h_ago") or 0):,}再生</span></span>'
+            f'<span class="row-meta">{html.escape(GROUP_LABELS.get(item.get("group_name") or "other", "その他"))} / 24h前 {int(item.get("base_views_24h_ago") or 0):,}再生</span></span>'
             f'<span class="row-value rate">+{float(item.get("growth_rate_pct") or 0.0):.1f}%</span></a>'
         )
 
