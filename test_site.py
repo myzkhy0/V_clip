@@ -1657,6 +1657,175 @@ def render_policy_page(base_url: str = "") -> str:
 </html>
 """
 
+
+def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
+    excluded_channel_ids = _load_excluded_channel_ids()
+    exclude_clause = ""
+    params: list[object] = []
+    if excluded_channel_ids:
+        exclude_clause = " AND NOT (v.channel_id = ANY(%s)) "
+        params.append(excluded_channel_ids)
+    params.append(max(10, int(limit)))
+
+    rows = fetchall(
+        f"""
+        WITH latest_per_video AS (
+            SELECT s.video_id, s.timestamp AS latest_ts, s.view_count AS latest_view
+            FROM video_stats s
+            JOIN (
+                SELECT video_id, MAX(timestamp) AS ts
+                FROM video_stats
+                GROUP BY video_id
+            ) m ON m.video_id = s.video_id AND m.ts = s.timestamp
+        ),
+        per_video AS (
+            SELECT
+                v.channel_id,
+                v.channel_name,
+                COALESCE(NULLIF(v.group_name, ''), 'other') AS group_name,
+                MAX(COALESCE(NULLIF(v.channel_icon_url, ''), '')) AS channel_icon_url,
+                l.video_id,
+                l.latest_ts,
+                l.latest_view,
+                (
+                    SELECT s2.view_count
+                    FROM video_stats s2
+                    WHERE s2.video_id = l.video_id
+                      AND s2.timestamp <= (l.latest_ts - INTERVAL '24 hours')
+                    ORDER BY s2.timestamp DESC
+                    LIMIT 1
+                ) AS base_view
+            FROM latest_per_video l
+            JOIN videos v ON v.video_id = l.video_id
+            WHERE 1=1
+              {exclude_clause}
+        ),
+        channel_agg AS (
+            SELECT
+                p.channel_id,
+                MIN(p.channel_name) AS channel_name,
+                MIN(p.group_name) AS group_name,
+                MIN(p.channel_icon_url) AS channel_icon_url,
+                COUNT(*) FILTER (WHERE p.base_view IS NOT NULL) AS videos_with_base,
+                COALESCE(SUM(p.base_view), 0) AS base_views_24h_ago,
+                COALESCE(SUM(GREATEST(0, p.latest_view - p.base_view)), 0) AS growth_24h,
+                MAX(p.latest_ts) AS latest_ts
+            FROM per_video p
+            WHERE p.base_view IS NOT NULL
+            GROUP BY p.channel_id
+        )
+        SELECT
+            a.channel_id, a.channel_name, a.group_name, a.channel_icon_url,
+            a.videos_with_base, a.base_views_24h_ago, a.growth_24h,
+            CASE
+                WHEN a.base_views_24h_ago > 0
+                    THEN ROUND((a.growth_24h::numeric * 100.0) / a.base_views_24h_ago::numeric, 1)
+                ELSE NULL
+            END AS growth_rate_pct,
+            a.latest_ts, c.subscriber_count
+        FROM channel_agg a
+        LEFT JOIN channels c ON c.channel_id = a.channel_id
+        WHERE a.growth_24h > 0
+        ORDER BY a.growth_24h DESC
+        LIMIT %s
+        """,
+        tuple(params),
+    )
+    channels: list[dict] = []
+    total_growth = 0
+    latest_ts: datetime | None = None
+    for row in rows:
+        growth = int(row.get("growth_24h") or 0)
+        total_growth += growth
+        row_ts = row.get("latest_ts")
+        if isinstance(row_ts, datetime) and (latest_ts is None or row_ts > latest_ts):
+            latest_ts = row_ts
+        channels.append(
+            {
+                "channel_id": str(row.get("channel_id") or ""),
+                "channel_name": _sanitize_text(row.get("channel_name") or ""),
+                "group_name": _sanitize_text(row.get("group_name") or "other"),
+                "channel_icon_url": _sanitize_text(row.get("channel_icon_url") or ""),
+                "videos_with_base": int(row.get("videos_with_base") or 0),
+                "base_views_24h_ago": int(row.get("base_views_24h_ago") or 0),
+                "growth_24h": growth,
+                "growth_rate_pct": float(row.get("growth_rate_pct") or 0.0),
+                "subscriber_count": row.get("subscriber_count"),
+            }
+        )
+    growth_ranked = sorted(channels, key=lambda x: (x["growth_24h"], x["channel_id"]), reverse=True)
+    rate_ranked = sorted(
+        [c for c in channels if c["videos_with_base"] >= 2 and c["base_views_24h_ago"] >= 10000],
+        key=lambda x: (x["growth_rate_pct"], x["growth_24h"]),
+        reverse=True,
+    )
+    return {
+        "updated_at": latest_ts,
+        "total_growth": total_growth,
+        "growth_ranked": growth_ranked[: max(10, int(limit))],
+        "rate_ranked": rate_ranked[: max(10, int(limit))],
+    }
+
+
+def render_channel_growth_page(base_url: str = "") -> str:
+    data = _fetch_channel_growth_snapshot(limit=100)
+    updated_at = _fmt_datetime(data.get("updated_at"))
+    growth_ranked = data.get("growth_ranked") or []
+    rate_ranked = data.get("rate_ranked") or []
+
+    growth_items: list[str] = []
+    for idx, item in enumerate(growth_ranked[:50], start=1):
+        cls = "gold" if idx == 1 else ("silver" if idx == 2 else ("bronze" if idx == 3 else ""))
+        channel_name = html.escape(item.get("channel_name") or "")
+        channel_id = str(item.get("channel_id") or "")
+        link = html.escape(f"https://www.youtube.com/channel/{quote(channel_id, safe='')}", quote=True) if channel_id else "#"
+        growth_items.append(
+            f'<a class="rank-row" href="{link}" target="_blank" rel="noopener noreferrer">'
+            f'<span class="rank-badge {cls}">{idx}</span>'
+            f'<span class="row-main"><span class="row-title">{channel_name}</span>'
+            f'<span class="row-meta">{html.escape(_group_label(item.get("group_name") or "other"))} / 対象動画 {int(item.get("videos_with_base") or 0)}本</span></span>'
+            f'<span class="row-value">+{int(item.get("growth_24h") or 0):,}</span></a>'
+        )
+    rate_items: list[str] = []
+    for idx, item in enumerate(rate_ranked[:50], start=1):
+        cls = "gold" if idx == 1 else ("silver" if idx == 2 else ("bronze" if idx == 3 else ""))
+        channel_name = html.escape(item.get("channel_name") or "")
+        channel_id = str(item.get("channel_id") or "")
+        link = html.escape(f"https://www.youtube.com/channel/{quote(channel_id, safe='')}", quote=True) if channel_id else "#"
+        rate_items.append(
+            f'<a class="rank-row" href="{link}" target="_blank" rel="noopener noreferrer">'
+            f'<span class="rank-badge {cls}">{idx}</span>'
+            f'<span class="row-main"><span class="row-title">{channel_name}</span>'
+            f'<span class="row-meta">{html.escape(_group_label(item.get("group_name") or "other"))} / 24h前 {int(item.get("base_views_24h_ago") or 0):,}再生</span></span>'
+            f'<span class="row-value rate">+{float(item.get("growth_rate_pct") or 0.0):.1f}%</span></a>'
+        )
+
+    growth_html = "".join(growth_items) or '<p class="empty-note">表示できるデータがありません。</p>'
+    rate_html = "".join(rate_items) or '<p class="empty-note">表示できるデータがありません。</p>'
+    normalized_base_url = _normalize_base_url(base_url)
+    canonical_url = f"{normalized_base_url}/channel-growth" if normalized_base_url else "/channel-growth"
+    total_growth = int(data.get("total_growth") or 0)
+    html_template = """<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>チャンネル急上昇ランキング | __SITE_TITLE__</title><link rel="canonical" href="__CANONICAL__"><link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+<style>:root{--bg:#fff;--header-bg:rgba(11,17,28,.92);--panel:#fff;--panel-border:#d3dde8;--text-main:#111827;--text-sub:#475569;--text-soft:#64748b;--text-primary:#e8edf4;--ok:#10b981;--shadow-sm:0 8px 18px rgba(15,23,42,.10);--shadow-md:0 14px 30px rgba(15,23,42,.16);--radius-md:12px}*{box-sizing:border-box}body{margin:0;font-family:"Noto Sans JP Local","Hiragino Kaku Gothic ProN",sans-serif;color:var(--text-main);background:radial-gradient(900px 420px at 10% -10%,rgba(99,208,255,.08),transparent 60%),radial-gradient(760px 380px at 92% -12%,rgba(96,165,250,.06),transparent 58%),var(--bg)}.header{position:sticky;top:0;z-index:100;background:var(--header-bg);border-bottom:1px solid rgba(100,160,240,.18);border-top:2px solid rgba(99,208,255,.34)}.header-inner{height:60px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--text-primary)}.brand-logo{display:inline-flex;align-items:center;justify-content:center;width:44px;height:30px;border-radius:8px;background:linear-gradient(135deg,#63d0ff,#a78bfa);color:#fff;font-weight:900;font-size:.72rem}.main{max-width:1180px;margin:0 auto;padding:22px 24px 48px;display:grid;gap:14px}.panel{background:var(--panel);border:1px solid var(--panel-border);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);padding:14px}.hero{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}.hero h1{margin:0;font-size:1.1rem;color:#0f294f}.hero p{margin:4px 0 0;color:var(--text-sub);font-size:.86rem}.tabs{display:inline-flex;border:1px solid var(--panel-border);border-radius:10px;overflow:hidden}.tab{border:0;background:transparent;color:#64748b;padding:6px 10px;font-size:.76rem;font-weight:700;cursor:pointer}.tab.active{color:#fff;background:linear-gradient(135deg,rgba(99,208,255,.72),rgba(96,165,250,.82))}.content{display:grid;grid-template-columns:minmax(0,2fr) minmax(320px,1fr);gap:14px;align-items:start}.panel-view{display:none}.panel-view.active{display:block}.rank-list{display:grid;gap:10px}.rank-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--panel-border);border-radius:10px;background:#fff;padding:10px;text-decoration:none;color:inherit;transition:transform .2s,box-shadow .2s}.rank-row:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}.rank-badge{min-width:34px;height:34px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:800;color:#fff;background:rgba(26,32,44,.82)}.rank-badge.gold{background:linear-gradient(135deg,#f59e0b,#facc15);color:#3b2a00}.rank-badge.silver{background:linear-gradient(135deg,#94a3b8,#e2e8f0);color:#1f2937}.rank-badge.bronze{background:linear-gradient(135deg,#b45309,#d6a77a);color:#fff8ef}.row-main{min-width:0;display:grid}.row-title{font-size:.94rem;color:#0f172a;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row-meta{color:var(--text-soft);font-size:.78rem}.row-value{text-align:right;font-weight:800;color:var(--ok);font-size:.95rem}.row-value.rate{color:#0369a1}.info-row{display:flex;justify-content:space-between;gap:8px;font-size:.84rem;color:var(--text-sub)}.info-row strong{color:#0f172a}.info-row .growth{color:var(--ok);font-weight:800}@media (max-width:980px){.content{grid-template-columns:1fr}}@media (max-width:760px){.header-inner{padding:0 14px;height:54px}.main{padding:16px 14px 34px}.rank-row{grid-template-columns:38px minmax(0,1fr)}.row-value{grid-column:1/-1;text-align:left;padding-left:48px}}</style></head>
+<body><header class="header"><div class="header-inner"><a class="brand" href="/"><span class="brand-logo">VCLIP</span><span>VTuber切り抜きランキング</span></a><div style="color:rgba(232,237,244,.90);font-size:.82rem;">最終更新: __UPDATED__</div></div></header>
+<main class="main"><section class="panel hero"><div><h1>チャンネル24h急上昇ランキング</h1><p>詳細ページデザイン流用版。増加数と増加率を切替表示。</p></div><div class="tabs"><button class="tab active" data-target="growth">24h増加数</button><button class="tab" data-target="rate">24h増加率</button></div></section>
+<section class="content"><article class="panel"><div id="growth" class="panel-view active"><div class="rank-list">__GROWTH_HTML__</div></div><div id="rate" class="panel-view"><div class="rank-list">__RATE_HTML__</div></div></article>
+<aside class="panel"><h2 style="margin:0 0 8px;color:#1f3344;font-size:1rem;font-weight:800;">ページ情報</h2><div style="display:grid;gap:8px;"><div class="info-row"><span>更新基準</span><strong>各動画の最新計測 - 24時間</strong></div><div class="info-row"><span>増加率条件</span><strong>対象動画2本以上 + 24h前1万再生以上</strong></div><div class="info-row"><span>24h総増加</span><strong class="growth">▶ +__TOTAL_GROWTH__</strong></div><div class="info-row"><span>増加数件数</span><strong>__GROWTH_COUNT__</strong></div><div class="info-row"><span>増加率件数</span><strong>__RATE_COUNT__</strong></div></div></aside></section></main>
+<script>const tabs=document.querySelectorAll(".tab");const panels=document.querySelectorAll(".panel-view");tabs.forEach((tab)=>tab.addEventListener("click",()=>{tabs.forEach((t)=>t.classList.remove("active"));panels.forEach((p)=>p.classList.remove("active"));tab.classList.add("active");const target=document.getElementById(tab.dataset.target||"");if(target)target.classList.add("active");}));</script></body></html>"""
+    return (
+        html_template
+        .replace("__SITE_TITLE__", html.escape(SITE_TITLE))
+        .replace("__CANONICAL__", html.escape(canonical_url, quote=True))
+        .replace("__UPDATED__", html.escape(updated_at))
+        .replace("__GROWTH_HTML__", growth_html)
+        .replace("__RATE_HTML__", rate_html)
+        .replace("__TOTAL_GROWTH__", f"{total_growth:,}")
+        .replace("__GROWTH_COUNT__", f"{len(growth_ranked):,}")
+        .replace("__RATE_COUNT__", f"{len(rate_ranked):,}")
+    )
+
+
 def render_homepage(
     is_admin: bool = False,
     base_url: str = "",
@@ -2942,6 +3111,36 @@ def render_homepage(
     }}
     .pickup-section {{ margin-bottom: 12px; }}
     .pickup-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }}
+    .analytics-mock {{ margin: 4px 0 8px; }}
+    .analytics-grid {{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+    }}
+    .analytics-card {{
+      border:1px solid var(--glass-border);
+      background:linear-gradient(180deg,#172232,#121a25);
+      border-radius:9px;
+      padding:8px;
+    }}
+    .analytics-card h3 {{
+      margin:0 0 3px;
+      font-size:0.84rem;
+      color:#eaf3ff;
+      letter-spacing:0.01em;
+    }}
+    .analytics-card p {{
+      margin:0 0 4px;
+      color:#9db2cb;
+      font-size:0.68rem;
+    }}
+    .mock-svg {{ width:100%; height:120px; display:block; }}
+    .mock-label {{
+      margin-top:4px;
+      color:#9db2cb;
+      font-size:0.62rem;
+      text-align:right;
+    }}
     .ranking-section {{ margin-top: 8px; }}
     .filter-bar {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
     .tab-group {{
@@ -3004,6 +3203,7 @@ def render_homepage(
     @media (max-width: 1024px) {{
       .pickup-grid {{ grid-template-columns: repeat(2,minmax(0,1fr)); }}
       .cards {{ grid-template-columns: repeat(2,1fr); }}
+      .analytics-grid {{ grid-template-columns:1fr; }}
     }}
     @media (max-width: 760px) {{
       .header-inner {{ padding: 0 14px; height: 52px; }}
@@ -3075,6 +3275,81 @@ def render_homepage(
     </section>
 
     <section class="stats-strip" id="hero-stats"></section>
+    <section class="analytics-mock" aria-label="分析ダッシュボードモック">
+      <div class="section-head">
+        <h2 class="section-title"><span class="section-icon">◉</span>分析ダッシュボード（モック）</h2>
+      </div>
+      <div class="analytics-grid">
+        <article class="analytics-card">
+          <h3>日次トレンド</h3>
+          <p>配信本数（棒）と総再生増加（線）</p>
+          <svg class="mock-svg" viewBox="0 0 420 170" role="img" aria-label="日次トレンドモック">
+            <rect x="0" y="0" width="420" height="170" fill="#0f1823"/>
+            <g fill="#f59e0b">
+              <rect x="24" y="92" width="16" height="56"/><rect x="46" y="86" width="16" height="62"/>
+              <rect x="68" y="80" width="16" height="68"/><rect x="90" y="74" width="16" height="74"/>
+              <rect x="112" y="82" width="16" height="66"/><rect x="134" y="78" width="16" height="70"/>
+              <rect x="156" y="70" width="16" height="78"/><rect x="178" y="84" width="16" height="64"/>
+              <rect x="200" y="88" width="16" height="60"/><rect x="222" y="76" width="16" height="72"/>
+              <rect x="244" y="72" width="16" height="76"/><rect x="266" y="68" width="16" height="80"/>
+              <rect x="288" y="73" width="16" height="75"/><rect x="310" y="64" width="16" height="84"/>
+            </g>
+            <polyline fill="none" stroke="#5aa8ff" stroke-width="3" points="24,82 46,66 68,70 90,50 112,56 134,52 156,44 178,61 200,58 222,48 244,54 266,42 288,49 310,36 326,44"/>
+          </svg>
+          <div class="mock-label">Mock data only</div>
+        </article>
+        <article class="analytics-card">
+          <h3>同接中央値トレンド</h3>
+          <p>日別の同時接続数（中央値）</p>
+          <svg class="mock-svg" viewBox="0 0 420 170" role="img" aria-label="同接トレンドモック">
+            <rect x="0" y="0" width="420" height="170" fill="#0f1823"/>
+            <polyline fill="none" stroke="#3b82f6" stroke-width="3" points="20,92 44,88 68,102 92,76 116,95 140,84 164,98 188,106 212,78 236,108 260,86 284,112 308,92 332,88 356,100 380,80 404,120"/>
+            <g fill="#93c5fd">
+              <circle cx="20" cy="92" r="3"/><circle cx="92" cy="76" r="3"/><circle cx="212" cy="78" r="3"/>
+              <circle cx="308" cy="92" r="3"/><circle cx="380" cy="80" r="3"/>
+            </g>
+          </svg>
+          <div class="mock-label">Mock data only</div>
+        </article>
+        <article class="analytics-card">
+          <h3>曜日別トレンド</h3>
+          <p>曜日別の再生増加と同接中央値</p>
+          <svg class="mock-svg" viewBox="0 0 420 170" role="img" aria-label="曜日別トレンドモック">
+            <rect x="0" y="0" width="420" height="170" fill="#0f1823"/>
+            <g fill="#fb923c">
+              <rect x="34" y="86" width="34" height="62"/><rect x="86" y="82" width="34" height="66"/>
+              <rect x="138" y="76" width="34" height="72"/><rect x="190" y="80" width="34" height="68"/>
+              <rect x="242" y="70" width="34" height="78"/><rect x="294" y="62" width="34" height="86"/>
+              <rect x="346" y="58" width="34" height="90"/>
+            </g>
+            <polyline fill="none" stroke="#60a5fa" stroke-width="3" points="51,98 103,96 155,92 207,102 259,110 311,88 363,66"/>
+          </svg>
+          <div class="mock-label">Mock data only</div>
+        </article>
+        <article class="analytics-card">
+          <h3>ゴールデンタイム分布</h3>
+          <p>配信開始時刻のヒート（0-23時）</p>
+          <svg class="mock-svg" viewBox="0 0 420 170" role="img" aria-label="時刻分布モック">
+            <rect x="0" y="0" width="420" height="170" fill="#0f1823"/>
+            <g fill="#2dd4bf">
+              <rect x="20" y="118" width="12" height="30"/><rect x="36" y="132" width="12" height="16"/><rect x="52" y="136" width="12" height="12"/>
+              <rect x="68" y="138" width="12" height="10"/><rect x="84" y="136" width="12" height="12"/><rect x="100" y="134" width="12" height="14"/>
+              <rect x="116" y="130" width="12" height="18"/><rect x="132" y="112" width="12" height="36"/><rect x="148" y="126" width="12" height="22"/>
+              <rect x="164" y="130" width="12" height="18"/><rect x="180" y="124" width="12" height="24"/><rect x="196" y="120" width="12" height="28"/>
+              <rect x="212" y="110" width="12" height="38"/><rect x="228" y="116" width="12" height="32"/><rect x="244" y="120" width="12" height="28"/>
+              <rect x="260" y="124" width="12" height="24"/><rect x="276" y="118" width="12" height="30"/><rect x="292" y="106" width="12" height="42"/>
+              <rect x="308" y="92" width="12" height="56"/><rect x="324" y="74" width="12" height="74"/><rect x="340" y="52" width="12" height="96"/>
+              <rect x="356" y="44" width="12" height="104"/><rect x="372" y="62" width="12" height="86"/><rect x="388" y="98" width="12" height="50"/>
+            </g>
+            <g fill="#3b82f6" opacity="0.7">
+              <rect x="324" y="58" width="12" height="16"/><rect x="340" y="36" width="12" height="16"/>
+              <rect x="356" y="28" width="12" height="16"/><rect x="372" y="46" width="12" height="16"/>
+            </g>
+          </svg>
+          <div class="mock-label">Mock data only</div>
+        </article>
+      </div>
+    </section>
     {admin_board_html}
 
     <section class="ranking-section" id="ranking-section">
@@ -5759,6 +6034,15 @@ class TestSiteHandler(BaseHTTPRequestHandler):
 
         if path_only == "/policy":
             body = render_policy_page(base_url=self._request_base_url()).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if path_only == "/channel-growth":
+            body = render_channel_growth_page(base_url=self._request_base_url()).encode("utf-8", errors="replace")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
