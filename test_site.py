@@ -1808,7 +1808,7 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
         placeholders = ",".join(["%s"] * len(video_ids))
         video_rows = fetchall(
             f"""
-            SELECT video_id, title, COALESCE(NULLIF(thumbnail_url, ''), '') AS thumbnail_url
+            SELECT video_id, title
             FROM videos
             WHERE video_id IN ({placeholders})
             """,
@@ -1820,7 +1820,7 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
                 continue
             video_meta[vid] = {
                 "title": _sanitize_text(row.get("title") or ""),
-                "thumbnail_url": _sanitize_text(row.get("thumbnail_url") or ""),
+                "thumbnail_url": _thumbnail_url(vid),
             }
     return {
         "updated_at": latest_ts,
