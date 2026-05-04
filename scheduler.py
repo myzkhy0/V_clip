@@ -37,6 +37,7 @@ from test_site import (
     _fetch_public_hero_stats,
     _merge_daily_rows,
     _post_text_to_x_api,
+    rebuild_homepage_prebuilt_cache,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,6 +178,20 @@ def stats_ranking_pipeline(trigger_label: str = "stats/ranking schedule") -> Non
     logger.info("======== Stats/Ranking pipeline start ========")
     _run_stats_and_rankings(trigger_label)
     logger.info("======== Stats/Ranking pipeline end ========")
+
+
+def homepage_prebuilt_cache_pipeline(trigger_label: str = "hourly cache schedule") -> None:
+    """Rebuild homepage prebuilt cache on an hourly cadence."""
+    logger.info("======== Homepage prebuilt cache pipeline start (%s) ========", trigger_label)
+    try:
+        ok, message = rebuild_homepage_prebuilt_cache()
+        if ok:
+            logger.info("Homepage prebuilt cache rebuilt: %s", message)
+        else:
+            logger.warning("Homepage prebuilt cache rebuild failed: %s", message)
+    except Exception:
+        logger.exception("Homepage prebuilt cache pipeline failed")
+    logger.info("======== Homepage prebuilt cache pipeline end (%s) ========", trigger_label)
 
 
 def _truncate_text_for_x(value: str, max_len: int = 60) -> str:
@@ -454,6 +469,18 @@ def main() -> None:
         )
     else:
         logger.warning("Stats/ranking cron disabled after excluding search hour.")
+
+    # Rebuild homepage prebuilt cache hourly at :15 JST to avoid cache expiry gaps.
+    scheduler.add_job(
+        homepage_prebuilt_cache_pipeline,
+        "cron",
+        minute=15,
+        id="vclip_homepage_prebuilt_cache_pipeline",
+        kwargs={"trigger_label": "hourly :15 schedule"},
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=900,
+    )
 
     if ENABLE_X_AUTO_POST:
         # Requested JST schedule:
