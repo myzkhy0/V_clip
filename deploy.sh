@@ -7,8 +7,8 @@ BRANCH="${BRANCH:-main}"
 
 cd "$APP_DIR"
 
-echo "[1/5] Pulling latest code ($BRANCH)..."
-git pull origin "$BRANCH"
+echo "[1/5] Pulling latest code ($BRANCH, merge strategy)..."
+git pull --no-rebase origin "$BRANCH"
 
 echo "[2/5] Activating virtualenv..."
 source .venv/bin/activate
