@@ -1806,7 +1806,7 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
     video_meta: dict[str, dict] = {}
     if video_ids:
         placeholders = ",".join(["%s"] * len(video_ids))
-        video_rows = _fetchall(
+        video_rows = fetchall(
             f"""
             SELECT video_id, title, COALESCE(NULLIF(thumbnail_url, ''), '') AS thumbnail_url
             FROM videos
