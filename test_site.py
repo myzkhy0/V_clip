@@ -25,7 +25,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
 
-from config import EXCLUDED_CHANNELS_FILE, GROUP_KEYWORDS
+from config import EXCLUDED_CHANNELS_FILE, GROUP_KEYWORDS, STATS_INTERVAL_HOURS
 from db import fetchall
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,11 @@ YOUTUBE_DAILY_SEARCH_UNIT_LIMIT = int(os.getenv("YOUTUBE_DAILY_SEARCH_UNIT_LIMIT
 YOUTUBE_QUOTA_STATE_FILE = os.getenv("YOUTUBE_QUOTA_STATE_FILE", ".youtube_quota_state.json")
 ENABLE_HOMEPAGE_PREBUILT_CACHE = os.getenv("ENABLE_HOMEPAGE_PREBUILT_CACHE", "1").strip().lower() in {"1", "true", "yes", "on"}
 HOMEPAGE_PREBUILT_CACHE_FILE = os.getenv("HOMEPAGE_PREBUILT_CACHE_FILE", "cache/homepage_prebuilt.json").strip()
-HOMEPAGE_PREBUILT_MAX_AGE_SECONDS = max(60, int(os.getenv("HOMEPAGE_PREBUILT_MAX_AGE_SECONDS", "7200")))
+_DEFAULT_PREBUILT_MAX_AGE_SECONDS = max(3600, (max(1, STATS_INTERVAL_HOURS) * 3600) + 1800)
+HOMEPAGE_PREBUILT_MAX_AGE_SECONDS = max(
+    60,
+    int(os.getenv("HOMEPAGE_PREBUILT_MAX_AGE_SECONDS", str(_DEFAULT_PREBUILT_MAX_AGE_SECONDS))),
+)
 X_API_USER_BEARER_TOKEN = os.getenv("X_API_USER_BEARER_TOKEN", "").strip()
 X_API_POST_URL = os.getenv("X_API_POST_URL", "https://api.x.com/2/tweets").strip() or "https://api.x.com/2/tweets"
 X_API_TIMEOUT_SECONDS = float(os.getenv("X_API_TIMEOUT_SECONDS", "10"))
