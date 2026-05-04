@@ -1683,7 +1683,7 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
                 v.channel_id,
                 v.channel_name,
                 COALESCE(NULLIF(v.group_name, ''), 'other') AS group_name,
-                MAX(COALESCE(NULLIF(v.channel_icon_url, ''), '')) AS channel_icon_url,
+                COALESCE(NULLIF(v.channel_icon_url, ''), '') AS channel_icon_url,
                 l.video_id,
                 l.latest_ts,
                 l.latest_view,
