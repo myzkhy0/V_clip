@@ -3126,36 +3126,6 @@ def render_homepage(
     }}
     .pickup-section {{ margin-bottom: 12px; }}
     .pickup-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }}
-    .analytics-mock {{ margin: 4px 0 8px; }}
-    .analytics-grid {{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:8px;
-    }}
-    .analytics-card {{
-      border:1px solid var(--glass-border);
-      background:linear-gradient(180deg,#172232,#121a25);
-      border-radius:9px;
-      padding:8px;
-    }}
-    .analytics-card h3 {{
-      margin:0 0 3px;
-      font-size:0.84rem;
-      color:#eaf3ff;
-      letter-spacing:0.01em;
-    }}
-    .analytics-card p {{
-      margin:0 0 4px;
-      color:#9db2cb;
-      font-size:0.68rem;
-    }}
-    .mock-svg {{ width:100%; height:120px; display:block; }}
-    .mock-label {{
-      margin-top:4px;
-      color:#9db2cb;
-      font-size:0.62rem;
-      text-align:right;
-    }}
     .ranking-section {{ margin-top: 8px; }}
     .filter-bar {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
     .tab-group {{
@@ -3218,7 +3188,6 @@ def render_homepage(
     @media (max-width: 1024px) {{
       .pickup-grid {{ grid-template-columns: repeat(2,minmax(0,1fr)); }}
       .cards {{ grid-template-columns: repeat(2,1fr); }}
-      .analytics-grid {{ grid-template-columns:1fr; }}
     }}
     @media (max-width: 760px) {{
       .header-inner {{ padding: 0 14px; height: 52px; }}
@@ -3290,81 +3259,6 @@ def render_homepage(
     </section>
 
     <section class="stats-strip" id="hero-stats"></section>
-    <section class="analytics-mock" aria-label="分析ダッシュボードモック">
-      <div class="section-head">
-        <h2 class="section-title"><span class="section-icon">◉</span>分析ダッシュボード（モック）</h2>
-      </div>
-      <div class="analytics-grid">
-        <article class="analytics-card">
-          <h3>日次トレンド</h3>
-          <p>配信本数（棒）と総再生増加（線）</p>
-          <svg class="mock-svg" viewBox="0 0 420 170" role="img" aria-label="日次トレンドモック">
-            <rect x="0" y="0" width="420" height="170" fill="#0f1823"/>
-            <g fill="#f59e0b">
-              <rect x="24" y="92" width="16" height="56"/><rect x="46" y="86" width="16" height="62"/>
-              <rect x="68" y="80" width="16" height="68"/><rect x="90" y="74" width="16" height="74"/>
-              <rect x="112" y="82" width="16" height="66"/><rect x="134" y="78" width="16" height="70"/>
-              <rect x="156" y="70" width="16" height="78"/><rect x="178" y="84" width="16" height="64"/>
-              <rect x="200" y="88" width="16" height="60"/><rect x="222" y="76" width="16" height="72"/>
-              <rect x="244" y="72" width="16" height="76"/><rect x="266" y="68" width="16" height="80"/>
-              <rect x="288" y="73" width="16" height="75"/><rect x="310" y="64" width="16" height="84"/>
-            </g>
-            <polyline fill="none" stroke="#5aa8ff" stroke-width="3" points="24,82 46,66 68,70 90,50 112,56 134,52 156,44 178,61 200,58 222,48 244,54 266,42 288,49 310,36 326,44"/>
-          </svg>
-          <div class="mock-label">Mock data only</div>
-        </article>
-        <article class="analytics-card">
-          <h3>同接中央値トレンド</h3>
-          <p>日別の同時接続数（中央値）</p>
-          <svg class="mock-svg" viewBox="0 0 420 170" role="img" aria-label="同接トレンドモック">
-            <rect x="0" y="0" width="420" height="170" fill="#0f1823"/>
-            <polyline fill="none" stroke="#3b82f6" stroke-width="3" points="20,92 44,88 68,102 92,76 116,95 140,84 164,98 188,106 212,78 236,108 260,86 284,112 308,92 332,88 356,100 380,80 404,120"/>
-            <g fill="#93c5fd">
-              <circle cx="20" cy="92" r="3"/><circle cx="92" cy="76" r="3"/><circle cx="212" cy="78" r="3"/>
-              <circle cx="308" cy="92" r="3"/><circle cx="380" cy="80" r="3"/>
-            </g>
-          </svg>
-          <div class="mock-label">Mock data only</div>
-        </article>
-        <article class="analytics-card">
-          <h3>曜日別トレンド</h3>
-          <p>曜日別の再生増加と同接中央値</p>
-          <svg class="mock-svg" viewBox="0 0 420 170" role="img" aria-label="曜日別トレンドモック">
-            <rect x="0" y="0" width="420" height="170" fill="#0f1823"/>
-            <g fill="#fb923c">
-              <rect x="34" y="86" width="34" height="62"/><rect x="86" y="82" width="34" height="66"/>
-              <rect x="138" y="76" width="34" height="72"/><rect x="190" y="80" width="34" height="68"/>
-              <rect x="242" y="70" width="34" height="78"/><rect x="294" y="62" width="34" height="86"/>
-              <rect x="346" y="58" width="34" height="90"/>
-            </g>
-            <polyline fill="none" stroke="#60a5fa" stroke-width="3" points="51,98 103,96 155,92 207,102 259,110 311,88 363,66"/>
-          </svg>
-          <div class="mock-label">Mock data only</div>
-        </article>
-        <article class="analytics-card">
-          <h3>ゴールデンタイム分布</h3>
-          <p>配信開始時刻のヒート（0-23時）</p>
-          <svg class="mock-svg" viewBox="0 0 420 170" role="img" aria-label="時刻分布モック">
-            <rect x="0" y="0" width="420" height="170" fill="#0f1823"/>
-            <g fill="#2dd4bf">
-              <rect x="20" y="118" width="12" height="30"/><rect x="36" y="132" width="12" height="16"/><rect x="52" y="136" width="12" height="12"/>
-              <rect x="68" y="138" width="12" height="10"/><rect x="84" y="136" width="12" height="12"/><rect x="100" y="134" width="12" height="14"/>
-              <rect x="116" y="130" width="12" height="18"/><rect x="132" y="112" width="12" height="36"/><rect x="148" y="126" width="12" height="22"/>
-              <rect x="164" y="130" width="12" height="18"/><rect x="180" y="124" width="12" height="24"/><rect x="196" y="120" width="12" height="28"/>
-              <rect x="212" y="110" width="12" height="38"/><rect x="228" y="116" width="12" height="32"/><rect x="244" y="120" width="12" height="28"/>
-              <rect x="260" y="124" width="12" height="24"/><rect x="276" y="118" width="12" height="30"/><rect x="292" y="106" width="12" height="42"/>
-              <rect x="308" y="92" width="12" height="56"/><rect x="324" y="74" width="12" height="74"/><rect x="340" y="52" width="12" height="96"/>
-              <rect x="356" y="44" width="12" height="104"/><rect x="372" y="62" width="12" height="86"/><rect x="388" y="98" width="12" height="50"/>
-            </g>
-            <g fill="#3b82f6" opacity="0.7">
-              <rect x="324" y="58" width="12" height="16"/><rect x="340" y="36" width="12" height="16"/>
-              <rect x="356" y="28" width="12" height="16"/><rect x="372" y="46" width="12" height="16"/>
-            </g>
-          </svg>
-          <div class="mock-label">Mock data only</div>
-        </article>
-      </div>
-    </section>
     {admin_board_html}
 
     <section class="ranking-section" id="ranking-section">
