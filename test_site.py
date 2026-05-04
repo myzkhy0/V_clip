@@ -1684,6 +1684,7 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
                 v.channel_name,
                 COALESCE(NULLIF(v.group_name, ''), 'other') AS group_name,
                 COALESCE(NULLIF(v.channel_icon_url, ''), '') AS channel_icon_url,
+                v.published_at,
                 l.video_id,
                 l.latest_ts,
                 l.latest_view,
@@ -1742,18 +1743,18 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
                 FROM per_video p2
                 WHERE p2.channel_id = a.channel_id
                   AND p2.base_view IS NOT NULL
-                ORDER BY p2.video_growth_24h DESC, p2.latest_ts DESC, p2.video_id ASC
+                ORDER BY p2.published_at DESC NULLS LAST, p2.latest_ts DESC, p2.video_id ASC
                 LIMIT 1
             ) AS top_video_id,
             (
-                SELECT STRING_AGG(x.video_id, ',' ORDER BY x.video_growth_24h DESC, x.latest_ts DESC, x.video_id ASC)
+                SELECT STRING_AGG(x.video_id, ',' ORDER BY x.published_at DESC NULLS LAST, x.latest_ts DESC, x.video_id ASC)
                 FROM (
-                    SELECT p3.video_id, p3.video_growth_24h, p3.latest_ts
+                    SELECT p3.video_id, p3.published_at, p3.latest_ts
                     FROM per_video p3
                     WHERE p3.channel_id = a.channel_id
                       AND p3.base_view IS NOT NULL
-                    ORDER BY p3.video_growth_24h DESC, p3.latest_ts DESC, p3.video_id ASC
-                    LIMIT 3
+                    ORDER BY p3.published_at DESC NULLS LAST, p3.latest_ts DESC, p3.video_id ASC
+                    LIMIT 1
                 ) x
             ) AS top_video_ids_csv
         FROM channel_agg a
@@ -1831,8 +1832,64 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
     }
 
 
+def _fetch_channel_growth_new_pickups(limit: int = 10) -> list[dict]:
+    rows = fetchall(
+        """
+        SELECT
+            v.video_id,
+            v.title,
+            v.channel_name,
+            v.published_at
+        FROM videos v
+        WHERE v.published_at IS NOT NULL
+          AND v.published_at >= (NOW() - INTERVAL '24 hours')
+        ORDER BY v.published_at DESC
+        LIMIT %s
+        """,
+        (max(1, int(limit)),),
+    )
+    if not rows:
+        rows = fetchall(
+            """
+            SELECT
+                v.video_id,
+                v.title,
+                v.channel_name,
+                v.published_at
+            FROM videos v
+            WHERE v.published_at IS NOT NULL
+              AND v.published_at >= (NOW() - INTERVAL '48 hours')
+            ORDER BY v.published_at DESC
+            LIMIT %s
+            """,
+            (max(1, int(limit)),),
+        )
+    picks: list[dict] = []
+    for row in rows:
+        video_id = str(row.get("video_id") or "").strip()
+        if not video_id:
+            continue
+        published_at = row.get("published_at")
+        published_label = ""
+        if isinstance(published_at, datetime):
+            if published_at.tzinfo is None:
+                published_at = published_at.replace(tzinfo=timezone.utc)
+            published_label = published_at.astimezone(JST).strftime("%m/%d %H:%M")
+        picks.append(
+            {
+                "video_id": video_id,
+                "title": _sanitize_text(row.get("title") or ""),
+                "channel_name": _sanitize_text(row.get("channel_name") or ""),
+                "published_label": published_label,
+                "thumbnail_url": _thumbnail_url(video_id),
+            }
+        )
+    return picks
+
+
 def render_channel_growth_page(base_url: str = "") -> str:
     data = _fetch_channel_growth_snapshot(limit=100)
+    new_pickups = _fetch_channel_growth_new_pickups(limit=10)
     updated_at = _fmt_datetime(data.get("updated_at"))
     growth_ranked = data.get("growth_ranked") or []
     rate_ranked = data.get("rate_ranked") or []
@@ -1851,7 +1908,7 @@ def render_channel_growth_page(base_url: str = "") -> str:
 
     def _top_video_cards_html(item: dict) -> str:
         cards: list[str] = []
-        for video_id in (item.get("top_video_ids") or [])[:3]:
+        for video_id in (item.get("top_video_ids") or [])[:1]:
             vid = str(video_id).strip()
             if not vid:
                 continue
@@ -1909,6 +1966,15 @@ def render_channel_growth_page(base_url: str = "") -> str:
 
     growth_html = "".join(growth_items) or '<p class="empty-note">表示できるデータがありません。</p>'
     rate_html = "".join(rate_items) or '<p class="empty-note">表示できるデータがありません。</p>'
+    pickup_html = "".join(
+        (
+            f'<a class="pickup-item" href="/video/{quote(str(p.get("video_id") or ""), safe="")}">'
+            f'<span class="pickup-thumb"><img src="{html.escape(str(p.get("thumbnail_url") or ""), quote=True)}" alt="" loading="lazy"></span>'
+            f'<span class="pickup-main"><span class="pickup-title">{html.escape(str(p.get("title") or ""))}</span>'
+            f'<span class="pickup-meta">{html.escape(str(p.get("channel_name") or ""))} / {html.escape(str(p.get("published_label") or ""))}</span></span></a>'
+        )
+        for p in new_pickups
+    ) or '<p class="empty-note">新着動画はまだありません。</p>'
     normalized_base_url = _normalize_base_url(base_url)
     canonical_url = f"{normalized_base_url}/channel-growth" if normalized_base_url else "/channel-growth"
     total_growth = int(data.get("total_growth") or 0)
@@ -1918,11 +1984,11 @@ def render_channel_growth_page(base_url: str = "") -> str:
     top_rate_value = float((rate_ranked[0].get("growth_rate_pct") if rate_ranked else 0.0) or 0.0)
     html_template = """<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>チャンネル急上昇ランキング | __SITE_TITLE__</title><link rel="canonical" href="__CANONICAL__"><link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
-<style>:root{--bg:#fff;--header-bg:rgba(11,17,28,.92);--panel:#fff;--panel-border:#d3dde8;--text-main:#111827;--text-sub:#475569;--text-soft:#64748b;--text-primary:#e8edf4;--ok:#10b981;--header-border:rgba(99,177,230,.22);--shadow-sm:0 8px 18px rgba(15,23,42,.10);--shadow-md:0 14px 30px rgba(15,23,42,.16);--radius-md:12px}*{box-sizing:border-box}body{margin:0;font-family:"Noto Sans JP Local","Hiragino Kaku Gothic ProN",sans-serif;color:var(--text-main);background:radial-gradient(900px 420px at 10% -10%,rgba(99,208,255,.08),transparent 60%),radial-gradient(760px 380px at 92% -12%,rgba(96,165,250,.06),transparent 58%),var(--bg)}.header{position:sticky;top:0;z-index:100;background:var(--header-bg);border-bottom:1px solid rgba(100,160,240,.18);border-top:2px solid rgba(99,208,255,.34)}.header-inner{height:60px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--text-primary)}.brand-logo{display:inline-flex;align-items:center;justify-content:center;width:44px;height:30px;border-radius:8px;background:linear-gradient(135deg,#63d0ff,#a78bfa);color:#fff;font-weight:900;font-size:.72rem}.brand-text{font-weight:800;font-size:1.05rem}.brand-accent{background:linear-gradient(135deg,#63d0ff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.header-meta{color:rgba(232,237,244,.90);font-size:.82rem}.live-dot{display:inline-flex;align-items:center;gap:6px;color:#10b981;font-weight:600}.live-dot::before{content:'';width:7px;height:7px;border-radius:50%;background:#10b981;animation:pulse-dot 2s ease-in-out infinite}@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}.main{max-width:1180px;margin:0 auto;padding:22px 24px 48px;display:grid;gap:14px}.panel{background:var(--panel);border:1px solid var(--panel-border);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);padding:14px}.hero h1{margin:0;font-size:1.1rem;color:#0f294f}.hero p{margin:4px 0 0;color:var(--text-sub);font-size:.86rem}.content{display:grid;grid-template-columns:minmax(0,2fr) minmax(320px,1fr);gap:14px;align-items:start}.tabs{display:inline-flex;border:1px solid var(--panel-border);border-radius:10px;overflow:hidden;margin-top:8px}.tab{border:0;background:transparent;color:#64748b;padding:6px 10px;font-size:.76rem;font-weight:700;cursor:pointer}.tab.active{color:#fff;background:linear-gradient(135deg,rgba(99,208,255,.72),rgba(96,165,250,.82))}.panel-view{display:none}.panel-view.active{display:block}.row-title-link{font-size:.94rem;color:#0f172a;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}.row-title-link:hover{color:#075985;text-decoration:underline}.embedded-video-list{display:grid;gap:5px;margin-top:6px}.embedded-video-card{display:grid;grid-template-columns:56px minmax(0,1fr);gap:6px;align-items:center;padding:4px 6px;border:1px solid #c7d6e7;border-radius:8px;background:#fff;color:#334155;text-decoration:none}.embedded-video-card:hover{background:#f7fbff}.embedded-video-thumb{width:56px;height:32px;border-radius:6px;overflow:hidden;background:#111827;display:inline-flex;align-items:center;justify-content:center}.embedded-video-thumb img{width:100%;height:100%;object-fit:cover;display:block}.embedded-video-thumb-fallback{font-size:.56rem;color:#e2e8f0;font-weight:700}.embedded-video-title{font-size:.74rem;line-height:1.2;color:#334155;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.rank-list{display:grid;gap:10px}.rank-row{display:grid;grid-template-columns:42px 42px minmax(0,1fr) auto;gap:10px;align-items:start;border:1px solid var(--panel-border);border-radius:10px;background:#fff;padding:10px}.rank-badge{min-width:34px;height:34px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:800;color:#fff;background:rgba(26,32,44,.82)}.rank-badge.gold{background:linear-gradient(135deg,#f59e0b,#facc15);color:#3b2a00}.rank-badge.silver{background:linear-gradient(135deg,#94a3b8,#e2e8f0);color:#1f2937}.rank-badge.bronze{background:linear-gradient(135deg,#b45309,#d6a77a);color:#fff8ef}.avatar{width:40px;height:40px;border-radius:50%;overflow:hidden;background:#e7eef7;border:1px solid #d6e0ea;display:inline-flex;align-items:center;justify-content:center}.avatar img{width:100%;height:100%;object-fit:cover;display:block}.avatar-fallback{font-size:.72rem;font-weight:800;color:#33516f}.row-main{min-width:0;display:grid}.row-meta{color:var(--text-soft);font-size:.78rem}.row-value{text-align:right;font-weight:800;color:var(--ok);font-size:.95rem}.row-value.rate{color:#0369a1}.info-list{display:grid;gap:8px}.info-row{display:flex;justify-content:space-between;gap:8px;font-size:.84rem;color:var(--text-sub)}.info-row strong{color:#0f172a}.info-row .growth{color:var(--ok);font-weight:800}.footer{width:100%;margin:0;padding:18px 24px 22px;text-align:center;font-size:.76rem;color:#dbeafe;border-top:1px solid var(--header-border);background:var(--header-bg)}.footer-links{display:flex;justify-content:center;gap:14px;margin-bottom:8px;font-size:.82rem}.footer-links a{color:#cfe0ff;text-decoration:none}@media (max-width:980px){.content{grid-template-columns:1fr}}@media (max-width:760px){.header-inner{padding:0 14px;height:54px}.header-meta{display:none}.main{padding:16px 14px 34px}.rank-row{grid-template-columns:38px 38px minmax(0,1fr)}.row-value{grid-column:1/-1;text-align:left;padding-left:88px}}</style></head>
+<style>:root{--bg:#fff;--header-bg:rgba(11,17,28,.92);--panel:#fff;--panel-border:#d3dde8;--text-main:#111827;--text-sub:#475569;--text-soft:#64748b;--text-primary:#e8edf4;--ok:#10b981;--header-border:rgba(99,177,230,.22);--shadow-sm:0 8px 18px rgba(15,23,42,.10);--shadow-md:0 14px 30px rgba(15,23,42,.16);--radius-md:12px}*{box-sizing:border-box}body{margin:0;font-family:"Noto Sans JP Local","Hiragino Kaku Gothic ProN",sans-serif;color:var(--text-main);background:radial-gradient(900px 420px at 10% -10%,rgba(99,208,255,.08),transparent 60%),radial-gradient(760px 380px at 92% -12%,rgba(96,165,250,.06),transparent 58%),var(--bg)}.header{position:sticky;top:0;z-index:100;background:var(--header-bg);border-bottom:1px solid rgba(100,160,240,.18);border-top:2px solid rgba(99,208,255,.34)}.header-inner{height:60px;padding:0 24px;display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--text-primary)}.brand-logo{display:inline-flex;align-items:center;justify-content:center;width:44px;height:30px;border-radius:8px;background:linear-gradient(135deg,#63d0ff,#a78bfa);color:#fff;font-weight:900;font-size:.72rem}.brand-text{font-weight:800;font-size:1.05rem}.brand-accent{background:linear-gradient(135deg,#63d0ff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.header-meta{color:rgba(232,237,244,.90);font-size:.82rem}.live-dot{display:inline-flex;align-items:center;gap:6px;color:#10b981;font-weight:600}.live-dot::before{content:'';width:7px;height:7px;border-radius:50%;background:#10b981;animation:pulse-dot 2s ease-in-out infinite}@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}.main{max-width:1180px;margin:0 auto;padding:22px 24px 48px;display:grid;gap:14px}.panel{background:var(--panel);border:1px solid var(--panel-border);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);padding:14px}.hero h1{margin:0;font-size:1.1rem;color:#0f294f}.hero p{margin:4px 0 0;color:var(--text-sub);font-size:.86rem}.content{display:grid;grid-template-columns:minmax(0,2fr) minmax(320px,1fr);gap:14px;align-items:start}.tabs{display:inline-flex;border:1px solid var(--panel-border);border-radius:10px;overflow:hidden;margin-top:8px}.tab{border:0;background:transparent;color:#64748b;padding:6px 10px;font-size:.76rem;font-weight:700;cursor:pointer}.tab.active{color:#fff;background:linear-gradient(135deg,rgba(99,208,255,.72),rgba(96,165,250,.82))}.panel-view{display:none}.panel-view.active{display:block}.row-title-link{font-size:.94rem;color:#0f172a;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}.row-title-link:hover{color:#075985;text-decoration:underline}.embedded-video-list{display:grid;gap:5px;margin-top:6px}.embedded-video-card{display:grid;grid-template-columns:56px minmax(0,1fr);gap:6px;align-items:center;padding:4px 6px;border:1px solid #c7d6e7;border-radius:8px;background:#fff;color:#334155;text-decoration:none}.embedded-video-card:hover{background:#f7fbff}.embedded-video-thumb{width:56px;height:32px;border-radius:6px;overflow:hidden;background:#111827;display:inline-flex;align-items:center;justify-content:center}.embedded-video-thumb img{width:100%;height:100%;object-fit:cover;display:block}.embedded-video-thumb-fallback{font-size:.56rem;color:#e2e8f0;font-weight:700}.embedded-video-title{font-size:.74rem;line-height:1.2;color:#334155;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.rank-list{display:grid;gap:10px}.rank-row{display:grid;grid-template-columns:42px 42px minmax(0,1fr) auto;gap:10px;align-items:start;border:1px solid var(--panel-border);border-radius:10px;background:#fff;padding:10px}.rank-badge{min-width:34px;height:34px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:800;color:#fff;background:rgba(26,32,44,.82)}.rank-badge.gold{background:linear-gradient(135deg,#f59e0b,#facc15);color:#3b2a00}.rank-badge.silver{background:linear-gradient(135deg,#94a3b8,#e2e8f0);color:#1f2937}.rank-badge.bronze{background:linear-gradient(135deg,#b45309,#d6a77a);color:#fff8ef}.avatar{width:40px;height:40px;border-radius:50%;overflow:hidden;background:#e7eef7;border:1px solid #d6e0ea;display:inline-flex;align-items:center;justify-content:center}.avatar img{width:100%;height:100%;object-fit:cover;display:block}.avatar-fallback{font-size:.72rem;font-weight:800;color:#33516f}.row-main{min-width:0;display:grid}.row-meta{color:var(--text-soft);font-size:.78rem}.row-value{text-align:right;font-weight:800;color:var(--ok);font-size:.95rem}.row-value.rate{color:#0369a1}.pickup-list{display:grid;gap:8px}.pickup-item{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;align-items:center;padding:6px;border:1px solid var(--panel-border);border-radius:8px;background:#fff;text-decoration:none;color:inherit}.pickup-thumb{width:72px;height:40px;border-radius:6px;overflow:hidden;background:#0f172a}.pickup-thumb img{width:100%;height:100%;object-fit:cover;display:block}.pickup-main{min-width:0;display:grid}.pickup-title{font-size:.8rem;color:#0f172a;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.pickup-meta{font-size:.72rem;color:var(--text-soft)}.footer{width:100%;margin:0;padding:18px 24px 22px;text-align:center;font-size:.76rem;color:#dbeafe;border-top:1px solid var(--header-border);background:var(--header-bg)}.footer-links{display:flex;justify-content:center;gap:14px;margin-bottom:8px;font-size:.82rem}.footer-links a{color:#cfe0ff;text-decoration:none}@media (max-width:980px){.content{grid-template-columns:1fr}}@media (max-width:760px){.header-inner{padding:0 14px;height:54px}.header-meta{display:none}.main{padding:16px 14px 34px}.rank-row{grid-template-columns:38px 38px minmax(0,1fr)}.row-value{grid-column:1/-1;text-align:left;padding-left:88px}}</style></head>
 <body><header class="header"><div class="header-inner"><a class="brand" href="/"><span class="brand-logo">VCLIP</span><span class="brand-text">VTuber切り抜き<span class="brand-accent">ランキング</span></span></a><div class="header-meta"><span class="live-dot">リアルタイム更新中</span></div></div></header>
 <main class="main"><section class="panel hero"><h1>チャンネル24h急上昇ランキング</h1><p>24時間で伸びたチャンネルを、増加数と増加率で切替表示します。</p><div class="tabs"><button class="tab active" data-target="growth">24h増加数</button><button class="tab" data-target="rate">24h増加率</button></div></section>
 <section class="content"><article class="panel"><div id="growth" class="panel-view active"><div class="rank-list">__GROWTH_HTML__</div></div><div id="rate" class="panel-view"><div class="rank-list">__RATE_HTML__</div></div></article>
-<aside class="panel"><h2 style="margin:0 0 10px;color:#1f3344;font-size:1rem;font-weight:800;">ページ情報</h2><div class="info-list"><div class="info-row"><span>最終更新（JST）</span><strong>__UPDATED__</strong></div><div class="info-row"><span>24h総増加</span><strong class="growth">▶ +__TOTAL_GROWTH__</strong></div><div class="info-row"><span>最大増加チャンネル</span><strong>__TOP_GROWTH_NAME__ (+__TOP_GROWTH_VALUE__)</strong></div><div class="info-row"><span>最大増加率チャンネル</span><strong>__TOP_RATE_NAME__ (+__TOP_RATE_VALUE__%)</strong></div><div class="info-row"><span>読み方</span><strong>増加数=規模 / 増加率=勢い</strong></div></div></aside></section></main>
+<aside class="panel"><h2 style="margin:0 0 10px;color:#1f3344;font-size:1rem;font-weight:800;">新着ピックアップ</h2><div class="pickup-list">__PICKUP_HTML__</div></aside></section></main>
 <footer class="footer"><div class="footer-links"><a href="/policy">プライバシーポリシー</a><a href="https://x.com/Vcliprank" target="_blank" rel="noopener noreferrer">お問い合わせ</a></div><span>VCLIP | VTuber切り抜きランキング &copy; 2026</span></footer><script>const tabs=document.querySelectorAll(".tab");const panels=document.querySelectorAll(".panel-view");tabs.forEach((tab)=>tab.addEventListener("click",()=>{tabs.forEach((t)=>t.classList.remove("active"));panels.forEach((p)=>p.classList.remove("active"));tab.classList.add("active");const target=document.getElementById(tab.dataset.target||"");if(target)target.classList.add("active");}));</script></body></html>"""
     return (
         html_template
@@ -1931,6 +1997,7 @@ def render_channel_growth_page(base_url: str = "") -> str:
         .replace("__UPDATED__", html.escape(updated_at))
         .replace("__GROWTH_HTML__", growth_html)
         .replace("__RATE_HTML__", rate_html)
+        .replace("__PICKUP_HTML__", pickup_html)
         .replace("__TOTAL_GROWTH__", f"{total_growth:,}")
         .replace("__TOP_GROWTH_NAME__", top_growth_name)
         .replace("__TOP_GROWTH_VALUE__", f"{top_growth_value:,}")
