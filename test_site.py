@@ -1694,7 +1694,21 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
                       AND s2.timestamp <= (l.latest_ts - INTERVAL '24 hours')
                     ORDER BY s2.timestamp DESC
                     LIMIT 1
-                ) AS base_view
+                ) AS base_view,
+                GREATEST(
+                    0,
+                    l.latest_view - COALESCE(
+                        (
+                            SELECT s3.view_count
+                            FROM video_stats s3
+                            WHERE s3.video_id = l.video_id
+                              AND s3.timestamp <= (l.latest_ts - INTERVAL '24 hours')
+                            ORDER BY s3.timestamp DESC
+                            LIMIT 1
+                        ),
+                        l.latest_view
+                    )
+                ) AS video_growth_24h
             FROM latest_per_video l
             JOIN videos v ON v.video_id = l.video_id
             WHERE 1=1
@@ -1722,7 +1736,15 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
                     THEN ROUND((a.growth_24h::numeric * 100.0) / a.base_views_24h_ago::numeric, 1)
                 ELSE NULL
             END AS growth_rate_pct,
-            a.latest_ts, c.subscriber_count
+            a.latest_ts, c.subscriber_count,
+            (
+                SELECT p2.video_id
+                FROM per_video p2
+                WHERE p2.channel_id = a.channel_id
+                  AND p2.base_view IS NOT NULL
+                ORDER BY p2.video_growth_24h DESC, p2.latest_ts DESC, p2.video_id ASC
+                LIMIT 1
+            ) AS top_video_id
         FROM channel_agg a
         LEFT JOIN channels c ON c.channel_id = a.channel_id
         WHERE a.growth_24h > 0
@@ -1751,6 +1773,7 @@ def _fetch_channel_growth_snapshot(limit: int = 100) -> dict:
                 "growth_24h": growth,
                 "growth_rate_pct": float(row.get("growth_rate_pct") or 0.0),
                 "subscriber_count": row.get("subscriber_count"),
+                "top_video_id": str(row.get("top_video_id") or ""),
             }
         )
     growth_ranked = sorted(channels, key=lambda x: (x["growth_24h"], x["channel_id"]), reverse=True)
@@ -1791,11 +1814,13 @@ def render_channel_growth_page(base_url: str = "") -> str:
         channel_name = html.escape(item.get("channel_name") or "")
         channel_id = str(item.get("channel_id") or "")
         link = html.escape(f"https://www.youtube.com/channel/{quote(channel_id, safe='')}", quote=True) if channel_id else "#"
+        top_video_id = str(item.get("top_video_id") or "").strip()
+        detail_link = f"/video/{quote(top_video_id, safe='')}" if top_video_id else link
         avatar = _avatar_html(item)
         growth_value = int(item.get("growth_24h") or 0)
         if idx <= 10:
             growth_top10_cards.append(
-                f'<a class="top10-card" href="{link}" target="_blank" rel="noopener noreferrer">'
+                f'<a class="top10-card" href="{html.escape(detail_link, quote=True)}">'
                 f'<span class="rank-badge {cls}">{idx}</span><span class="avatar">{avatar}</span>'
                 f'<span class="card-main"><span class="row-title">{channel_name}</span><span class="row-meta">+{growth_value:,}</span></span></a>'
             )
@@ -1814,11 +1839,13 @@ def render_channel_growth_page(base_url: str = "") -> str:
         channel_name = html.escape(item.get("channel_name") or "")
         channel_id = str(item.get("channel_id") or "")
         link = html.escape(f"https://www.youtube.com/channel/{quote(channel_id, safe='')}", quote=True) if channel_id else "#"
+        top_video_id = str(item.get("top_video_id") or "").strip()
+        detail_link = f"/video/{quote(top_video_id, safe='')}" if top_video_id else link
         avatar = _avatar_html(item)
         rate_value = float(item.get("growth_rate_pct") or 0.0)
         if idx <= 10:
             rate_top10_cards.append(
-                f'<a class="top10-card" href="{link}" target="_blank" rel="noopener noreferrer">'
+                f'<a class="top10-card" href="{html.escape(detail_link, quote=True)}">'
                 f'<span class="rank-badge {cls}">{idx}</span><span class="avatar">{avatar}</span>'
                 f'<span class="card-main"><span class="row-title">{channel_name}</span><span class="row-meta">+{rate_value:.1f}%</span></span></a>'
             )
