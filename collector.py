@@ -155,6 +155,7 @@ def load_channels(tracked_only: bool = False) -> list[dict]:
                 channel_id,
                 channel_name,
                 group_name,
+                added_at,
                 COALESCE(uploads_playlist_id, '') AS uploads_playlist_id,
                 is_tracked,
                 COALESCE(empty_streak, 0) AS empty_streak,
@@ -173,6 +174,7 @@ def load_channels(tracked_only: bool = False) -> list[dict]:
             row["empty_streak"] = 0
             row["last_checked_at"] = None
             row["paused_until"] = None
+            row["added_at"] = None
         return rows
 
 
@@ -339,7 +341,7 @@ def _build_cold_candidate_meta(channels: list[dict], now_utc: datetime) -> dict[
         growth_7d = int(fr.get("recent_view_growth_7d") or 0)
         recent_30d = int(fr.get("recent_video_count_30d") or 0)
         latest_days = _days_since(fr.get("latest_video_published_at"), now_utc)
-        channel_age_days = _days_since(ch.get("channel_added_at"), now_utc)
+        channel_age_days = _days_since(ch.get("added_at"), now_utc)
         is_inactive = latest_days is None or latest_days >= COLD_MIN_INACTIVE_DAYS
         observed = recent_30d >= COLD_MIN_OBSERVED_VIDEOS or (
             channel_age_days is not None and channel_age_days >= COLD_MIN_CHANNEL_AGE_DAYS
