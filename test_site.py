@@ -77,6 +77,18 @@ PERIOD_TABLE_MAP: dict[str, tuple[str, str, str]] = {
     period_key: (label, shorts_table, video_table)
     for period_key, label, shorts_table, video_table in PERIODS
 }
+PERIOD_ALIASES = {
+    "24h": "daily",
+    "1d": "daily",
+    "7d": "weekly",
+    "7day": "weekly",
+    "7days": "weekly",
+    "week": "weekly",
+    "30d": "monthly",
+    "30day": "monthly",
+    "30days": "monthly",
+    "month": "monthly",
+}
 LAZY_LOAD_PERIOD_KEYS = {"weekly", "monthly"}
 GROUP_ORDER = [
     "all",
@@ -687,20 +699,21 @@ def _rank_label_for_detail(rank_value: int | None, top_n: int = 100) -> str:
 
 def _normalize_period_key(period_key: str | None) -> str:
     normalized = (period_key or "").strip().lower()
-    aliases = {
-        "24h": "daily",
-        "1d": "daily",
-        "7d": "weekly",
-        "7day": "weekly",
-        "7days": "weekly",
-        "week": "weekly",
-        "30d": "monthly",
-        "30day": "monthly",
-        "30days": "monthly",
-        "month": "monthly",
-    }
-    normalized = aliases.get(normalized, normalized)
+    normalized = PERIOD_ALIASES.get(normalized, normalized)
     return normalized if normalized in {"daily", "weekly", "monthly"} else "daily"
+
+
+def _empty_ranking_message(period_key: str, content_label: str | None = None) -> str:
+    content_prefix = ""
+    if content_label:
+        content_prefix = f"{content_label}の"
+    if period_key in {"weekly", "monthly"}:
+        label = "7日" if period_key == "weekly" else "30日"
+        return (
+            f"{content_prefix}{label}ランキングは、基準データを収集中です。"
+            "期間開始付近の統計が揃うと表示されます。"
+        )
+    return f"{content_prefix}このタブに該当する動画はありません。"
 
 
 def _format_duration_label(duration_seconds: object) -> str:
@@ -776,7 +789,7 @@ def _render_cards(
     content_label: str = "shorts",
 ) -> str:
     if not rows:
-        return '<div class="empty">このタブに該当する動画はありません。</div>'
+        return f'<div class="empty">{html.escape(_empty_ranking_message(period_key, content_label))}</div>'
 
     cards = []
     today = datetime.now(JST)
@@ -929,7 +942,7 @@ def _render_rank_sections(
     content_label: str = "shorts",
 ) -> str:
     if not rows:
-        return '<div class="empty">このタブに該当する動画はありません。</div>'
+        return f'<div class="empty">{html.escape(_empty_ranking_message(period_key, content_label))}</div>'
 
     all_html = _render_cards(rows, show_group=show_group, period_key=period_key, content_label=content_label)
     return f"""
@@ -962,7 +975,7 @@ def _render_group_content(
         display_video_rows = video_rows
 
     if not display_shorts_rows and not display_video_rows:
-        return '<div class="empty">このタブに該当する動画はありません。</div>'
+        return f'<div class="empty">{html.escape(_empty_ranking_message(period_key))}</div>'
 
     include_types = {normalized for normalized in (include_content_types or {"shorts", "video"}) if normalized in {"shorts", "video"}}
     if not include_types:
@@ -977,7 +990,7 @@ def _render_group_content(
                 content_label="shorts",
             )
             if display_shorts_rows
-            else '<div class="empty">Shortsに該当する動画はありません。</div>'
+            else f'<div class="empty">{html.escape(_empty_ranking_message(period_key, "Shorts"))}</div>'
         )
         parts.append(f'<div class="content-panel" data-content-panel="shorts">{shorts_html}</div>')
     if "video" in include_types:
@@ -989,7 +1002,7 @@ def _render_group_content(
                 content_label="動画",
             )
             if display_video_rows
-            else '<div class="empty">動画に該当する動画はありません。</div>'
+            else f'<div class="empty">{html.escape(_empty_ranking_message(period_key, "動画"))}</div>'
         )
         parts.append(f'<div class="content-panel" data-content-panel="video">{video_html}</div>')
     return "".join(parts)
@@ -1274,19 +1287,7 @@ def _json_response(
 
 def _normalize_period_param(raw: str) -> str:
     value = (raw or "").strip().lower()
-    aliases = {
-        "24h": "daily",
-        "1d": "daily",
-        "7d": "weekly",
-        "7day": "weekly",
-        "7days": "weekly",
-        "week": "weekly",
-        "30d": "monthly",
-        "30day": "monthly",
-        "30days": "monthly",
-        "month": "monthly",
-    }
-    value = aliases.get(value, value)
+    value = PERIOD_ALIASES.get(value, value)
     if value in PERIOD_TABLE_MAP:
         return value
     return ""

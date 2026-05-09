@@ -2,13 +2,14 @@
 stats_collector.py — Collect view / like / comment snapshots for tracked videos.
 
 - High frequency: videos published within TRACK_DAYS.
-- Low frequency: videos currently in weekly/monthly TOP100 (at most once per 24h).
+- Low frequency: videos published within LONG_TERM_STATS_DAYS or currently in
+  weekly/monthly TOP100 (at most once per LONG_TERM_STATS_INTERVAL_HOURS).
 """
 
 import logging
 from datetime import datetime, timedelta, timezone
 
-from config import TRACK_DAYS
+from config import LONG_TERM_STATS_DAYS, LONG_TERM_STATS_INTERVAL_HOURS, TRACK_DAYS
 from db import fetchall, get_connection
 from youtube_client import get_video_details
 
@@ -22,12 +23,13 @@ def _get_tracked_video_ids() -> list[str]:
     - Regular target: videos within TRACK_DAYS.
     - Safety net: videos that still have no stats at all.
       (prevents newly inserted videos from being skipped)
-    - Low-frequency target: videos in weekly/monthly TOP100,
-      if no snapshot exists in the last 24 hours.
+    - Low-frequency target: videos within LONG_TERM_STATS_DAYS or in
+      weekly/monthly TOP100, if no recent snapshot exists.
     """
     now_utc = datetime.now(timezone.utc)
     cutoff = now_utc - timedelta(days=TRACK_DAYS)
-    daily_cutoff = now_utc - timedelta(hours=24)
+    long_term_cutoff = now_utc - timedelta(days=max(TRACK_DAYS, LONG_TERM_STATS_DAYS))
+    low_frequency_cutoff = now_utc - timedelta(hours=max(1, LONG_TERM_STATS_INTERVAL_HOURS))
     rows = fetchall(
         """
         WITH ranked_candidates AS (
@@ -60,7 +62,10 @@ def _get_tracked_video_ids() -> list[str]:
                 WHERE s.video_id = v.video_id
            )
            OR (
-                v.video_id IN (SELECT rc.video_id FROM ranked_candidates rc)
+                (
+                    v.published_at >= %s
+                    OR v.video_id IN (SELECT rc.video_id FROM ranked_candidates rc)
+                )
                 AND NOT EXISTS (
                     SELECT 1
                     FROM video_stats s
@@ -70,7 +75,7 @@ def _get_tracked_video_ids() -> list[str]:
            )
         """
         ,
-        (cutoff, daily_cutoff),
+        (cutoff, long_term_cutoff, low_frequency_cutoff),
     )
     return [r["video_id"] for r in rows]
 

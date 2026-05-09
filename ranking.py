@@ -123,7 +123,10 @@ def _build_ranking_sql(
                             timestamp
                         FROM video_stats
                         WHERE timestamp BETWEEN %s AND %s
-                        ORDER BY video_id, timestamp DESC
+                        ORDER BY
+                            video_id,
+                            ABS(EXTRACT(EPOCH FROM (timestamp - %s))) ASC,
+                            timestamp DESC
                     ),
     """
     if is_strict_daily:
@@ -218,7 +221,8 @@ def _build_ranking_params(
     else:
         window_hours = max(1, int(PERIOD_BASE_WINDOW_HOURS))
         period_lower = period_start - timedelta(hours=window_hours)
-        params = [period_lower, period_start, period_start]
+        period_upper = period_start + timedelta(hours=window_hours)
+        params = [period_lower, period_upper, period_start, period_start]
     params.extend([
         CLIP_KEYWORD_PATTERN,
         CLIP_KEYWORD_PATTERN,
@@ -327,6 +331,19 @@ def _calculate_ranking(
             history_table,
             HISTORY_RANK_LIMIT,
         )
+        if period_name in {"weekly", "monthly"} and row_count == 0:
+            logger.warning(
+                "%s/%s ranking is empty. Baseline snapshots near the period start may be missing.",
+                period_name,
+                content_type,
+            )
+        elif period_name in {"weekly", "monthly"} and row_count < 10:
+            logger.warning(
+                "%s/%s ranking has only %d row(s). Consider waiting for more long-term stats snapshots.",
+                period_name,
+                content_type,
+                row_count,
+            )
     finally:
         conn.close()
 

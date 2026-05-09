@@ -194,6 +194,8 @@ SEARCH_CRON_HOURS_JST: str = os.getenv("SEARCH_CRON_HOURS_JST", "6")
 SEARCH_CRON_MINUTE_JST: int = int(os.getenv("SEARCH_CRON_MINUTE_JST", "0"))
 CHANNEL_UPDATE_INTERVAL_HOURS: int = int(os.getenv("CHANNEL_UPDATE_INTERVAL_HOURS", "4"))
 STATS_INTERVAL_HOURS: int = int(os.getenv("STATS_INTERVAL_HOURS", "4"))
+LONG_TERM_STATS_DAYS: int = int(os.getenv("LONG_TERM_STATS_DAYS", "35"))
+LONG_TERM_STATS_INTERVAL_HOURS: int = int(os.getenv("LONG_TERM_STATS_INTERVAL_HOURS", "24"))
 
 # ── Cold scheduling (channel refresh load reduction) ─────────────────
 ENABLE_COLD_SCHEDULING: bool = _env_bool("ENABLE_COLD_SCHEDULING", "0")
