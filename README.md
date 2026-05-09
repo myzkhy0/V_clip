@@ -38,11 +38,17 @@ cp .env.example .env
 | `YOUTUBE_API_KEY` | YouTube Data API v3 キー |
 | `DATABASE_URL` | PostgreSQL 接続文字列 (例: `postgresql://user:pass@localhost:5432/vclip`) |
 | `ENABLE_COLD_SCHEDULING` | `1` で cold 判定によるチャンネル更新間引きを有効化（既定 `0`） |
+| `WARM_REFRESH_HOURS` | warm 判定チャンネルの更新間隔（時間, 既定 `24`） |
 | `COLD_REFRESH_HOURS` | cold 判定チャンネルの更新間隔（時間, 例 `72`） |
-| `COLD_MIN_INACTIVE_DAYS` | cold 判定の最小 inactive 日数（既定 `14`） |
-| `COLD_RECENT_GROWTH_7D_MAX` | cold 判定の 7日再生増分しきい値（既定 `5000`） |
-| `COLD_MIN_OBSERVED_VIDEOS` | cold 判定の最小観測動画本数（既定 `1`） |
-| `COLD_MIN_CHANNEL_AGE_DAYS` | 観測不足時の代替条件となるチャンネル経過日数（既定 `14`） |
+| `WARM_MIN_INACTIVE_DAYS` | warm 判定の最小 inactive 日数（既定 `14`。未設定時は旧 `COLD_MIN_INACTIVE_DAYS` を引き継ぎ） |
+| `WARM_RECENT_GROWTH_7D_MAX` | warm 判定の 7日再生増分しきい値（既定 `5000`。未設定時は旧 `COLD_RECENT_GROWTH_7D_MAX` を引き継ぎ） |
+| `WARM_MIN_OBSERVED_VIDEOS` | warm 判定の最小観測動画本数（既定 `1`。未設定時は旧 `COLD_MIN_OBSERVED_VIDEOS` を引き継ぎ） |
+| `WARM_MIN_CHANNEL_AGE_DAYS` | warm 観測不足時の代替条件となるチャンネル経過日数（既定 `14`） |
+| `WARM_RECENT_VIDEO_30D_MAX` | warm 判定に含める直近30日投稿数の上限（既定 `2`）。warm は直近7日投稿なしも必須 |
+| `COLD_MIN_INACTIVE_DAYS` | 新 cold 判定の最小 inactive 日数（既定 `30`） |
+| `COLD_RECENT_GROWTH_7D_MAX` | 新 cold 判定の 7日再生増分しきい値（既定 `1000`） |
+| `COLD_MIN_OBSERVED_VIDEOS` | 新 cold 判定の最小観測動画本数（既定 `1`） |
+| `COLD_MIN_CHANNEL_AGE_DAYS` | 新 cold 観測不足時の代替条件となるチャンネル経過日数（既定 `30`） |
 | `COLD_MANUAL_PROTECT_FILE` | cold 対象から除外する channel_id リストファイル |
 | `X_API_USER_BEARER_TOKEN` | X投稿に使う Bearer Token（ユーザー文脈） |
 | `X_API_POST_URL` | 投稿APIエンドポイント（既定 `https://api.x.com/2/tweets`） |
@@ -280,10 +286,15 @@ Windows では `open_simulation_gui.bat` をダブルクリックで一発起動
 - `--warm-threshold` (既定 `30`)
 - `--hot-cap` (任意。hot上限件数)
 - `--strategy-mode` (`cold_only` または `full`, 既定 `cold_only`)
-- `--cold-recent-growth-7d-max` (既定 `5000`)
-- `--cold-min-inactive-days` (既定 `21`)
-- `--cold-min-channel-age-days` (既定 `14`)
-- `--cold-min-observed-videos` (既定 `3`)
+- `--warm-recent-growth-7d-max` (既定 `5000`)
+- `--warm-min-inactive-days` (既定 `14`)
+- `--warm-min-channel-age-days` (既定 `14`)
+- `--warm-min-observed-videos` (既定 `1`)
+- `--warm-recent-video-30d-max` (既定 `2`)
+- `--cold-recent-growth-7d-max` (既定 `1000`)
+- `--cold-min-inactive-days` (既定 `30`)
+- `--cold-min-channel-age-days` (既定 `30`)
+- `--cold-min-observed-videos` (既定 `1`)
 - `--manual-protect-file` (任意。cold除外チャネルIDファイル)
 - `--view-growth-threshold-48h` (既定 `50000`)
 - `--rankable-rate-high` (既定 `0.40`)

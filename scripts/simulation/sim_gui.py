@@ -44,11 +44,16 @@ DEFAULTS = {
     "rankable_rate_high": 0.40,
     "rankable_rate_low": 0.10,
     "strategy_mode": "cold_only",
-    "cold_recent_growth_7d_max": 10000,
-    "cold_min_inactive_days": 14,
-    "cold_min_channel_age_days": 14,
+    "warm_recent_growth_7d_max": 5000,
+    "warm_min_inactive_days": 14,
+    "warm_min_channel_age_days": 14,
+    "warm_min_observed_videos": 1,
+    "warm_recent_video_30d_max": 2,
+    "cold_recent_growth_7d_max": 1000,
+    "cold_min_inactive_days": 30,
+    "cold_min_channel_age_days": 30,
     "cold_min_observed_videos": 1,
-    "manual_protect_file": "",
+    "manual_protect_file": "scripts/simulation/manual_protect_channels.txt",
 }
 
 
@@ -103,6 +108,11 @@ def _make_namespace(form: dict[str, list[str]]) -> Namespace:
             form, "rankable_rate_low", float(DEFAULTS["rankable_rate_low"])
         ),
         strategy_mode=(form.get("strategy_mode") or [str(DEFAULTS["strategy_mode"])])[0].strip() or str(DEFAULTS["strategy_mode"]),
+        warm_recent_growth_7d_max=_to_int(form, "warm_recent_growth_7d_max", int(DEFAULTS["warm_recent_growth_7d_max"])),
+        warm_min_inactive_days=_to_int(form, "warm_min_inactive_days", int(DEFAULTS["warm_min_inactive_days"])),
+        warm_min_channel_age_days=_to_int(form, "warm_min_channel_age_days", int(DEFAULTS["warm_min_channel_age_days"])),
+        warm_min_observed_videos=_to_int(form, "warm_min_observed_videos", int(DEFAULTS["warm_min_observed_videos"])),
+        warm_recent_video_30d_max=_to_int(form, "warm_recent_video_30d_max", int(DEFAULTS["warm_recent_video_30d_max"])),
         cold_recent_growth_7d_max=_to_int(form, "cold_recent_growth_7d_max", int(DEFAULTS["cold_recent_growth_7d_max"])),
         cold_min_inactive_days=_to_int(form, "cold_min_inactive_days", int(DEFAULTS["cold_min_inactive_days"])),
         cold_min_channel_age_days=_to_int(form, "cold_min_channel_age_days", int(DEFAULTS["cold_min_channel_age_days"])),
@@ -151,7 +161,7 @@ def _render_page(
           <h2>Simulation Result</h2>
           <p><b>Output:</b> <code>{html.escape(out_dir)}</code></p>
           <p><b>Applied mode:</b> {metrics.get("strategy_mode")}</p>
-          <p><b>Applied thresholds:</b> hot={metrics.get("applied_hot_threshold")}, warm={metrics.get("applied_warm_threshold")}, cold-growth-max={metrics.get("applied_cold_growth_7d_max")}</p>
+          <p><b>Applied thresholds:</b> hot={metrics.get("applied_hot_threshold")}, warm-score={metrics.get("applied_warm_threshold")}, warm-growth-max={metrics.get("applied_warm_growth_7d_max")}, warm-recent30-max={metrics.get("applied_warm_recent_video_30d_max")}, cold-growth-max={metrics.get("applied_cold_growth_7d_max")}</p>
           <div class='grid3'>
             <div class='metric'><b>{metrics['total_channels']}</b><span>Total channels</span></div>
             <div class='metric'><b>{metrics['hot_channels']}</b><span>Hot</span></div>
@@ -223,9 +233,14 @@ def _render_page(
           {inp('rankable_rate_high', 'Rankable high threshold', 'for +10 score rule')}
           {inp('rankable_rate_low', 'Rankable low threshold', 'for -15 score rule')}
           {inp('strategy_mode', 'Strategy mode', 'cold_only or full')}
-          {inp('cold_recent_growth_7d_max', 'Cold growth 7d max', 'cold rule threshold')}
-          {inp('cold_min_inactive_days', 'Cold min inactive days', 'default 14')}
-          {inp('cold_min_channel_age_days', 'Cold min channel age', 'default 14')}
+          {inp('warm_recent_growth_7d_max', 'Warm growth 7d max', 'legacy cold rule promoted to warm')}
+          {inp('warm_min_inactive_days', 'Warm min inactive days', 'default 14')}
+          {inp('warm_min_channel_age_days', 'Warm min channel age', 'default 14')}
+          {inp('warm_min_observed_videos', 'Warm min observed videos', 'default 1')}
+          {inp('warm_recent_video_30d_max', 'Warm recent videos 30d max', 'default 2')}
+          {inp('cold_recent_growth_7d_max', 'Cold growth 7d max', 'new strict cold rule threshold')}
+          {inp('cold_min_inactive_days', 'Cold min inactive days', 'default 30')}
+          {inp('cold_min_channel_age_days', 'Cold min channel age', 'default 30')}
           {inp('cold_min_observed_videos', 'Cold min observed videos', 'default 1')}
           {inp('manual_protect_file', 'Manual protect file', 'optional path, one channel_id per line')}
         </div>

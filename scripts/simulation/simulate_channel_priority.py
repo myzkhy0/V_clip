@@ -53,11 +53,16 @@ class TierConfig:
     current_fixed_hours: int = 4
     discovery_refresh_unit_cost: float = 1.0
     strategy_mode: str = "cold_only"
-    cold_recent_growth_7d_max: int = 10000
-    cold_min_inactive_days: int = 14
-    cold_min_channel_age_days: int = 14
+    warm_recent_growth_7d_max: int = 5000
+    warm_min_inactive_days: int = 14
+    warm_min_channel_age_days: int = 14
+    warm_min_observed_videos: int = 1
+    warm_recent_video_30d_max: int = 2
+    cold_recent_growth_7d_max: int = 1000
+    cold_min_inactive_days: int = 30
+    cold_min_channel_age_days: int = 30
     cold_min_observed_videos: int = 1
-    manual_protect_file: str = ""
+    manual_protect_file: str = "scripts/simulation/manual_protect_channels.txt"
 
 
 class SimContext:
@@ -430,12 +435,14 @@ def _is_cold_candidate(row: dict[str, Any], cfg: TierConfig, protected_ids: set[
     c14 = int(row.get("recent_video_count_14d", 0) or 0)
     r30 = int(row.get("ranking_count_30d", 0) or 0)
     g7 = int(row.get("recent_view_growth_7d", 0) or 0)
+    recent7 = int(row.get("recent_video_count_7d", 0) or 0)
     recent30 = int(row.get("recent_video_count_30d", 0) or 0)
 
     latest_days = _days_since(row.get("latest_video_published_at"))
     channel_age_days = _days_since(row.get("channel_added_at"))
 
-    is_inactive = latest_days is None or latest_days >= cfg.cold_min_inactive_days
+    has_video_history = latest_days is not None
+    is_inactive = has_video_history and latest_days >= cfg.cold_min_inactive_days
     observed = recent30 >= cfg.cold_min_observed_videos or (
         channel_age_days is not None and channel_age_days >= cfg.cold_min_channel_age_days
     )
@@ -444,6 +451,8 @@ def _is_cold_candidate(row: dict[str, Any], cfg: TierConfig, protected_ids: set[
         reasons.append("no_upload_7d")
     if c14 == 0:
         reasons.append("no_upload_14d")
+    if recent30 == 0:
+        reasons.append("no_upload_30d")
     if r30 == 0:
         reasons.append("no_ranking_30d")
     if g7 < cfg.cold_recent_growth_7d_max:
@@ -453,13 +462,64 @@ def _is_cold_candidate(row: dict[str, Any], cfg: TierConfig, protected_ids: set[
     if observed:
         reasons.append("observation_sufficient")
 
-    ok = r30 == 0 and g7 < cfg.cold_recent_growth_7d_max and is_inactive and observed
+    ok = (
+        r30 == 0
+        and recent30 == 0
+        and g7 < cfg.cold_recent_growth_7d_max
+        and is_inactive
+        and observed
+    )
+    return ok, reasons
+
+
+def _is_warm_candidate(row: dict[str, Any], cfg: TierConfig, protected_ids: set[str]) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    if row["channel_id"] in protected_ids:
+        return False, ["manual_protect"]
+
+    r30 = int(row.get("ranking_count_30d", 0) or 0)
+    g7 = int(row.get("recent_view_growth_7d", 0) or 0)
+    recent7 = int(row.get("recent_video_count_7d", 0) or 0)
+    recent30 = int(row.get("recent_video_count_30d", 0) or 0)
+
+    latest_days = _days_since(row.get("latest_video_published_at"))
+    channel_age_days = _days_since(row.get("channel_added_at"))
+
+    has_video_history = latest_days is not None
+    is_inactive = has_video_history and latest_days >= cfg.warm_min_inactive_days
+    low_recent_uploads = has_video_history and recent30 <= cfg.warm_recent_video_30d_max
+    observed = recent30 >= cfg.warm_min_observed_videos or (
+        channel_age_days is not None and channel_age_days >= cfg.warm_min_channel_age_days
+    )
+
+    if r30 == 0:
+        reasons.append("no_ranking_30d")
+    if recent7 == 0:
+        reasons.append("no_upload_7d")
+    if g7 < cfg.warm_recent_growth_7d_max:
+        reasons.append(f"growth_7d_lt_{cfg.warm_recent_growth_7d_max}")
+    if is_inactive:
+        reasons.append(f"inactive_ge_{cfg.warm_min_inactive_days}d")
+    if low_recent_uploads:
+        reasons.append(f"recent30_lte_{cfg.warm_recent_video_30d_max}")
+    if observed:
+        reasons.append("observation_sufficient")
+
+    ok = (
+        r30 == 0
+        and recent7 == 0
+        and g7 < cfg.warm_recent_growth_7d_max
+        and (is_inactive or low_recent_uploads)
+        and observed
+    )
     return ok, reasons
 
 
 def _refreshes_per_day(row: dict[str, Any], cfg: TierConfig) -> float:
     tier = row["simulated_tier"]
     if cfg.strategy_mode == "cold_only":
+        if tier == "warm":
+            return 24.0 / cfg.warm_hours
         if tier == "cold":
             return 24.0 / cfg.cold_hours
         return 24.0 / cfg.current_fixed_hours
@@ -482,7 +542,9 @@ def _build_risk(row: dict[str, Any], cfg: TierConfig) -> tuple[bool, list[str]]:
         reasons.append("ranking_7d_presence_but_cold")
 
     if cfg.strategy_mode == "cold_only":
-        if tier == "cold":
+        if tier == "warm":
+            reasons.append("refresh_delay_vs_current:+20h")
+        elif tier == "cold":
             reasons.append("refresh_delay_vs_current:+68h")
     else:
         if tier == "warm":
@@ -535,6 +597,11 @@ def run_simulation(args: argparse.Namespace) -> dict[str, Any]:
         current_fixed_hours=args.current_fixed_hours,
         discovery_refresh_unit_cost=args.discovery_refresh_unit_cost,
         strategy_mode=args.strategy_mode,
+        warm_recent_growth_7d_max=args.warm_recent_growth_7d_max,
+        warm_min_inactive_days=args.warm_min_inactive_days,
+        warm_min_channel_age_days=args.warm_min_channel_age_days,
+        warm_min_observed_videos=args.warm_min_observed_videos,
+        warm_recent_video_30d_max=args.warm_recent_video_30d_max,
         cold_recent_growth_7d_max=args.cold_recent_growth_7d_max,
         cold_min_inactive_days=args.cold_min_inactive_days,
         cold_min_channel_age_days=args.cold_min_channel_age_days,
@@ -556,13 +623,28 @@ def run_simulation(args: argparse.Namespace) -> dict[str, Any]:
     protected_ids = _load_manual_protect_ids(tier_cfg.manual_protect_file)
     for row in rows:
         cold_ok, cold_reasons = _is_cold_candidate(row, tier_cfg, protected_ids)
+        warm_ok, warm_reasons = _is_warm_candidate(row, tier_cfg, protected_ids)
         row["cold_candidate"] = cold_ok
+        row["warm_candidate"] = warm_ok
         row["cold_reason_summary"] = "; ".join(cold_reasons)
+        row["warm_reason_summary"] = "; ".join(warm_reasons)
         if tier_cfg.strategy_mode == "cold_only":
-            row["simulated_tier"] = "cold" if cold_ok else "active"
+            if cold_ok:
+                row["simulated_tier"] = "cold"
+            elif warm_ok:
+                row["simulated_tier"] = "warm"
+            else:
+                row["simulated_tier"] = "active"
         elif cold_ok:
             row["simulated_tier"] = "cold"
             row["reason_details"].append("cold_rule_matched")
+        elif row["simulated_tier"] == "cold":
+            row["simulated_tier"] = "warm"
+            row["reason_details"].append(
+                "legacy_cold_rule_promoted_to_warm"
+                if warm_ok
+                else "score_cold_promoted_to_warm"
+            )
 
     hot = warm = cold = active = 0
     daily_jobs = 0.0
@@ -589,7 +671,12 @@ def run_simulation(args: argparse.Namespace) -> dict[str, Any]:
         row["risk_flag"] = risk_flag
         row["risk_reasons"] = "; ".join(risk_reasons)
 
-        reasons = row["reason_details"] + ([row["cold_reason_summary"]] if row.get("cold_reason_summary") else []) + (risk_reasons[:2] if risk_reasons else [])
+        hold_reasons = []
+        if row.get("cold_reason_summary") and row.get("cold_candidate"):
+            hold_reasons.append(row["cold_reason_summary"])
+        elif row.get("warm_reason_summary") and row.get("warm_candidate"):
+            hold_reasons.append(row["warm_reason_summary"])
+        reasons = row["reason_details"] + hold_reasons + (risk_reasons[:2] if risk_reasons else [])
         row["reason_summary"] = "; ".join(reasons[:6])
 
         if risk_flag:
@@ -617,6 +704,9 @@ def run_simulation(args: argparse.Namespace) -> dict[str, Any]:
         "strategy_mode": tier_cfg.strategy_mode,
         "applied_hot_threshold": tier_cfg.hot_threshold,
         "applied_warm_threshold": tier_cfg.warm_threshold,
+        "applied_warm_growth_7d_max": tier_cfg.warm_recent_growth_7d_max,
+        "applied_warm_min_inactive_days": tier_cfg.warm_min_inactive_days,
+        "applied_warm_recent_video_30d_max": tier_cfg.warm_recent_video_30d_max,
         "applied_cold_growth_7d_max": tier_cfg.cold_recent_growth_7d_max,
         "applied_cold_min_inactive_days": tier_cfg.cold_min_inactive_days,
         "estimated_daily_refresh_jobs": round(daily_jobs, 4),
@@ -730,11 +820,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rankable-rate-high", type=float, default=0.40)
     parser.add_argument("--rankable-rate-low", type=float, default=0.10)
     parser.add_argument("--strategy-mode", choices=["full", "cold_only"], default="cold_only")
-    parser.add_argument("--cold-recent-growth-7d-max", type=int, default=10000)
-    parser.add_argument("--cold-min-inactive-days", type=int, default=14)
-    parser.add_argument("--cold-min-channel-age-days", type=int, default=14)
+    parser.add_argument("--warm-recent-growth-7d-max", type=int, default=5000)
+    parser.add_argument("--warm-min-inactive-days", type=int, default=14)
+    parser.add_argument("--warm-min-channel-age-days", type=int, default=14)
+    parser.add_argument("--warm-min-observed-videos", type=int, default=1)
+    parser.add_argument("--warm-recent-video-30d-max", type=int, default=2)
+    parser.add_argument("--cold-recent-growth-7d-max", type=int, default=1000)
+    parser.add_argument("--cold-min-inactive-days", type=int, default=30)
+    parser.add_argument("--cold-min-channel-age-days", type=int, default=30)
     parser.add_argument("--cold-min-observed-videos", type=int, default=1)
-    parser.add_argument("--manual-protect-file", type=str, default="")
+    parser.add_argument(
+        "--manual-protect-file",
+        type=str,
+        default="scripts/simulation/manual_protect_channels.txt",
+    )
     return parser.parse_args()
 
 

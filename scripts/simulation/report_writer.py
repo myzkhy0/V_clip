@@ -20,6 +20,8 @@ def write_channel_tier_csv(path: Path, channel_rows: list[dict[str, Any]]) -> No
         "recent_video_count_7d",
         "ranking_count_7d",
         "ranking_count_30d",
+        "warm_candidate",
+        "cold_candidate",
         "estimated_daily_refreshes",
         "estimated_weekly_refreshes",
         "risk_flag",

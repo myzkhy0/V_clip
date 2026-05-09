@@ -199,10 +199,24 @@ LONG_TERM_STATS_INTERVAL_HOURS: int = int(os.getenv("LONG_TERM_STATS_INTERVAL_HO
 
 # ── Cold scheduling (channel refresh load reduction) ─────────────────
 ENABLE_COLD_SCHEDULING: bool = _env_bool("ENABLE_COLD_SCHEDULING", "0")
+WARM_REFRESH_HOURS: int = int(os.getenv("WARM_REFRESH_HOURS", "24"))
 COLD_REFRESH_HOURS: int = int(os.getenv("COLD_REFRESH_HOURS", "72"))
-COLD_RECENT_GROWTH_7D_MAX: int = int(os.getenv("COLD_RECENT_GROWTH_7D_MAX", "5000"))
-COLD_MIN_INACTIVE_DAYS: int = int(os.getenv("COLD_MIN_INACTIVE_DAYS", "14"))
-COLD_MIN_CHANNEL_AGE_DAYS: int = int(os.getenv("COLD_MIN_CHANNEL_AGE_DAYS", "14"))
+WARM_RECENT_GROWTH_7D_MAX: int = int(
+    os.getenv("WARM_RECENT_GROWTH_7D_MAX", os.getenv("COLD_RECENT_GROWTH_7D_MAX", "5000"))
+)
+WARM_MIN_INACTIVE_DAYS: int = int(
+    os.getenv("WARM_MIN_INACTIVE_DAYS", os.getenv("COLD_MIN_INACTIVE_DAYS", "14"))
+)
+WARM_MIN_CHANNEL_AGE_DAYS: int = int(
+    os.getenv("WARM_MIN_CHANNEL_AGE_DAYS", os.getenv("COLD_MIN_CHANNEL_AGE_DAYS", "14"))
+)
+WARM_MIN_OBSERVED_VIDEOS: int = int(
+    os.getenv("WARM_MIN_OBSERVED_VIDEOS", os.getenv("COLD_MIN_OBSERVED_VIDEOS", "1"))
+)
+WARM_RECENT_VIDEO_30D_MAX: int = int(os.getenv("WARM_RECENT_VIDEO_30D_MAX", "2"))
+COLD_RECENT_GROWTH_7D_MAX: int = int(os.getenv("COLD_RECENT_GROWTH_7D_MAX", "1000"))
+COLD_MIN_INACTIVE_DAYS: int = int(os.getenv("COLD_MIN_INACTIVE_DAYS", "30"))
+COLD_MIN_CHANNEL_AGE_DAYS: int = int(os.getenv("COLD_MIN_CHANNEL_AGE_DAYS", "30"))
 COLD_MIN_OBSERVED_VIDEOS: int = int(os.getenv("COLD_MIN_OBSERVED_VIDEOS", "1"))
 COLD_MANUAL_PROTECT_FILE: str = os.getenv(
     "COLD_MANUAL_PROTECT_FILE",

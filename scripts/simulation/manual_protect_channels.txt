@@ -1,0 +1,6 @@
+# Official/source channels that should never be slowed by warm/cold holds.
+UCJFZiqLMntJufDCHc6bQixg
+UCX7YkU9nEeaoZbkVLVajcMg
+UCuI5XaO-6VkOEhHao6ij7JA
+UC4yiPSMCYlHIEbeBbiCsOjg
+UCKofJjNEmQ3LwERp3pRVxtw

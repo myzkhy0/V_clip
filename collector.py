@@ -39,6 +39,12 @@ from config import (
     SHORTS_MAX_SECONDS,
     SHORTS_TAG_KEYWORD,
     TRACK_DAYS,
+    WARM_MIN_CHANNEL_AGE_DAYS,
+    WARM_MIN_INACTIVE_DAYS,
+    WARM_MIN_OBSERVED_VIDEOS,
+    WARM_RECENT_GROWTH_7D_MAX,
+    WARM_RECENT_VIDEO_30D_MAX,
+    WARM_REFRESH_HOURS,
 )
 from db import execute, execute_many, fetchall
 from youtube_client import (
@@ -284,6 +290,7 @@ def _build_cold_candidate_meta(channels: list[dict], now_utc: datetime) -> dict[
       SELECT
         channel_id,
         MAX(published_at) AS latest_video_published_at,
+        COUNT(*) FILTER (WHERE published_at >= NOW() - INTERVAL '7 days') AS recent_video_count_7d,
         COUNT(*) FILTER (WHERE published_at >= NOW() - INTERVAL '30 days') AS recent_video_count_30d
       FROM video_base
       GROUP BY channel_id
@@ -333,31 +340,52 @@ def _build_cold_candidate_meta(channels: list[dict], now_utc: datetime) -> dict[
         if not cid:
             continue
         if cid in protected_ids:
-            meta[cid] = {"is_cold": False, "reason": "manual_protect"}
+            meta[cid] = {"tier": "active", "is_cold": False, "reason": "manual_protect"}
             continue
 
         fr = feature_by_id.get(cid, {})
         ranking_30d = int(fr.get("ranking_count_30d") or 0)
         growth_7d = int(fr.get("recent_view_growth_7d") or 0)
+        recent_7d = int(fr.get("recent_video_count_7d") or 0)
         recent_30d = int(fr.get("recent_video_count_30d") or 0)
         latest_days = _days_since(fr.get("latest_video_published_at"), now_utc)
         channel_age_days = _days_since(ch.get("added_at"), now_utc)
-        is_inactive = latest_days is None or latest_days >= COLD_MIN_INACTIVE_DAYS
-        observed = recent_30d >= COLD_MIN_OBSERVED_VIDEOS or (
+        has_video_history = latest_days is not None
+        cold_inactive = has_video_history and latest_days >= COLD_MIN_INACTIVE_DAYS
+        cold_observed = recent_30d >= COLD_MIN_OBSERVED_VIDEOS or (
             channel_age_days is not None and channel_age_days >= COLD_MIN_CHANNEL_AGE_DAYS
+        )
+        warm_inactive = has_video_history and latest_days >= WARM_MIN_INACTIVE_DAYS
+        warm_low_recent_uploads = has_video_history and recent_30d <= WARM_RECENT_VIDEO_30D_MAX
+        warm_observed = recent_30d >= WARM_MIN_OBSERVED_VIDEOS or (
+            channel_age_days is not None and channel_age_days >= WARM_MIN_CHANNEL_AGE_DAYS
         )
 
         is_cold = (
             ranking_30d == 0
+            and recent_30d == 0
             and growth_7d < COLD_RECENT_GROWTH_7D_MAX
-            and is_inactive
-            and observed
+            and cold_inactive
+            and cold_observed
         )
+        is_warm = (
+            ranking_30d == 0
+            and recent_7d == 0
+            and growth_7d < WARM_RECENT_GROWTH_7D_MAX
+            and (warm_inactive or warm_low_recent_uploads)
+            and warm_observed
+        )
+        tier = "cold" if is_cold else ("warm" if is_warm else "active")
         reason = (
-            f"rank30={ranking_30d}, growth7d={growth_7d}, "
+            f"rank30={ranking_30d}, recent7d={recent_7d}, growth7d={growth_7d}, "
             f"inactive_days={latest_days if latest_days is not None else 'none'}"
         )
-        meta[cid] = {"is_cold": is_cold, "reason": reason}
+        meta[cid] = {
+            "tier": tier,
+            "is_cold": is_cold,
+            "is_warm": tier == "warm",
+            "reason": reason,
+        }
 
     return meta
 
@@ -367,7 +395,10 @@ def _cold_hold_skip_reason(ch: dict, now_utc: datetime, cold_meta: dict[str, dic
         return None
     cid = str(ch.get("channel_id") or "")
     info = cold_meta.get(cid)
-    if not info or not info.get("is_cold"):
+    if not info:
+        return None
+    tier = str(info.get("tier") or ("cold" if info.get("is_cold") else "active"))
+    if tier not in {"warm", "cold"}:
         return None
 
     last_checked = ch.get("last_checked_at")
@@ -376,11 +407,12 @@ def _cold_hold_skip_reason(ch: dict, now_utc: datetime, cold_meta: dict[str, dic
     if last_checked.tzinfo is None:
         last_checked = last_checked.replace(tzinfo=timezone.utc)
 
-    next_allowed = last_checked + timedelta(hours=max(1, int(COLD_REFRESH_HOURS)))
+    refresh_hours = WARM_REFRESH_HOURS if tier == "warm" else COLD_REFRESH_HOURS
+    next_allowed = last_checked + timedelta(hours=max(1, int(refresh_hours)))
     if next_allowed > now_utc:
         remaining_hours = int((next_allowed - now_utc).total_seconds() // 3600)
         return (
-            f"cold_hold until {next_allowed.isoformat()} "
+            f"{tier}_hold until {next_allowed.isoformat()} "
             f"(remaining~{remaining_hours}h; {info.get('reason', '')})"
         )
     return None
@@ -526,12 +558,15 @@ def discover_videos(
         try:
             cold_meta = _build_cold_candidate_meta(channels, now_utc)
             if ENABLE_COLD_SCHEDULING:
+                warm_count = sum(1 for v in cold_meta.values() if v.get("tier") == "warm")
                 cold_count = sum(1 for v in cold_meta.values() if v.get("is_cold"))
                 logger.info(
-                    "Cold scheduling enabled: %d/%d channel(s) are cold candidates (refresh=%sh)",
+                    "Cold scheduling enabled: %d warm (refresh=%sh), %d cold (refresh=%sh) / %d channel(s)",
+                    warm_count,
+                    WARM_REFRESH_HOURS,
                     cold_count,
-                    len(channels),
                     COLD_REFRESH_HOURS,
+                    len(channels),
                 )
         except Exception:
             cold_meta = {}
