@@ -1025,7 +1025,7 @@ def _build_single_period_payload(
             return None
         label, shorts_table, video_table = period
         is_new_period = False
-    top_n = 200 if is_admin else 100
+    top_n = 100
     shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table, top_n=top_n)
     video_calculated_at, video_rows = _fetch_latest_rankings(video_table, top_n=top_n)
 
@@ -4877,6 +4877,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
             SELECT calculated_at
             FROM {history_table}
             WHERE video_id = %s
+              AND rank <= 100
             ORDER BY calculated_at ASC
             LIMIT 1
             """,
@@ -4887,6 +4888,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
             SELECT rank, calculated_at
             FROM {history_table}
             WHERE video_id = %s
+              AND rank <= 100
             ORDER BY rank ASC, calculated_at ASC
             LIMIT 1
             """,
@@ -4899,6 +4901,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
             SELECT calculated_at
             FROM {ranking_table}
             WHERE video_id = %s
+              AND rank <= 100
             ORDER BY calculated_at ASC
             LIMIT 1
             """,
@@ -4909,6 +4912,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
             SELECT rank, calculated_at
             FROM {ranking_table}
             WHERE video_id = %s
+              AND rank <= 100
             ORDER BY rank ASC, calculated_at ASC
             LIMIT 1
             """,
@@ -4920,6 +4924,7 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         SELECT rank, calculated_at
         FROM {current_rank_table}
         WHERE video_id = %s
+          AND rank <= 100
         ORDER BY calculated_at DESC
         LIMIT 1
         """,
@@ -5261,10 +5266,11 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         "weekly": "7日間",
         "monthly": "30日間",
     }.get(normalized_period, "24時間")
-    if isinstance(payload.get("current_rank"), int):
-        rank_chip_value = str(int(payload["current_rank"]))
-    else:
-        rank_chip_value = "-"
+    try:
+        current_rank_value = int(payload.get("current_rank") or 0)
+    except (TypeError, ValueError):
+        current_rank_value = 0
+    rank_chip_value = str(current_rank_value) if 1 <= current_rank_value <= 100 else "-"
     rank_chip_class = (
         "gold" if rank_chip_value == "1"
         else ("silver" if rank_chip_value == "2" else ("bronze" if rank_chip_value == "3" else ""))
