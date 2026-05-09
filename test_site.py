@@ -25,7 +25,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
 
-from config import EXCLUDED_CHANNELS_FILE, GROUP_KEYWORDS, STATS_INTERVAL_HOURS
+from config import EXCLUDED_CHANNELS_FILE, GROUP_KEYWORDS, PUBLIC_RANK_DISPLAY_LIMIT, STATS_INTERVAL_HOURS
 from db import fetchall
 
 logger = logging.getLogger(__name__)
@@ -683,7 +683,7 @@ def _share_prefix_for_period(period_key: str, month_day: str, rank: int, content
     return f"VTuber切り抜きランキング {rank}位の{normalized_label}です！"
 
 
-def _rank_label_for_detail(rank_value: int | None, top_n: int = 100) -> str:
+def _rank_label_for_detail(rank_value: int | None, top_n: int = PUBLIC_RANK_DISPLAY_LIMIT) -> str:
     if rank_value is None:
         return "-"
     try:
@@ -1025,7 +1025,7 @@ def _build_single_period_payload(
             return None
         label, shorts_table, video_table = period
         is_new_period = False
-    top_n = 100
+    top_n = max(1, int(PUBLIC_RANK_DISPLAY_LIMIT))
     shorts_calculated_at, shorts_rows = _fetch_latest_rankings(shorts_table, top_n=top_n)
     video_calculated_at, video_rows = _fetch_latest_rankings(video_table, top_n=top_n)
 
@@ -4877,22 +4877,22 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
             SELECT calculated_at
             FROM {history_table}
             WHERE video_id = %s
-              AND rank <= 100
+              AND rank <= %s
             ORDER BY calculated_at ASC
             LIMIT 1
             """,
-            (video_id,),
+            (video_id, PUBLIC_RANK_DISPLAY_LIMIT),
         )
         best_rank_rows = fetchall(
             f"""
             SELECT rank, calculated_at
             FROM {history_table}
             WHERE video_id = %s
-              AND rank <= 100
+              AND rank <= %s
             ORDER BY rank ASC, calculated_at ASC
             LIMIT 1
             """,
-            (video_id,),
+            (video_id, PUBLIC_RANK_DISPLAY_LIMIT),
         )
     except Exception:
         logger.exception("Failed to read ranking history from %s, fallback to latest table", history_table)
@@ -4901,22 +4901,22 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
             SELECT calculated_at
             FROM {ranking_table}
             WHERE video_id = %s
-              AND rank <= 100
+              AND rank <= %s
             ORDER BY calculated_at ASC
             LIMIT 1
             """,
-            (video_id,),
+            (video_id, PUBLIC_RANK_DISPLAY_LIMIT),
         )
         best_rank_rows = fetchall(
             f"""
             SELECT rank, calculated_at
             FROM {ranking_table}
             WHERE video_id = %s
-              AND rank <= 100
+              AND rank <= %s
             ORDER BY rank ASC, calculated_at ASC
             LIMIT 1
             """,
-            (video_id,),
+            (video_id, PUBLIC_RANK_DISPLAY_LIMIT),
         )
     current_rank_table = _ranking_table_for_content(video.get("content_type") or "", normalized_period)
     current_rank_rows = fetchall(
@@ -4924,11 +4924,11 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
         SELECT rank, calculated_at
         FROM {current_rank_table}
         WHERE video_id = %s
-          AND rank <= 100
+          AND rank <= %s
         ORDER BY calculated_at DESC
         LIMIT 1
         """,
-        (video_id,),
+        (video_id, PUBLIC_RANK_DISPLAY_LIMIT),
     )
     channel_subscriber_count: int | None = None
     channel_id = str(video.get("channel_id") or "").strip()
@@ -5049,11 +5049,11 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
                 v.title
             FROM related rel
             JOIN videos v ON v.video_id = rel.video_id
-            WHERE rel.best_rank <= 100
+            WHERE rel.best_rank <= %s
             ORDER BY rel.best_rank ASC, rel.first_ranked_at DESC
             LIMIT 50
             """,
-            (video.get("channel_id"), video_id),
+            (video.get("channel_id"), video_id, PUBLIC_RANK_DISPLAY_LIMIT),
         )
     except Exception:
         logger.exception("Failed to read related history from %s, fallback to latest table", history_table)
@@ -5077,11 +5077,11 @@ def _fetch_video_detail_payload(video_id: str, period_key: str = "daily") -> dic
                 v.title
             FROM related rel
             JOIN videos v ON v.video_id = rel.video_id
-            WHERE rel.best_rank <= 100
+            WHERE rel.best_rank <= %s
             ORDER BY rel.best_rank ASC, rel.first_ranked_at DESC
             LIMIT 50
             """,
-            (video.get("channel_id"), video_id),
+            (video.get("channel_id"), video_id, PUBLIC_RANK_DISPLAY_LIMIT),
         )
     if len(related_rows) > 3:
         related_rows = random.sample(related_rows, 3)
@@ -5270,7 +5270,7 @@ def render_video_detail_page(video_id: str, base_url: str = "", period_key: str 
         current_rank_value = int(payload.get("current_rank") or 0)
     except (TypeError, ValueError):
         current_rank_value = 0
-    rank_chip_value = str(current_rank_value) if 1 <= current_rank_value <= 100 else "-"
+    rank_chip_value = str(current_rank_value) if 1 <= current_rank_value <= PUBLIC_RANK_DISPLAY_LIMIT else "-"
     rank_chip_class = (
         "gold" if rank_chip_value == "1"
         else ("silver" if rank_chip_value == "2" else ("bronze" if rank_chip_value == "3" else ""))
