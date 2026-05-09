@@ -5,8 +5,9 @@ For each tracked video the growth is:
 
     growth = latest_view_count - view_count_at(now - period)
 
-Daily ranking can run in strict mode (DAILY_STRICT_24H_DIFF=1),
-which requires an old snapshot at or before (now - 24h).
+Daily ranking can run in strict mode (DAILY_STRICT_24H_DIFF=1).
+Weekly/monthly rankings require a baseline snapshot near the period start;
+newly observed videos can use their first snapshot only if it is inside the period.
 """
 
 import logging
@@ -14,7 +15,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from config import DAILY_STRICT_24H_DIFF, EXCLUDED_CHANNELS_FILE
+from config import DAILY_STRICT_24H_DIFF, EXCLUDED_CHANNELS_FILE, STATS_INTERVAL_HOURS
 from db import get_connection
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ RANKING_TABLES: dict[str, dict[str, str]] = {
 HISTORY_TABLE_SUFFIX = "_history"
 HISTORY_RANK_LIMIT = 100
 DAILY_BASE_WINDOW_HOURS = 6
+PERIOD_BASE_WINDOW_HOURS = max(24, int(STATS_INTERVAL_HOURS) * 3)
 
 CLIP_KEYWORD_PATTERN = "%切り抜き%"
 VSPO_GROUP_NAME = "VSPO"
@@ -96,7 +98,15 @@ def _growth_expression(is_strict_daily: bool) -> str:
                                 ELSE l.view_count - o.view_count
                             END
         """
-    return "l.view_count - COALESCE(o.view_count, f.view_count, l.view_count)"
+    return """
+                            CASE
+                                WHEN o.video_id IS NOT NULL
+                                    THEN l.view_count - o.view_count
+                                WHEN f.timestamp >= %s
+                                    THEN l.view_count - COALESCE(f.view_count, l.view_count)
+                                ELSE NULL
+                            END
+        """
 
 
 def _build_ranking_sql(
@@ -109,9 +119,10 @@ def _build_ranking_sql(
                     old_stats AS (
                         SELECT DISTINCT ON (video_id)
                             video_id,
-                            view_count
+                            view_count,
+                            timestamp
                         FROM video_stats
-                        WHERE timestamp <= %s
+                        WHERE timestamp BETWEEN %s AND %s
                         ORDER BY video_id, timestamp DESC
                     ),
     """
@@ -120,7 +131,8 @@ def _build_ranking_sql(
                     old_stats AS (
                         SELECT DISTINCT ON (video_id)
                             video_id,
-                            view_count
+                            view_count,
+                            timestamp
                         FROM video_stats
                         WHERE timestamp BETWEEN %s AND %s
                         ORDER BY
@@ -152,7 +164,8 @@ def _build_ranking_sql(
                     first_stats AS (
                         SELECT DISTINCT ON (video_id)
                             video_id,
-                            view_count
+                            view_count,
+                            timestamp
                         FROM video_stats
                         ORDER BY video_id, timestamp ASC
                     ),
@@ -203,7 +216,9 @@ def _build_ranking_params(
         params: list[object] = [period_lower, period_upper, period_start]
         params.append(now_utc)
     else:
-        params = [period_start]
+        window_hours = max(1, int(PERIOD_BASE_WINDOW_HOURS))
+        period_lower = period_start - timedelta(hours=window_hours)
+        params = [period_lower, period_start, period_start]
     params.extend([
         CLIP_KEYWORD_PATTERN,
         CLIP_KEYWORD_PATTERN,
@@ -258,7 +273,8 @@ def _calculate_ranking(
       - videos published before today (JST): requires old snapshot at/before (now - 24h)
 
     Non-strict mode (weekly/monthly and optional daily fallback):
-      - falls back to first snapshot when historical cutoff snapshot is missing
+      - uses a baseline snapshot near the period start
+      - uses the first snapshot only for videos first observed inside the period
     """
     now_utc = datetime.now(timezone.utc)
     period_start = now_utc - timedelta(hours=period_hours)

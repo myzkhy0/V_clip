@@ -687,6 +687,19 @@ def _rank_label_for_detail(rank_value: int | None, top_n: int = 100) -> str:
 
 def _normalize_period_key(period_key: str | None) -> str:
     normalized = (period_key or "").strip().lower()
+    aliases = {
+        "24h": "daily",
+        "1d": "daily",
+        "7d": "weekly",
+        "7day": "weekly",
+        "7days": "weekly",
+        "week": "weekly",
+        "30d": "monthly",
+        "30day": "monthly",
+        "30days": "monthly",
+        "month": "monthly",
+    }
+    normalized = aliases.get(normalized, normalized)
     return normalized if normalized in {"daily", "weekly", "monthly"} else "daily"
 
 
@@ -783,6 +796,8 @@ def _render_cards(
         share_title = title_plain
         share_prefix = _share_prefix_for_period(period_key, month_day, row["rank"], content_label)
         share_detail_url = f"https://vclipranking.com/video/{video_id}"
+        if period_key != "daily":
+            share_detail_url += f"?period={quote(period_key, safe='')}"
         share_text = (
             f"{share_prefix}\n\n"
             f"{share_title}\n"
@@ -1259,6 +1274,19 @@ def _json_response(
 
 def _normalize_period_param(raw: str) -> str:
     value = (raw or "").strip().lower()
+    aliases = {
+        "24h": "daily",
+        "1d": "daily",
+        "7d": "weekly",
+        "7day": "weekly",
+        "7days": "weekly",
+        "week": "weekly",
+        "30d": "monthly",
+        "30day": "monthly",
+        "30days": "monthly",
+        "month": "monthly",
+    }
+    value = aliases.get(value, value)
     if value in PERIOD_TABLE_MAP:
         return value
     return ""
