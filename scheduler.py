@@ -24,7 +24,6 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from collector import run_collector
 from config import (
     CHANNEL_UPDATE_INTERVAL_HOURS,
-    PUBLIC_RANK_DISPLAY_LIMIT,
     SEARCH_CRON_HOURS_JST,
     SEARCH_CRON_MINUTE_JST,
     STATS_INTERVAL_HOURS,
@@ -258,12 +257,11 @@ def _filter_rows_by_x_excluded_channels(rows: list[dict]) -> list[dict]:
 
 def _daily_rows_for_x(content_type: str, top_n: int = 200) -> list[dict]:
     normalized = _normalize_content_type(content_type)
-    limit = min(max(1, int(top_n)), max(1, int(PUBLIC_RANK_DISPLAY_LIMIT)))
-    _, strict_rows = _fetch_latest_rankings(_ranking_table_for(normalized), top_n=limit)
+    _, strict_rows = _fetch_latest_rankings(_ranking_table_for(normalized), top_n=top_n)
     provisional_rows: list[dict] = []
     if normalized == "shorts":
-        provisional_rows = _fetch_daily_provisional_rows("shorts", top_n=limit)
-    return _merge_daily_rows(strict_rows, provisional_rows, top_n=limit)
+        provisional_rows = _fetch_daily_provisional_rows("shorts", top_n=top_n)
+    return _merge_daily_rows(strict_rows, provisional_rows, top_n=top_n)
 
 
 def _build_overall_text(content_type: str) -> str:

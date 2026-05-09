@@ -196,7 +196,6 @@ CHANNEL_UPDATE_INTERVAL_HOURS: int = int(os.getenv("CHANNEL_UPDATE_INTERVAL_HOUR
 STATS_INTERVAL_HOURS: int = int(os.getenv("STATS_INTERVAL_HOURS", "4"))
 LONG_TERM_STATS_DAYS: int = int(os.getenv("LONG_TERM_STATS_DAYS", "35"))
 LONG_TERM_STATS_INTERVAL_HOURS: int = int(os.getenv("LONG_TERM_STATS_INTERVAL_HOURS", "24"))
-PUBLIC_RANK_DISPLAY_LIMIT: int = int(os.getenv("PUBLIC_RANK_DISPLAY_LIMIT", "50"))
 
 # ── Cold scheduling (channel refresh load reduction) ─────────────────
 ENABLE_COLD_SCHEDULING: bool = _env_bool("ENABLE_COLD_SCHEDULING", "0")
